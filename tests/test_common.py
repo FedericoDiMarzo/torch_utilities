@@ -167,6 +167,25 @@ class TestSTFT(unittest.TestCase):
         self.assertEqual(len(x_istft.shape), 2)
         self.assertEqual(x_istft.shape[0], 4)
 
+    def test_inversion(self):
+        eps = 1e-6
+        x_len = 16000
+        x = np.random.uniform(-1, 1, x_len)
+        kwargs = dict(
+            sample_rate=self.sample_rate,
+            framesize_ms=self.framesize_ms,
+        )
+        x_stft = TU.stft(x, **kwargs)
+        x_hat = TU.istft(x_stft, **kwargs)
+
+        # skipping the fist frame (due to the windowing artifacts)
+        x_len -= 1
+        x = x[1:]
+        x_hat = x_hat[1:]
+        err = np.mean(np.abs(x - x_hat[:x_len]))
+
+        self.assertLess(err, eps)
+
     def test_tensor_mono_stft(self):
         x = self.x_pt
         for ovs, bins in zip([1, 4], [81, 321]):
@@ -212,6 +231,7 @@ class TestSTFT(unittest.TestCase):
         )
         self.assertEqual(len(x_istft.shape), 2)
         self.assertEqual(x_istft.shape[0], 4)
+
 
 if __name__ == "__main__":
     unittest.main()
