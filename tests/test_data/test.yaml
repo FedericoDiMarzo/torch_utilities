@@ -1,0 +1,11 @@
+---  
+section1:
+  param1: test
+  param2: 42
+  param3:
+    - a
+    - b
+    - c
+
+section2:
+  param4: 12.34
