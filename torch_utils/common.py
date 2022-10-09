@@ -1,5 +1,6 @@
+from torch.utils.data import Sampler, Dataset, DataLoader
 from torchaudio.functional import resample
-from typing import Tuple, Type, Union
+from typing import Optional, Tuple, Type, Union
 import torch.nn.functional as F
 from torch import Tensor, nn
 from pathlib import Path
@@ -7,6 +8,7 @@ import soundfile as sf
 import numpy as np
 import torchaudio
 import torch
+import h5py
 import yaml
 
 # export list
@@ -363,3 +365,75 @@ def to_numpy(x: Tensor) -> np.ndarray:
         Converted np array
     """
     return x.cpu().detach().numpy()
+
+
+# = = = = pytorch data loading
+class WeakShufflingSampler(Sampler):
+    def __init__(self, dataset: Dataset, batch_size: int):
+        """
+        Sampler that implements weak-shuffling.
+
+        E.g. if dataset is [1,2,3,4] with batch_size=2,
+             then first batch, [[1,2], [3,4]] then
+             shuffle batches -> [[3,4],[1,2]]
+
+        Referenece:
+        https://towardsdatascience.com/reading-h5-files-faster-with-pytorch-datasets-3ff86938cc
+
+        Parameters
+        ----------
+        dataset : Dataset
+            Source dataset
+        batch_size : int
+            Size of the batches
+        """
+        self.batch_size = batch_size
+        self.dataset_length = len(dataset)
+        self.n_batches = int(np.ceil((self.dataset_length / self.batch_size)))
+        self.batch_ids = torch.randperm(self.n_batches)
+
+    def __len__(self):
+        return self.batch_size
+
+    def __iter__(self):
+        datalen = self.dataset_length
+        for id in self.batch_ids:
+            start = id * self.batch_size
+            end = (id + 1) * self.batch_size
+            end = end if end < datalen else datalen
+            selection = torch.arange(start, end)
+            for index in selection:
+                yield int(index)
+
+
+class DatasetHDF5(Dataset):
+    def __init__(
+        self,
+        dataset_path: Path,
+        data_layout: dict[str],
+        group_batch_len: int,
+        cache_size: Optional[int] = None,
+        max_items: Optional[bool] = None,
+    ) -> None:
+        super().__init__()
+        self.dataset_path = dataset_path
+        self.data_layout = data_layout
+        self.group_batch_len = group_batch_len
+        self.cache_size = cache_size
+        self.max_items = max_items
+        self._cache = []
+
+        with h5py.File(self.dataset_path, "r") as ds:
+            self.groups = ds["/"].keys()
+
+    def __len__(self):
+        return len(self.groups) * self.group_batch_len
+
+    def __getitem__(self, idx):
+        idx_str = str(idx)
+        if self._in_cache(idx):
+            pass
+
+    def _in_cache(self, idx: int) -> bool:
+        gbl = self.group_batch_len
+        return any([idx >= g * gbl and idx < (g + 1) * gbl for g in self.groups])
