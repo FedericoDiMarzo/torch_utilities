@@ -121,30 +121,30 @@ class TestSTFT(unittest.TestCase):
         self.x_np_stft = np.zeros((50, 321)).astype(complex)
         self.x_pt_stft = torch.zeros((50, 321)).type(torch.cfloat)
 
-    # def test_mono_stft(self):
-    #     x = self.x_np
-    #     for ovs, bins in zip([1, 4], [81, 321]):
-    #         x_stft = TU.stft(
-    #             x,
-    #             sample_rate=self.sample_rate,
-    #             framesize_ms=self.framesize_ms,
-    #             frame_oversampling=ovs,
-    #         )
-    #         self.assertEqual(len(x_stft.shape), 2)
-    #         self.assertEqual(x_stft.shape[1], bins)
+    def test_mono_stft(self):
+        x = self.x_np
+        for ovs, bins in zip([1, 4], [81, 321]):
+            x_stft = TU.stft(
+                x,
+                sample_rate=self.sample_rate,
+                framesize_ms=self.framesize_ms,
+                frame_oversampling=ovs,
+            )
+            self.assertEqual(len(x_stft.shape), 2)
+            self.assertEqual(x_stft.shape[1], bins)
 
-    # def test_multich_stft(self):
-    #     x = np.stack([self.x_np] * 4)
-    #     for ovs, bins in zip([1, 4], [81, 321]):
-    #         x_stft = TU.stft(
-    #             x,
-    #             sample_rate=self.sample_rate,
-    #             framesize_ms=self.framesize_ms,
-    #             frame_oversampling=ovs,
-    #         )
-    #         self.assertEqual(len(x_stft.shape), 3)
-    #         self.assertEqual(x_stft.shape[0], 4)
-    #         self.assertEqual(x_stft.shape[2], bins)
+    def test_multich_stft(self):
+        x = np.stack([self.x_np] * 4)
+        for ovs, bins in zip([1, 4], [81, 321]):
+            x_stft = TU.stft(
+                x,
+                sample_rate=self.sample_rate,
+                framesize_ms=self.framesize_ms,
+                frame_oversampling=ovs,
+            )
+            self.assertEqual(len(x_stft.shape), 3)
+            self.assertEqual(x_stft.shape[0], 4)
+            self.assertEqual(x_stft.shape[2], bins)
 
     def test_mono_istft(self):
         x = self.x_np_stft
@@ -156,17 +156,16 @@ class TestSTFT(unittest.TestCase):
         )
         self.assertEqual(len(x_istft.shape), 1)
 
-    # def test_multich_istft(self):
-    #     x = np.stack([self.x_np] * 4)
-    #     x_istft = TU.stft(
-    #         x,
-    #         sample_rate=self.sample_rate,
-    #         framesize_ms=self.framesize_ms,
-    #         frame_oversampling=1,
-    #     )
-    #     self.assertEqual(len(x_istft.shape), 4)
-    #     self.assertEqual(x_istft.shape[0], 4)
-    #     self.assertEqual(x_istft.shape[3], 81)
+    def test_multich_istft(self):
+        x = np.stack([self.x_np_stft] * 4)
+        x_istft = TU.istft(
+            x,
+            sample_rate=self.sample_rate,
+            framesize_ms=self.framesize_ms,
+            frame_oversampling=4,
+        )
+        self.assertEqual(len(x_istft.shape), 2)
+        self.assertEqual(x_istft.shape[0], 4)
 
 
 if __name__ == "__main__":

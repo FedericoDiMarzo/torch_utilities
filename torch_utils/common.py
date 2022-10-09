@@ -1,5 +1,6 @@
-import torchaudio.functional as F
+from torchaudio.functional import resample
 from typing import Tuple, Type, Union
+import torch.nn.functional as F
 from torch import Tensor, nn
 from pathlib import Path
 import soundfile as sf
@@ -8,13 +9,26 @@ import torchaudio
 import torch
 import yaml
 
+# export list
+__all__ = [
+    "DotDict",
+    "Config",
+    "Config",
+    "load_audio",
+    "save_audio",
+    "stft",
+    "istft",
+    "get_device",
+    "to_numpy",
+]
+
 # = = = = generic utilities
 
 
 class DotDict(dict):
     """
     A dict that allows dot notation
-    for accessing to the elements.
+    for accessing to the elements
     """
 
     __getattr__ = dict.get
@@ -107,7 +121,7 @@ def load_audio(
         if sample_rate is None:
             sample_rate = old_sample_rate
         else:
-            data = F.resample(data, old_sample_rate, sample_rate)
+            data = resample(data, old_sample_rate, sample_rate)
 
     return data, sample_rate
 
@@ -153,7 +167,7 @@ def stft(
     Parameters
     ----------
     x : Union[np.ndarray, Tensor]
-        Input signal
+        Input signal of shape (..., T)
     sample_rate : int, optional
         Sample rate of the signal, by default 16000
     framesize_ms : int, optional
@@ -168,7 +182,7 @@ def stft(
     Returns
     -------
     Union[np.ndarray, Tensor]
-        STFT of the input
+        STFT of the input of shape (..., T', F')
 
     Raises
     ------
@@ -194,7 +208,7 @@ def istft(
     Parameters
     ----------
     x : Union[np.ndarray, Tensor]
-        Input signal
+        Input signal of shape (..., T, F)
     sample_rate : int, optional
         Sample rate of the signal, by default 16000
     framesize_ms : int, optional
@@ -209,7 +223,7 @@ def istft(
     Returns
     -------
     Union[np.ndarray, Tensor]
-        ISTFT of the input
+        ISTFT of the input of shape (..., T')
 
     Raises
     ------
@@ -218,7 +232,7 @@ def istft(
     """
     return _stft_istft_core(
         x, False, sample_rate, framesize_ms, window, window_overlap, frame_oversampling
-    )  # .permute(*y.shape[:-3], -1, -2, -3)
+    )
 
 
 def _stft_istft_core(
@@ -228,7 +242,7 @@ def _stft_istft_core(
     framesize_ms: int = 10,
     window="hann_window",
     window_overlap=0.5,
-    frame_oversampling=4,
+    frame_oversampling=2,
 ) -> Union[np.ndarray, Tensor]:
     """
     Calculates the STFT/ISTFT of a signal.
@@ -284,13 +298,19 @@ def _stft_istft_core(
     _window = torch.zeros(n_fft)
     _window[:win_length] = win_fun(win_length)
 
-    # performing the STFT/ISTFT
-    transform = torch.stft if is_stft else torch.istft
-
-    # reshaping
+    # STFT/ISTFT dependent code
     _transpose = lambda x: x.transpose(-1, -2)
-    if not is_stft:
+    if is_stft:
+        transform = torch.stft
+        # compensating for oversampling
+        padding = n_fft - win_length
+        x = F.pad(x, (0, padding))
+    else:
+        transform = torch.istft
         x = _transpose(x)
+        # fix for torch NOLA check
+        eps = 1e-5
+        _window[_window < eps] = eps
 
     y = transform(
         x,
@@ -298,6 +318,7 @@ def _stft_istft_core(
         hop_length=hop_size,
         window=_window,
         return_complex=is_stft,
+        center=False,
     )
 
     # reshaping
