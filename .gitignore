@@ -161,3 +161,9 @@ cython_debug/
 
 # IDE
 .vscode
+
+# audio
+*.wav
+
+# tests
+tests/test_data
