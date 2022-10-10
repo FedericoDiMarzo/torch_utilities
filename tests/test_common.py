@@ -7,10 +7,7 @@ import torch
 
 set_module_root("../torch_utils", prefix=True)
 import torch_utils as TU
-
-
-def get_test_data_dir():
-    return Path(__file__).parent / "test_data"
+from tests.generate_test_data import get_test_data_dir
 
 
 class TestConfig(unittest.TestCase):
