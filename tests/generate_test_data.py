@@ -47,7 +47,7 @@ def generate_hdf5(groups: int = 10, group_len: int = 16):
             g = ds.create_group(f"group_{i}")
             for layout in data_layout:
                 g_name = layout
-                g.create_dataset(g_name, data=np.zeros((group_len, 8)))
+                g.create_dataset(g_name, data=np.ones((group_len, 8)) * i)
 
 
 def generate_yaml():
