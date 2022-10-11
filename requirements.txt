@@ -5,3 +5,4 @@ torchaudio
 pathimport
 soundfile
 numpy
+loguru
