@@ -1,8 +1,9 @@
-from torch.utils.data import Sampler, Dataset, DataLoader
-from torchaudio.functional import resample
+from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler, SequentialSampler
 from typing import Optional, Tuple, Type, Union
+from torchaudio.functional import resample
 import torch.nn.functional as F
 from torch import Tensor, nn
+from loguru import logger
 from pathlib import Path
 import soundfile as sf
 import numpy as np
@@ -368,6 +369,8 @@ def to_numpy(x: Tensor) -> np.ndarray:
 
 
 # = = = = pytorch data loading
+
+
 class WeakShufflingSampler(Sampler):
     def __init__(self, dataset: Dataset, batch_size: int):
         """
@@ -406,34 +409,114 @@ class WeakShufflingSampler(Sampler):
                 yield int(index)
 
 
-class DatasetHDF5(Dataset):
+class HDF5Dataset(Dataset):
     def __init__(
         self,
         dataset_path: Path,
-        data_layout: dict[str],
-        group_batch_len: int,
-        cache_size: Optional[int] = None,
-        max_items: Optional[bool] = None,
+        data_layout: list,
     ) -> None:
+        """
+        Dataset supporting HDF5 format.
+
+        The following constraints should be satisfied
+        by the HDF5 file for a correct behaviour:
+        - Multiple single-level groups (e.g. /group1, /group2, ...)
+        - The batch size (first dimension) of each dataset is the same
+        - Each group has len(data_layout) dataset inside
+
+        Parameters
+        ----------
+        dataset_path : Path
+            Path to the .hdf5 file
+        data_layout : list
+            Dictionary describing the layout of the data
+            inside each group. For an input-label1-label2
+            dataset the list would be ["input", "label1", "label2"]
+        """
         super().__init__()
         self.dataset_path = dataset_path
         self.data_layout = data_layout
-        self.group_batch_len = group_batch_len
-        self.cache_size = cache_size
-        self.max_items = max_items
-        self._cache = []
-
-        with h5py.File(self.dataset_path, "r") as ds:
-            self.groups = ds["/"].keys()
+        self.dataset_file = h5py.File(self.dataset_path, "r")
+        self.groups = list(self.dataset_file.keys())
+        self.group_batch_len = self.dataset_file[self.groups[0]][self.data_layout[0]].shape[0]
+        self.data_layout = data_layout
+        self._cache = None
+        self._cache_idx = None
 
     def __len__(self):
         return len(self.groups) * self.group_batch_len
 
     def __getitem__(self, idx):
-        idx_str = str(idx)
-        if self._in_cache(idx):
-            pass
+        # error handling
+        err_msg = None
+        if not isinstance(idx, list):
+            err_msg = "HDF5Dataset must be sampled by a BatchLoader"
+        elif len(idx) > self.group_batch_len:
+            err_msg = "Reduce the batch size to be less than the batch size of the groups"
+        elif idx[0] % self.group_batch_len != 0:
+            err_msg = "Modify the batch size to be a divider of the HDF5 group batch size"
+        if err_msg is not None:
+            logger.error(err_msg)
+
+        # cache update
+        if not self._in_cache(idx[0]):
+            self._update_cache(idx[0])
+
+        # using the cache
+        gbl = self.group_batch_len
+        a, b = idx[0] % gbl, idx[-1] % gbl
+        data = {k: d[a:b] for k, d in self._cache.items()}
+
+        return data
+
+    def _update_cache(self, idx: int) -> None:
+        """
+        Caches a group in memory.
+
+        Parameters
+        ----------
+        idx : int
+            Index of an element of the group
+        """
+        # getting the starting index of a group
+        self._cache_idx = idx
+
+        # updating the cache
+        del self._cache
+        g_idx = idx // self.group_batch_len
+        g = self.dataset_file[self.groups[g_idx]]
+        cast = lambda x: Tensor(np.array(x))
+        data = {k: cast(g[k]) for k in self.data_layout}
+        self._cache = data
 
     def _in_cache(self, idx: int) -> bool:
-        gbl = self.group_batch_len
-        return any([idx >= g * gbl and idx < (g + 1) * gbl for g in self.groups])
+        """
+        Checks if an index is inside the cache.
+
+        Parameters
+        ----------
+        idx : int
+            Target index
+
+        Returns
+        -------
+        bool
+            True if the element is inside the cache
+        """
+        c_idx = self._cache_idx
+        flag = (c_idx is not None) and (idx >= c_idx and idx < (c_idx + self.group_batch_len))
+        return flag
+
+
+if __name__ == "__main__":
+    dataset_path = Path("/home/deema/workspaces/torch_utils/tests/test_data/dataset.hdf5")
+    data_layout = ["x", "y_true"]
+    dataset = HDF5Dataset(dataset_path, data_layout)
+    batch_size = dataset.group_batch_len
+    sampler = BatchSampler(SequentialSampler(dataset), batch_size=batch_size, drop_last=True)
+    dataloader = DataLoader(
+        dataset,
+        sampler=sampler,
+    )
+    for x in dataloader:
+        print(x["x"][0, 0])
