@@ -14,24 +14,29 @@ import yaml
 
 # export list
 __all__ = [
+    # generic utilities
     "DotDict",
     "Config",
-    "Config",
+    "get_np_or_torch"
+    # io utilities
     "load_audio",
     "save_audio",
+    # audio utilities
     "stft",
     "istft",
-    "get_device",
-    "to_numpy",
-    "WeakShufflingSampler",
-    "HDF5Dataset",
-    "get_hdf5_dataloader",
     "db",
     "invert_db",
     "power",
     "energy",
     "rms",
     "snr",
+    # pytorch utilities
+    "get_device",
+    "to_numpy",
+    # pytorch data loading
+    "WeakShufflingSampler",
+    "HDF5Dataset",
+    "get_hdf5_dataloader",
 ]
 
 # = = = = generic utilities
