@@ -1,5 +1,5 @@
 from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler, SequentialSampler
-from typing import Optional, Tuple, Type, Union
+from typing import Tuple, Type, Union
 from torchaudio.functional import resample
 import torch.nn.functional as F
 from torch import Tensor, nn
@@ -23,6 +23,15 @@ __all__ = [
     "istft",
     "get_device",
     "to_numpy",
+    "WeakShufflingSampler",
+    "HDF5Dataset",
+    "get_hdf5_dataloader",
+    "db",
+    "invert_db",
+    "power",
+    "energy",
+    "rms",
+    "snr",
 ]
 
 # = = = = generic utilities
@@ -87,6 +96,27 @@ class Config:
             return default
 
         return param
+
+
+def get_np_or_torch(x: Union[np.ndarray, Tensor]):
+    """
+    Returns numpy or torch modules depending on the input
+
+    Parameters
+    ----------
+    x : Union[np.ndarray, Tensor]
+        Input
+
+    Returns
+    -------
+    Module
+        numpy or torch
+    """
+    if isinstance(x, Tensor):
+        return torch
+    else:
+        torch.iscomplex = torch.is_complex
+        return np
 
 
 # = = = = io utilities
@@ -335,6 +365,129 @@ def _stft_istft_core(
     return y
 
 
+def db(x: Union[np.ndarray, Tensor]) -> Union[np.ndarray, Tensor]:
+    """
+    Converts linear to dB
+
+    Parameters
+    ----------
+    x : Union[np.ndarray, Tensor]
+        Input signal amplitude
+
+    Returns
+    -------
+    float
+        Input in dB
+    """
+    eps = 1e-12
+    module = get_np_or_torch(x)
+    return 20 * module.log10(x + eps)
+
+
+def invert_db(x: Union[np.ndarray, Tensor]) -> Union[np.ndarray, Tensor]:
+    """
+    Converts dB to linear
+
+    Parameters
+    ----------
+    x : Union[np.ndarray, Tensor]
+        Input signal amplitude in dB
+
+    Returns
+    -------
+    float
+        Input inverting dB
+    """
+    return 10 ** (x / 20)
+
+
+def power(x: Union[np.ndarray, Tensor]) -> float:
+    """
+    Power of a signal, calculated for each channel.
+
+    Parameters
+    ----------
+    x : Union[np.ndarray, Tensor]
+        Input signal
+
+    Returns
+    -------
+    float
+        Power of the signal
+    """
+    module = get_np_or_torch(x)
+    _power = module.einsum("...t,...t->...", x, x.conj())
+    _power = module.einsum("...t,...t->...", x, x.conj())
+    return _power
+
+
+def energy(x: Union[np.ndarray, Tensor]) -> float:
+    """
+    Energy of a signal, calculated for each channel.
+
+    Parameters
+    ----------
+    x : Union[np.ndarray, Tensor]
+        Input signal
+
+    Returns
+    -------
+    float
+        Energy of the signal
+    """
+    samples = x.shape[-1]
+    return power(x) / samples
+
+
+def rms(x: Union[np.ndarray, Tensor]) -> float:
+    """
+    RMS of a signal, calculated for each channel.
+
+    Parameters
+    ----------
+    x : Union[np.ndarray, Tensor]
+        Input signal
+
+    Returns
+    -------
+    float
+        RMS of the signal
+    """
+    module = get_np_or_torch(x)
+    return module.sqrt(energy(x))
+
+
+def snr(x: Union[np.ndarray, Tensor], noise: Union[np.ndarray, Tensor]) -> float:
+    """
+    Signal to Noise Ratio (SNR) ratio in dB,
+    calculated considering the RMS.
+
+    Parameters
+    ----------
+    x : Union[np.ndarray, Tensor]
+        Signal of interest
+    noise : Union[np.ndarray, Tensor]
+        Interference
+
+    Returns
+    -------
+    float
+        SNR in db
+    """
+    err_msg0 = "snr supports only 1D and 2D signals"
+    assert len(x.shape) in [1, 2], err_msg0
+    assert len(noise.shape) in [1, 2], err_msg0
+    err_msg1 = "x and noise should be of the same type"
+    assert type(x) == type(noise), err_msg1
+
+    module = get_np_or_torch(x)
+    channel_mean = lambda x: module.mean(x, -2) if len(x.shape) == 1 else x
+    a = channel_mean(db(rms(x)))
+    b = channel_mean(db(rms(noise)))
+    snr = a - b
+    return snr
+
+
 # = = = = pytorch utilities
 
 
@@ -453,10 +606,10 @@ class HDF5Dataset(Dataset):
             err_msg = "HDF5Dataset must be sampled by a BatchLoader"
         elif len(idx) > self.group_batch_len:
             err_msg = "Reduce the batch size to be less than the batch size of the groups"
-        elif idx[0] % self.group_batch_len != 0:
+        elif self.group_batch_len % len(idx) != 0:
             err_msg = "Modify the batch size to be a divider of the HDF5 group batch size"
         if err_msg is not None:
-            logger.error(err_msg)
+            raise RuntimeError(err_msg)
 
         # cache update
         if not self._in_cache(idx[0]):
@@ -508,15 +661,39 @@ class HDF5Dataset(Dataset):
         return flag
 
 
-if __name__ == "__main__":
-    dataset_path = Path("/home/deema/workspaces/torch_utils/tests/test_data/dataset.hdf5")
-    data_layout = ["x", "y_true"]
-    dataset = HDF5Dataset(dataset_path, data_layout)
-    batch_size = dataset.group_batch_len
-    sampler = BatchSampler(SequentialSampler(dataset), batch_size=batch_size, drop_last=True)
-    dataloader = DataLoader(
-        dataset,
-        sampler=sampler,
+def get_hdf5_dataloader(
+    dataset: HDF5Dataset,
+    batch_size: int = None,
+    dataloader_kwargs: dict = None,
+):
+    """
+    Create a dataloader binded to a HDF5Dataset.
+
+    Parameters
+    ----------
+    dataset : HDF5Dataset
+        HDF5 Dataset
+    batch_size : int, optional
+        Batch size of the dataloader, by default HDF5Dataset.group_batch_len
+    dataloader_kwargs : dict, optional
+        DataLoader arguments, by default {}
+    """
+    if batch_size is None:
+        batch_size = dataset.group_batch_len
+
+    if dataloader_kwargs is None:
+        dataloader_kwargs = {}
+
+    sampler = BatchSampler(
+        SequentialSampler(dataset),
+        batch_size=batch_size,
+        drop_last=False,
     )
-    for x in dataloader:
-        print(x["x"][0, 0])
+
+    dataloader = DataLoader(
+        dataset=dataset,
+        sampler=sampler,
+        **dataloader_kwargs,
+    )
+
+    return dataloader

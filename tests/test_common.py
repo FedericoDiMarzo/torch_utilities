@@ -1,3 +1,4 @@
+from typing import Callable
 import unittest
 from pathlib import Path
 from pathimport import set_module_root
@@ -8,6 +9,9 @@ import torch
 set_module_root("../torch_utils", prefix=True)
 import torch_utils as TU
 from tests.generate_test_data import get_test_data_dir
+
+torch.manual_seed(984)
+np.random.seed(876)
 
 
 class TestConfig(unittest.TestCase):
@@ -35,7 +39,7 @@ class TestConfig(unittest.TestCase):
         self.assertEqual(y_true, y_test)
 
     def test_get_float(self):
-        y_true = 12.34
+        y_true = 12.43
         y_test = self.config.get("section2", "param4", float)
         self.assertAlmostEqual(y_true, y_test)
 
@@ -228,6 +232,166 @@ class TestSTFT(unittest.TestCase):
         )
         self.assertEqual(len(x_istft.shape), 2)
         self.assertEqual(x_istft.shape[0], 4)
+
+
+class TestHDF5DataLoader(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        pass
+
+    def setUp(self):
+        self.data_layout = ["x", "y_true"]
+        self.hdf5_path = get_test_data_dir() / "dataset.hdf5"
+        self.dataset = TU.HDF5Dataset(self.hdf5_path, self.data_layout)
+
+    def dummy_input(self, g_idx):
+        return torch.ones((16, 8)) * g_idx
+
+    def test_weak_shuffling_len(self):
+        batch_size = 16
+        sampler = TU.WeakShufflingSampler(self.dataset, batch_size)
+        self.assertEqual(len(sampler), batch_size)
+
+    def test_hdf5dataset_cache(self):
+        group_len = 16
+
+        self.assertEqual(self.dataset._cache, None)
+        self.assertEqual(self.dataset._cache_idx, None)
+
+        self.dataset[[0, 1]]
+        self.assertTrue(torch.all(self.dataset._cache["x"] == self.dummy_input(0)))
+        self.assertTrue(torch.all(self.dataset._cache["y_true"] == self.dummy_input(0)))
+        self.assertEqual(self.dataset._cache_idx, 0)
+
+        self.dataset[[group_len * 3, group_len * 3 + 1]]
+        self.assertTrue(torch.all(self.dataset._cache["x"] == self.dummy_input(3)))
+        self.assertTrue(torch.all(self.dataset._cache["y_true"] == self.dummy_input(3)))
+        self.assertEqual(self.dataset._cache_idx, group_len * 3)
+
+    def test_hdf5dataset_raise_idx_not_list(self):
+        with self.assertRaises(RuntimeError):
+            self.dataset[0]
+
+    def test_hdf5dataset_raise_idx_len_too_long(self):
+        with self.assertRaises(RuntimeError):
+            self.dataset[list(range(17))]
+
+    def test_hdf5dataset_raise_idx_len_not_divisor(self):
+        with self.assertRaises(RuntimeError):
+            self.dataset[[1, 2, 3]]
+
+    def test_hdf5_dataloader_full_batch(self):
+        dataloader = TU.get_hdf5_dataloader(self.dataset, 16)
+        data = [x for x in dataloader]
+        self.assertEqual(len(data), 10)
+
+    def test_hdf5_dataloader_half_batch(self):
+        dataloader = TU.get_hdf5_dataloader(self.dataset, 8)
+        data = [x for x in dataloader]
+        self.assertEqual(len(data), 20)
+
+
+class TestAudio(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        pass
+
+    def setUp(self):
+        pass
+
+    def test_db(self):
+        x = np.random.uniform(0, 1, 100)
+        y = TU.db(x)
+        x_hat = TU.invert_db(y)
+        self.assertTrue(np.allclose(x, x_hat))
+
+    def test_db_tensor(self):
+        x = torch.rand(100)
+        y = TU.db(x)
+        x_hat = TU.invert_db(y)
+        self.assertTrue(np.allclose(x, x_hat))
+
+    def test_power(self):
+        x = np.ones(100)
+        x[50:] = -1
+        self.assertAlmostEqual(TU.power(x), 100)
+
+    def test_power_multichannel(self):
+        x = np.ones((2, 100))
+        x[:, 50:] = -1
+        y = TU.power(x)
+        self.assertAlmostEqual(y[0], 100)
+        self.assertAlmostEqual(y[1], 100)
+
+    def test_power_tensor(self):
+        x = torch.ones(100)
+        x[50:] = -1
+        self.assertAlmostEqual(TU.power(x), 100)
+
+    def test_power_multichannel_tensor(self):
+        x = torch.ones((2, 100))
+        x[:, 50:] = -1
+        y = TU.power(x)
+        self.assertAlmostEqual(y[0], 100)
+        self.assertAlmostEqual(y[1], 100)
+
+    def test_energy(self):
+        x = np.ones(100)
+        x[50:] = -1
+        self.assertAlmostEqual(TU.energy(x), 1)
+
+    def test_energy_multichannel(self):
+        x = np.ones((2, 100))
+        x[:, 50:] = -1
+        y = TU.energy(x)
+        self.assertAlmostEqual(y[0], 1)
+        self.assertAlmostEqual(y[1], 1)
+
+    def test_energy_tensor(self):
+        x = torch.ones(100)
+        x[50:] = -1
+        self.assertAlmostEqual(TU.energy(x), 1)
+
+    def test_energy_multichannel_tensor(self):
+        x = torch.ones((2, 100))
+        x[:, 50:] = -1
+        y = TU.energy(x)
+        self.assertAlmostEqual(y[0], 1)
+        self.assertAlmostEqual(y[1], 1)
+
+    def test_rms(self):
+        x = np.ones(100)
+        x[50:] = -1
+        self.assertAlmostEqual(TU.rms(x), 1)
+
+    def test_rms_multichannel(self):
+        x = np.ones((2, 100))
+        x[:, 50:] = -1
+        y = TU.rms(x)
+        self.assertAlmostEqual(y[0], 1)
+        self.assertAlmostEqual(y[1], 1)
+
+    def test_rms_tensor(self):
+        x = torch.ones(100)
+        x[50:] = -1
+        self.assertAlmostEqual(TU.rms(x), 1)
+
+    def test_rms_multichannel_tensor(self):
+        x = torch.ones((2, 100))
+        x[:, 50:] = -1
+        y = TU.rms(x)
+        self.assertAlmostEqual(y[0], 1)
+        self.assertAlmostEqual(y[1], 1)
+
+    def test_snr(self):
+        x = np.ones(10) * 10
+        noise = np.ones(10) * 1
+        self.assertAlmostEqual(TU.snr(x, noise), 20)
+
+    def test_snr_tensor(self):
+        x = torch.ones(10) * 10
+        noise = torch.ones(10) * 1
+        self.assertAlmostEqual(TU.snr(x, noise), 20)
 
 
 if __name__ == "__main__":
