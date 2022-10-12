@@ -2,9 +2,8 @@ from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler, Sequent
 from typing import Tuple, Type, Union
 from torchaudio.functional import resample
 import torch.nn.functional as F
-from torch import Tensor, nn
-from loguru import logger
 from pathlib import Path
+from torch import Tensor
 import soundfile as sf
 import numpy as np
 import torchaudio
@@ -17,7 +16,7 @@ __all__ = [
     # generic utilities
     "DotDict",
     "Config",
-    "get_np_or_torch"
+    "get_np_or_torch",
     # io utilities
     "load_audio",
     "save_audio",
