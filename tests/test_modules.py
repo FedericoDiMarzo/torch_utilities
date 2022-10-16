@@ -14,6 +14,27 @@ torch.manual_seed(984)
 np.random.seed(876)
 
 
+class TestLookahead(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        pass
+
+    def setUp(self):
+        self.x = torch.zeros(1, 2, 10, 16)
+
+    @torch.no_grad()
+    def test_no_maintain_shape(self):
+        lookahead = TU.Lookahead(4)
+        y = lookahead(self.x)
+        self.assertEqual(y.shape, (1, 2, 6, 16))
+
+    @torch.no_grad()
+    def test_maintain_shape(self):
+        lookahead = TU.Lookahead(4, maintain_shape=True)
+        y = lookahead(self.x)
+        self.assertEqual(y.shape, self.x.shape)
+
+
 class TestCausalConv2d(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
