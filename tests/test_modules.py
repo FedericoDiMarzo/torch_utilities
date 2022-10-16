@@ -45,19 +45,6 @@ class TestCausalConv2d(unittest.TestCase):
         y = conv(x)
         self.assertEqual(y.shape, x.shape)
 
-    @torch.no_grad()
-    def test_conv_padding_lookahead(self):
-        conv = TU.CausalConv2d(
-            in_channels=1,
-            out_channels=1,
-            kernel_size=(5, 1),
-            dilation=(2, 1),
-            lookahead=25,
-        )
-        x = torch.ones((1, 100, 3))
-        y = conv(x)
-        self.assertEqual(y.shape, x.shape)
-
 
 if __name__ == "__main__":
     unittest.main()

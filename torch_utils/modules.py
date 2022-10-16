@@ -31,6 +31,33 @@ def get_time_value(param):
         return param
 
 
+class Lookahead(nn.Module):
+    def __init__(self, lookahead: int, maintain_shape: bool = False) -> None:
+        """
+        Temporal lookahead layer.
+        Input shape: (..., T, F)
+        Output shape: (..., T', F)
+
+        Parameters
+        ----------
+        lookahead : int
+            Amount of lookahead
+        maintain_shape : bool, optional
+            If set to True, right zero padding is add to compensate
+            for the lookahead, by default False
+        """
+        self.lookahead = lookahead
+        self.maintain_shape = maintain_shape
+
+        if self.maintain_shape:
+            self.lookahead_pad = nn.ConstantPad2d(0, 0, -self.lookahead, self.lookahead)
+        else:
+            self.lookahead_pad = nn.ConstantPad2d(0, 0, -self.lookahead, 0)
+
+    def forward(self, x: Tensor) -> Tensor:
+        return self.lookahead_pad(x)
+
+
 class CausalConv2d(nn.Module):
     def __init__(
         self,
@@ -40,7 +67,6 @@ class CausalConv2d(nn.Module):
         stride: Tuple[int, int] = 1,
         padding: Tuple[int, int] = 0,
         dilation: Tuple[int, int] = 1,
-        lookahead: int = 0,
         groups: int = 1,
         bias: bool = True,
         padding_mode: str = "zeros",
@@ -52,13 +78,9 @@ class CausalConv2d(nn.Module):
 
         Parameters
         ----------
-        lookahead : int, optional
-            _description_, by default 0
-
-        All the other parameters derive from Conv2d
+        Same parameters as Conv2d
         """
         super().__init__()
-        self.lookahead = lookahead
         self.causal_pad_amount = self._get_causal_pad_amount(kernel_size, stride, dilation)
 
         # error handling
@@ -68,8 +90,7 @@ class CausalConv2d(nn.Module):
         assert get_time_value(padding) == 0, err_msg
 
         # inner modules
-        self.causal_pad = nn.ConstantPad2d((0, 0, self.causal_pad_amount - self.lookahead, 0), 0)
-        self.lookahead_pad = nn.ConstantPad2d((0, 0, 0, self.lookahead), 0)
+        self.causal_pad = nn.ConstantPad2d((0, 0, self.causal_pad_amount, 0), 0)
         self.conv = nn.Conv2d(
             in_channels=in_channels,
             out_channels=out_channels,
@@ -86,7 +107,6 @@ class CausalConv2d(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.causal_pad(x)
-        x = self.lookahead_pad(x)
         x = self.conv(x)
         return x
 
