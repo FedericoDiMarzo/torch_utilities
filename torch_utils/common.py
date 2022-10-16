@@ -512,7 +512,7 @@ def _win_to_sides(
     Parameters
     ----------
     x : Union[np.ndarray, Tensor]
-        Input of shape [..., C, T, F]
+        Input of shape [..., C, T]
     win : Union[np.ndarray, Tensor]
         Window
     fade_len : Union[np.ndarray, Tensor]
@@ -523,8 +523,8 @@ def _win_to_sides(
     Union[np.ndarray, Tensor]
         Faded output
     """
-    x[..., :fade_len, :] *= win[:fade_len, None]
-    x[..., -fade_len:, :] *= win[-fade_len:, None]
+    x[..., :fade_len] *= win[:fade_len]
+    x[..., -fade_len:] *= win[-fade_len:]
     return x
 
 
@@ -536,7 +536,7 @@ def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 10) -> Union[np.nda
     Parameters
     ----------
     x : Union[np.ndarray, Tensor]
-        Input of shape [..., C, T, F]
+        Input of shape [..., C, T]
     fade_len : int, optional
         Length of the fade in samples, by default 10.
         The length of the window is 2 * fade_len + 1.
@@ -570,7 +570,7 @@ def trim(
     Parameters
     ----------
     x : Union[np.ndarray, Tensor]
-        Input of shape [..., T, F]
+        Input of shape [..., T]
     sample_rate : int
         Sample rate in Hz
     duration : float, optional
@@ -581,14 +581,22 @@ def trim(
     Union[np.ndarray, Tensor]
         Random temporal selection of the input
     """
-    # calculating start and stop samples
+    module = get_np_or_torch(x)
+    x_len = x.shape[-1]
     duration_samples = duration * sample_rate
-    selection_start_max = x.shape[-2] - duration_samples
-    start = randrange(0, selection_start_max)
-    end = start + duration_samples
+    selection_start_max = x_len - duration_samples
 
-    # applying selection
-    return x[..., start:end, :]
+    if selection_start_max < 0:
+        # if the input is longer than the selection
+        # just zero pad the input
+        y = module.zeros((*x.shape[:-1], duration_samples))
+        y[..., :x_len] = x
+    else:
+        # applying selection
+        start = randrange(0, selection_start_max)
+        end = start + duration_samples
+        y = x[..., start:end]
+    return y
 
 
 # = = = = pytorch utilities
