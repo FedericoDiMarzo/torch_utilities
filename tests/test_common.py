@@ -399,39 +399,39 @@ class TestAudio(unittest.TestCase):
         noise = torch.ones(10).to(TU.get_device()) * 1
         self.assertAlmostEqual(TU.snr(x, noise), 20)
 
-    def test_fade_sides_2d(self):
-        x = np.ones((200, 32))
+    def test_fade_sides_1d(self):
+        x = np.ones(200)
         x = TU.fade_sides(x)
-        self.assertTrue(np.allclose(x[0], np.zeros_like(x[0])))
-        self.assertTrue(np.allclose(x[-1], np.zeros_like(x[-1])))
+        self.assertEqual(x[0], 0)
+        self.assertEqual(x[-1], 0)
 
-    def test_fade_sides_4d(self):
-        x = np.ones((1, 2, 200, 32))
+    def test_fade_sides_3d(self):
+        x = np.ones((1, 2, 200))
         x = TU.fade_sides(x)
-        self.assertTrue(np.allclose(x[0, 0, 0], np.zeros_like(x[0])))
-        self.assertTrue(np.allclose(x[0, 0, -1], np.zeros_like(x[-1])))
+        self.assertEqual(x[0, 0, 0], 0)
+        self.assertEqual(x[0, 0, -1], 0)
 
-    def test_tensor_fade_sides_2d(self):
-        x = torch.ones((200, 32)).to(TU.get_device())
+    def test_tensor_fade_sides_1d(self):
+        x = torch.ones(200).to(TU.get_device())
         x = TU.fade_sides(x)
-        self.assertTrue(torch.allclose(x[0], torch.zeros_like(x[0])))
-        self.assertTrue(torch.allclose(x[-1], torch.zeros_like(x[-1])))
+        self.assertEqual(x[0], 0)
+        self.assertEqual(x[-1], 0)
 
-    def test_tensor_fade_sides_4d(self):
-        x = np.ones((1, 2, 200, 32))
+    def test_tensor_fade_sides_3d(self):
+        x = np.ones((1, 2, 200))
         x = TU.fade_sides(x)
-        self.assertTrue(np.allclose(x[0, 0, 0], np.zeros_like(x[0])))
-        self.assertTrue(np.allclose(x[0, 0, -1], np.zeros_like(x[-1])))
+        self.assertEqual(x[0, 0, 0], 0)
+        self.assertEqual(x[0, 0, -1], 0)
 
     def test_trim(self):
-        x = np.zeros((1, 1, 5 * 160, 24))
+        x = np.zeros((1, 1, 5 * 160))
         y = TU.trim(x, 160, 2)
-        self.assertEqual(y.shape, (1, 1, 2 * 160, 24))
+        self.assertEqual(y.shape, (1, 1, 2 * 160))
 
     def test_tensor_trim(self):
-        x = torch.zeros((1, 1, 5 * 160, 24)).to(TU.get_device())
+        x = torch.zeros((1, 1, 5 * 160)).to(TU.get_device())
         y = TU.trim(x, 160, 2)
-        self.assertEqual(y.shape, (1, 1, 2 * 160, 24))
+        self.assertEqual(y.shape, (1, 1, 2 * 160))
 
 
 if __name__ == "__main__":
