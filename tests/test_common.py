@@ -423,14 +423,14 @@ class TestAudio(unittest.TestCase):
         self.assertTrue(np.allclose(x[0, 0, 0], np.zeros_like(x[0])))
         self.assertTrue(np.allclose(x[0, 0, -1], np.zeros_like(x[-1])))
 
-    def test_extract_section(self):
+    def test_trim(self):
         x = np.zeros((1, 1, 5 * 160, 24))
-        y = TU.extract_section(x, 160, 2)
+        y = TU.trim(x, 160, 2)
         self.assertEqual(y.shape, (1, 1, 2 * 160, 24))
 
-    def test_tensor_extract_section(self):
+    def test_tensor_trim(self):
         x = torch.zeros((1, 1, 5 * 160, 24)).to(TU.get_device())
-        y = TU.extract_section(x, 160, 2)
+        y = TU.trim(x, 160, 2)
         self.assertEqual(y.shape, (1, 1, 2 * 160, 24))
 
 

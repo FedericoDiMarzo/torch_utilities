@@ -31,7 +31,7 @@ __all__ = [
     "rms",
     "snr",
     "fade_sides",
-    "extract_section",
+    "trim",
     # pytorch utilities
     "get_device",
     "to_numpy",
@@ -559,13 +559,13 @@ def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 10) -> Union[np.nda
     return y
 
 
-def extract_section(
+def trim(
     x: Union[np.ndarray, Tensor],
     sample_rate: int,
     duration: float = 3,
 ) -> Union[np.ndarray, Tensor]:
     """
-    Extracts a temporal selection randomly from the input.
+    Extracts a random temporal selection from the input.
 
     Parameters
     ----------
