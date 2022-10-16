@@ -29,6 +29,7 @@ __all__ = [
     "energy",
     "rms",
     "snr",
+    "fade_sides",
     # pytorch utilities
     "get_device",
     "to_numpy",
@@ -120,6 +121,7 @@ def get_np_or_torch(x: Union[np.ndarray, Tensor]):
         return torch
     else:
         torch.iscomplex = torch.is_complex
+        torch.hanning = torch.hann_window
         return np
 
 
@@ -157,6 +159,7 @@ def load_audio(
             data = to_numpy(resample(Tensor(data), old_sample_rate, sample_rate))
     else:
         data, old_sample_rate = torchaudio.load(file_path)
+        data = data.to(get_device())
         if sample_rate is None:
             sample_rate = old_sample_rate
         elif old_sample_rate != sample_rate:
@@ -183,6 +186,7 @@ def save_audio(file_path: Path, data: Union[np.ndarray, Tensor], sample_rate: in
     if dtype == np.ndarray:
         sf.write(file_path, data.T, samplerate=sample_rate)
     elif dtype == Tensor:
+        data = data.to("cpu")
         torchaudio.save(file_path, data, sample_rate=sample_rate)
     else:
         err_msg = f"{dtype} is not supported by save_audio"
@@ -314,7 +318,7 @@ def _stft_istft_core(
     # converting to Tensor
     in_type = type(x)
     if in_type == np.ndarray:
-        x = torch.from_numpy(x)
+        x = torch.from_numpy(x).to(get_device())
 
     # getting the window function
     try:
@@ -334,7 +338,7 @@ def _stft_istft_core(
     win_length = int(sample_rate * framesize_ms / 1000)
     hop_size = int(win_length * window_overlap)
     n_fft = int(win_length * frame_oversampling)
-    _window = torch.zeros(n_fft)
+    _window = torch.zeros(n_fft).to(get_device())
     _window[:win_length] = win_fun(win_length)
 
     # STFT/ISTFT dependent code
@@ -494,6 +498,65 @@ def snr(x: Union[np.ndarray, Tensor], noise: Union[np.ndarray, Tensor]) -> float
     return snr
 
 
+def _win_to_sides(
+    x: Union[np.ndarray, Tensor],
+    win: Union[np.ndarray, Tensor],
+    fade_len: int,
+) -> Union[np.ndarray, Tensor]:
+    """
+    Handler used to apply a window over the sides of
+    a signal.
+
+    Parameters
+    ----------
+    x : Union[np.ndarray, Tensor]
+        Input of shape [..., C, T, F]
+    win : Union[np.ndarray, Tensor]
+        Window
+    fade_len : Union[np.ndarray, Tensor]
+        Length of each fade in samples
+
+    Returns
+    -------
+    Union[np.ndarray, Tensor]
+        Faded output
+    """
+    x[..., :fade_len, :] *= win[:fade_len, None]
+    x[..., -fade_len:, :] *= win[-fade_len:, None]
+    return x
+
+
+def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 10) -> Union[np.ndarray, Tensor]:
+    """
+    Apply an half of an Hanning window to both
+    sides of the input, in order to obtain a fade in/out.
+
+    Parameters
+    ----------
+    x : Union[np.ndarray, Tensor]
+        Input of shape [..., C, T, F]
+    fade_len : int, optional
+        Length of the fade in samples, by default 10.
+        The length of the window is 2 * fade_len + 1.
+
+    Returns
+    -------
+    Union[np.ndarray, Tensor]
+        Faded output
+    """
+    module = get_np_or_torch(x)
+    win = module.hanning(2 * fade_len + 1)
+    if module == np:
+        y = x.copy()
+    else:
+        win = win.to(get_device())
+        win[-1] = 0
+        y = x.detach().clone().to(get_device())
+    y = _win_to_sides(y, win, fade_len)
+
+    return y
+
+
 # = = = = pytorch utilities
 
 
@@ -644,7 +707,7 @@ class HDF5Dataset(Dataset):
         del self._cache
         g_idx = idx // self.group_batch_len
         g = self.dataset_file[self.groups[g_idx]]
-        cast = lambda x: Tensor(np.array(x))
+        cast = lambda x: torch.from_numpy(np.array(x)).to(get_device())
         data = {k: cast(g[k]) for k in self.data_layout}
         self._cache = data
 
