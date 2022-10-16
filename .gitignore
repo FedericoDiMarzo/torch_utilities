@@ -170,3 +170,5 @@ tests/test_data
 
 # data 
 *.hdf5
+
+.git
