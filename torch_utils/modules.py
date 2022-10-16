@@ -7,7 +7,7 @@ from pathimport import set_module_root
 set_module_root(".", prefix=True)
 from torch_utils.common import get_device
 
-__all__ = ["CausalConv2d"]
+__all__ = ["Lookahead", "CausalConv2d"]
 
 
 def get_time_value(param):
@@ -35,8 +35,8 @@ class Lookahead(nn.Module):
     def __init__(self, lookahead: int, maintain_shape: bool = False) -> None:
         """
         Temporal lookahead layer.
-        Input shape: (..., T, F)
-        Output shape: (..., T', F)
+        Input shape: (B, C, T, F)
+        Output shape: (B, C, T', F)
 
         Parameters
         ----------
@@ -46,13 +46,15 @@ class Lookahead(nn.Module):
             If set to True, right zero padding is add to compensate
             for the lookahead, by default False
         """
+        super().__init__()
+
         self.lookahead = lookahead
         self.maintain_shape = maintain_shape
 
         if self.maintain_shape:
-            self.lookahead_pad = nn.ConstantPad2d(0, 0, -self.lookahead, self.lookahead)
+            self.lookahead_pad = nn.ConstantPad2d((0, 0, -self.lookahead, self.lookahead), 0)
         else:
-            self.lookahead_pad = nn.ConstantPad2d(0, 0, -self.lookahead, 0)
+            self.lookahead_pad = nn.ConstantPad2d((0, 0, -self.lookahead, 0), 0)
 
     def forward(self, x: Tensor) -> Tensor:
         return self.lookahead_pad(x)
