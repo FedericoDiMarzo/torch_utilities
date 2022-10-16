@@ -2,6 +2,7 @@ from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler, Sequent
 from torchaudio.functional import resample
 from typing import Tuple, Type, Union
 import torch.nn.functional as F
+from random import randrange
 from pathlib import Path
 from torch import Tensor
 import soundfile as sf
@@ -30,6 +31,7 @@ __all__ = [
     "rms",
     "snr",
     "fade_sides",
+    "extract_section",
     # pytorch utilities
     "get_device",
     "to_numpy",
@@ -555,6 +557,38 @@ def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 10) -> Union[np.nda
     y = _win_to_sides(y, win, fade_len)
 
     return y
+
+
+def extract_section(
+    x: Union[np.ndarray, Tensor],
+    sample_rate: int,
+    duration: float = 3,
+) -> Union[np.ndarray, Tensor]:
+    """
+    Extracts a temporal selection randomly from the input.
+
+    Parameters
+    ----------
+    x : Union[np.ndarray, Tensor]
+        Input of shape [..., T, F]
+    sample_rate : int
+        Sample rate in Hz
+    duration : float, optional
+        Duration of the selection, by default 3 s
+
+    Returns
+    -------
+    Union[np.ndarray, Tensor]
+        Random temporal selection of the input
+    """
+    # calculating start and stop samples
+    duration_samples = duration * sample_rate
+    selection_start_max = x.shape[-2] - duration_samples
+    start = randrange(0, selection_start_max)
+    end = start + duration_samples
+
+    # applying selection
+    return x[..., start:end, :]
 
 
 # = = = = pytorch utilities

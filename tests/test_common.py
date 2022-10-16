@@ -405,11 +405,33 @@ class TestAudio(unittest.TestCase):
         self.assertTrue(np.allclose(x[0], np.zeros_like(x[0])))
         self.assertTrue(np.allclose(x[-1], np.zeros_like(x[-1])))
 
-    def test_fade_sides_2d_tensor(self):
+    def test_fade_sides_4d(self):
+        x = np.ones((1, 2, 200, 32))
+        x = TU.fade_sides(x)
+        self.assertTrue(np.allclose(x[0, 0, 0], np.zeros_like(x[0])))
+        self.assertTrue(np.allclose(x[0, 0, -1], np.zeros_like(x[-1])))
+
+    def test_tensor_fade_sides_2d(self):
         x = torch.ones((200, 32)).to(TU.get_device())
         x = TU.fade_sides(x)
         self.assertTrue(torch.allclose(x[0], torch.zeros_like(x[0])))
         self.assertTrue(torch.allclose(x[-1], torch.zeros_like(x[-1])))
+
+    def test_tensor_fade_sides_4d(self):
+        x = np.ones((1, 2, 200, 32))
+        x = TU.fade_sides(x)
+        self.assertTrue(np.allclose(x[0, 0, 0], np.zeros_like(x[0])))
+        self.assertTrue(np.allclose(x[0, 0, -1], np.zeros_like(x[-1])))
+
+    def test_extract_section(self):
+        x = np.zeros((1, 1, 5 * 160, 24))
+        y = TU.extract_section(x, 160, 2)
+        self.assertEqual(y.shape, (1, 1, 2 * 160, 24))
+
+    def test_tensor_extract_section(self):
+        x = torch.zeros((1, 1, 5 * 160, 24)).to(TU.get_device())
+        y = TU.extract_section(x, 160, 2)
+        self.assertEqual(y.shape, (1, 1, 2 * 160, 24))
 
 
 if __name__ == "__main__":
