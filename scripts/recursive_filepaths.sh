@@ -24,4 +24,4 @@ done
 root=$(realpath $1)
 
 # pipeline
-find "$root" | grep ".$ext\b"
+find "$root" | grep "\.$ext\b"
