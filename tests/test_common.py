@@ -88,6 +88,9 @@ class TestIO(unittest.TestCase):
         self.assertEqual(x.shape[0], 2)
         self.assertEqual(Tensor, type(x))
 
+    def test_resample_read(self):
+        x = TU.load_audio(self.mono_file, 48000)
+
     def test_mono_save(self):
         x = np.zeros((1, self.tmp_sr))
         TU.save_audio(self.tmp_file, x, self.tmp_sr)
@@ -107,6 +110,9 @@ class TestIO(unittest.TestCase):
         x = torch.zeros((2, self.tmp_sr))
         TU.save_audio(self.tmp_file, x, self.tmp_sr)
         self.delete_tmp()
+
+    def test_tensor_resample_read(self):
+        x = TU.load_audio(self.mono_file, 48000, tensor=True)
 
 
 class TestSTFT(unittest.TestCase):

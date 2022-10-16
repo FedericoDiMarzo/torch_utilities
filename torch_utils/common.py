@@ -149,15 +149,17 @@ def load_audio(
         audio, sample_rate
     """
     if not tensor:
-        data, sample_rate = sf.read(file_path, samplerate=sample_rate)
+        data, old_sample_rate = sf.read(file_path)
         data = data.T
         if len(data.shape) == 1:
             data = data[None, :]
+        if (sample_rate is not None) and (old_sample_rate != sample_rate):
+            data = to_numpy(resample(Tensor(data), old_sample_rate, sample_rate))
     else:
         data, old_sample_rate = torchaudio.load(file_path)
         if sample_rate is None:
             sample_rate = old_sample_rate
-        else:
+        elif old_sample_rate != sample_rate:
             data = resample(data, old_sample_rate, sample_rate)
 
     return data, sample_rate
