@@ -528,7 +528,7 @@ def _win_to_sides(
     return x
 
 
-def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 10) -> Union[np.ndarray, Tensor]:
+def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 100) -> Union[np.ndarray, Tensor]:
     """
     Apply an half of an Hanning window to both
     sides of the input, in order to obtain a fade in/out.
