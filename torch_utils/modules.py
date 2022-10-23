@@ -1,5 +1,6 @@
-from typing import Callable, Optional, Tuple
 import torch
+import numpy as np
+from typing import Callable, Optional, Tuple
 from torch import nn, Tensor
 import torch.nn.functional as F
 from pathimport import set_module_root
@@ -72,6 +73,7 @@ class CausalConv2d(nn.Module):
         groups: int = 1,
         bias: bool = True,
         padding_mode: str = "zeros",
+        separable: bool = False,
         device=None,
         dtype=None,
     ) -> None:
@@ -80,10 +82,14 @@ class CausalConv2d(nn.Module):
 
         Parameters
         ----------
-        Same parameters as Conv2d
+        Same parameters as Conv2d plus
+
+        separable: bool, optional
+            Enable separable convolution (depthwise + pointwise), by default False
         """
         super().__init__()
         self.causal_pad_amount = self._get_causal_pad_amount(kernel_size, stride, dilation)
+        self.separable = separable
 
         # error handling
         err_msg = "only stride[0] == 1 is supported"
@@ -93,19 +99,47 @@ class CausalConv2d(nn.Module):
 
         # inner modules
         self.causal_pad = nn.ConstantPad2d((0, 0, self.causal_pad_amount, 0), 0)
-        self.conv = nn.Conv2d(
-            in_channels=in_channels,
-            out_channels=out_channels,
-            kernel_size=kernel_size,
-            stride=stride,
-            padding=padding,
-            dilation=dilation,
-            groups=groups,
-            bias=bias,
-            padding_mode=padding_mode,
-            device=device,
-            dtype=dtype,
-        )
+
+        if not self.separable:
+            self.conv = nn.Conv2d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                groups=groups,
+                bias=bias,
+                padding_mode=padding_mode,
+                device=device,
+                dtype=dtype,
+            )
+        else:
+            # separable convolution
+            # depthwise + pointwise
+            groups = np.gcd(in_channels, out_channels)
+            depthwise = nn.Conv2d(
+                in_channels=in_channels,
+                out_channels=out_channels,
+                kernel_size=kernel_size,
+                stride=stride,
+                padding=padding,
+                dilation=dilation,
+                bias=bias,
+                padding_mode=padding_mode,
+                groups=groups,
+                device=device,
+                dtype=dtype,
+            )
+            pointwise = nn.Conv2d(
+                in_channels=out_channels,
+                out_channels=out_channels,
+                kernel_size=1,
+                bias=False,
+                device=device,
+                dtype=dtype,
+            )
+            self.conv = nn.Sequential(depthwise, pointwise)
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.causal_pad(x)
@@ -133,6 +167,7 @@ class CausalConv2dNormAct(nn.Module):
         dilation: Tuple[int, int] = 1,
         groups: int = 1,
         padding_mode: str = "zeros",
+        separable: bool = False,
         eps: float = 1e-05,
         momentum: float = 0.1,
         affine: bool = True,
@@ -149,6 +184,8 @@ class CausalConv2dNormAct(nn.Module):
         ----------
         Combination of the modules parameters
 
+        separable: bool, optional
+            Enable separable convolution (depthwise + pointwise), by default False
         activation: nn.Module, optional
             Activation module, by default nn.Relu()
         residual_merge: Optional[Callable], optional
@@ -156,6 +193,7 @@ class CausalConv2dNormAct(nn.Module):
             the activation, by default None
         """
         super().__init__()
+        self.separable = separable
 
         # inner modules
         self.conv = CausalConv2d(
@@ -168,6 +206,7 @@ class CausalConv2dNormAct(nn.Module):
             groups=groups,
             bias=False,
             padding_mode=padding_mode,
+            separable=separable,
             device=device,
             dtype=dtype,
         )
