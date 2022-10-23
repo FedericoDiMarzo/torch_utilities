@@ -2,7 +2,7 @@ from typing import Callable
 import unittest
 from pathlib import Path
 from pathimport import set_module_root
-from torch import Tensor
+from torch import Tensor, nn
 import numpy as np
 import torch
 
@@ -85,6 +85,30 @@ class TestCausalConv2dNormAct(unittest.TestCase):
         x = torch.ones((1, 1, 100, 3))
         y = conv(x)
         self.assertEqual(y.shape, x.shape)
+
+    @torch.no_grad()
+    def test_conv_padding_sum(self):
+        conv = TU.CausalConv2dNormAct(
+            in_channels=1,
+            out_channels=1,
+            kernel_size=(5, 1),
+            residual_merge=lambda x, y: x + y,
+        )
+        x = torch.ones((1, 1, 100, 3))
+        y = conv(x)
+        self.assertEqual(y.shape, x.shape)
+
+    @torch.no_grad()
+    def test_conv_padding_concat(self):
+        conv = TU.CausalConv2dNormAct(
+            in_channels=1,
+            out_channels=1,
+            kernel_size=(5, 1),
+            residual_merge=lambda x, y: torch.concat([x, y], dim=1),
+        )
+        x = torch.ones((1, 1, 100, 3))
+        y = conv(x)
+        self.assertEqual(y.shape, (1, 2, 100, 3))
 
 
 if __name__ == "__main__":

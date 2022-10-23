@@ -1,4 +1,4 @@
-from typing import Tuple
+from typing import Callable, Optional, Tuple
 import torch
 from torch import nn, Tensor
 import torch.nn.functional as F
@@ -134,11 +134,12 @@ class CausalConv2dNormAct(nn.Module):
         groups: int = 1,
         bias: bool = True,
         padding_mode: str = "zeros",
-        eps=1e-05,
-        momentum=0.1,
-        affine=True,
-        track_running_stats=True,
-        activation=nn.ReLU(),
+        eps: float = 1e-05,
+        momentum: float = 0.1,
+        affine: bool = True,
+        track_running_stats: bool = True,
+        activation: nn.Module = nn.ReLU(),
+        residual_merge: Optional[Callable] = None,
         device=None,
         dtype=None,
     ) -> None:
@@ -151,6 +152,9 @@ class CausalConv2dNormAct(nn.Module):
 
         activation: nn.Module, optional
             Activation module, by default nn.Relu()
+        residual_merge: Optional[Callable], optional
+            If different da None, it indicates the merge operation after
+            the activation, by default None
         """
         super().__init__()
 
@@ -180,9 +184,12 @@ class CausalConv2dNormAct(nn.Module):
         )
 
         self.activation = activation
+        self.residual_merge = residual_merge
 
     def forward(self, x: Tensor) -> Tensor:
-        x = self.conv(x)
-        x = self.batchnorm(x)
-        x = self.activation(x)
-        return x
+        y = self.conv(x)
+        y = self.batchnorm(y)
+        y = self.activation(y)
+        if self.residual_merge is not None:
+            y = self.residual_merge(x, y)
+        return y
