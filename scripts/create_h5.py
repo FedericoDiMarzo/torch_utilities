@@ -26,7 +26,7 @@ def main(args):
     stdin = list(sys.stdin)
     input_reminder = len(stdin) % gbl
     if input_reminder != 0:
-        warn_msg = f"{input_reminder} will be removed (group_batch_len=={gbl})"
+        warn_msg = f"{input_reminder} samples will be removed (group_batch_len=={gbl}, total_samples=={len(stdin)})"
         logger.warning(warn_msg)
 
     # writing into the HDF5
@@ -55,22 +55,26 @@ if __name__ == "__main__":
     argparser.add_argument(
         "--group_batch_len",
         default=32,
+        type=int,
         help="batch dimension of each group",
     )
     argparser.add_argument(
         "--sample_rate",
         default=16000,
+        type=float,
         help="resample to the sample rate indicated",
     )
     argparser.add_argument(
-        "--mono",
+        "--multichannel",
+        dest="mono",
         default=True,
         action="store_false",
-        help="True loads first channel only",
+        help="Loads first channel only",
     )
     argparser.add_argument(
         "--len",
         default=3,
+        type=float,
         help="duration in seconds inside the datasets",
     )
     args = argparser.parse_args()

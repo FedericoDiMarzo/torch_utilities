@@ -583,10 +583,10 @@ def trim(
     """
     module = get_np_or_torch(x)
     x_len = x.shape[-1]
-    duration_samples = duration * sample_rate
+    duration_samples = int(duration * sample_rate)
     selection_start_max = x_len - duration_samples
 
-    if selection_start_max < 0:
+    if selection_start_max <= 0:
         # if the input is longer than the selection
         # just zero pad the input
         y = module.zeros((*x.shape[:-1], duration_samples))
