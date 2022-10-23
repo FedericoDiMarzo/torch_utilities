@@ -67,5 +67,25 @@ class TestCausalConv2d(unittest.TestCase):
         self.assertEqual(y.shape, x.shape)
 
 
+class TestCausalConv2dNormAct(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        pass
+
+    def setUp(self):
+        pass
+
+    @torch.no_grad()
+    def test_conv_padding(self):
+        conv = TU.CausalConv2dNormAct(
+            in_channels=1,
+            out_channels=1,
+            kernel_size=(5, 1),
+        )
+        x = torch.ones((1, 1, 100, 3))
+        y = conv(x)
+        self.assertEqual(y.shape, x.shape)
+
+
 if __name__ == "__main__":
     unittest.main()

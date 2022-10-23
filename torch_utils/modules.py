@@ -7,7 +7,7 @@ from pathimport import set_module_root
 set_module_root(".", prefix=True)
 from torch_utils.common import get_device
 
-__all__ = ["Lookahead", "CausalConv2d"]
+__all__ = ["Lookahead", "CausalConv2d", "CausalConv2dNormAct"]
 
 
 def get_time_value(param):
@@ -120,3 +120,69 @@ class CausalConv2d(nn.Module):
         kernel_size, stride, dilation = map(get_time_value, (kernel_size, stride, dilation))
         causal_pad = (kernel_size - 1) * dilation
         return causal_pad
+
+
+class CausalConv2dNormAct(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: Tuple[int, int],
+        stride: Tuple[int, int] = 1,
+        padding: Tuple[int, int] = 0,
+        dilation: Tuple[int, int] = 1,
+        groups: int = 1,
+        bias: bool = True,
+        padding_mode: str = "zeros",
+        eps=1e-05,
+        momentum=0.1,
+        affine=True,
+        track_running_stats=True,
+        activation=nn.ReLU(),
+        device=None,
+        dtype=None,
+    ) -> None:
+        """
+        CausalConv2dNormAct + BatchNorm2d + Activation.
+
+        Parameters
+        ----------
+        Combination of the modules parameters
+
+        activation: nn.Module, optional
+            Activation module, by default nn.Relu()
+        """
+        super().__init__()
+
+        # inner modules
+        self.conv = CausalConv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride=stride,
+            padding=padding,
+            dilation=dilation,
+            groups=groups,
+            bias=bias,
+            padding_mode=padding_mode,
+            device=device,
+            dtype=dtype,
+        )
+
+        self.batchnorm = nn.BatchNorm2d(
+            num_features=out_channels,
+            eps=eps,
+            momentum=momentum,
+            affine=affine,
+            track_running_stats=track_running_stats,
+            device=device,
+            dtype=dtype,
+        )
+
+        self.activation = activation
+
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.conv(x)
+        x = self.batchnorm(x)
+        x = self.activation(x)
+        return x
