@@ -70,7 +70,6 @@ class CausalConv2d(nn.Module):
         stride: Tuple[int, int] = 1,
         padding: Tuple[int, int] = 0,
         dilation: Tuple[int, int] = 1,
-        groups: int = 1,
         bias: bool = True,
         padding_mode: str = "zeros",
         separable: bool = False,
@@ -165,7 +164,6 @@ class CausalConv2dNormAct(nn.Module):
         stride: Tuple[int, int] = 1,
         padding: Tuple[int, int] = 0,
         dilation: Tuple[int, int] = 1,
-        groups: int = 1,
         padding_mode: str = "zeros",
         separable: bool = False,
         eps: float = 1e-05,
@@ -203,7 +201,6 @@ class CausalConv2dNormAct(nn.Module):
             stride=stride,
             padding=padding,
             dilation=dilation,
-            groups=groups,
             bias=False,
             padding_mode=padding_mode,
             separable=separable,
@@ -231,3 +228,28 @@ class CausalConv2dNormAct(nn.Module):
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y
+
+
+class CausalConvNeuralUpsampler(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        tconv_kernel_size: Tuple[int, int],
+        conv_kernel_size: Tuple[int, int],
+        tconv_stride: Tuple[int, int] = 2,
+        padding: Tuple[int, int] = 0,
+        dilation: Tuple[int, int] = 1,
+        groups: int = 1,
+        padding_mode: str = "zeros",
+        separable: bool = False,
+        eps: float = 1e-05,
+        momentum: float = 0.1,
+        affine: bool = True,
+        track_running_stats: bool = True,
+        activation: nn.Module = nn.LeakyReLU(),
+        residual_merge: Optional[Callable] = None,
+        device=None,
+        dtype=None,
+    ) -> None:
+        super().__init__()
