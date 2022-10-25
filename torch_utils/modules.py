@@ -1,3 +1,4 @@
+from turtle import forward
 import torch
 import numpy as np
 from typing import Callable, Optional, Tuple
@@ -8,7 +9,12 @@ from pathimport import set_module_root
 set_module_root(".", prefix=True)
 from torch_utils.common import get_device
 
-__all__ = ["Lookahead", "CausalConv2d", "CausalConv2dNormAct"]
+__all__ = [
+    "Lookahead",
+    "CausalConv2d",
+    "CausalConv2dNormAct",
+    "CausalConvNeuralUpsampler",
+]
 
 
 def get_time_value(param):
@@ -59,6 +65,39 @@ class Lookahead(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         return self.lookahead_pad(x)
+
+
+class Reparameterize(nn.Module):
+    # TODO: tests
+    def __init__(self) -> None:
+        super().__init__()
+
+    def forward(self, mu: Tensor, logvar: Tensor) -> Tensor:
+        """
+
+        Reparameterization trick to sample
+        from N(mu, var) from N(0,1).
+
+        :param mu: (Tensor) Mean of the latent normal [B x D]
+        :param logvar: (Tensor) Standard deviation of the latent normal [B x D]
+        :return: (Tensor) [B x D]
+
+
+        Parameters
+        ----------
+        mu : Tensor
+            Mean of the latent normal
+        logvar : Tensor
+            Standard deviation of the latent normal in log
+
+        Returns
+        -------
+        Tensor
+            Sample from the normal distribution
+        """
+        std = torch.exp(0.5 * logvar)
+        eps = torch.randn_like(std)
+        return eps * std + mu
 
 
 class CausalConv2d(nn.Module):
@@ -232,6 +271,7 @@ class CausalConv2dNormAct(nn.Module):
 
 
 class CausalConvNeuralUpsampler(nn.Module):
+    # TODO: tests
     def __init__(
         self,
         in_channels: int,
