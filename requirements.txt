@@ -1,9 +1,1 @@
-h5py
-tqdm
-pyyaml
-torch
-torchaudio
-pathimport
-soundfile
-numpy
-loguru
+.
