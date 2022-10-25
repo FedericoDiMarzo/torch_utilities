@@ -71,7 +71,6 @@ class CausalConv2d(nn.Module):
         padding: Tuple[int, int] = 0,
         dilation: Tuple[int, int] = 1,
         bias: bool = True,
-        padding_mode: str = "zeros",
         separable: bool = False,
         device=None,
         dtype=None,
@@ -109,7 +108,6 @@ class CausalConv2d(nn.Module):
                 dilation=dilation,
                 groups=groups,
                 bias=bias,
-                padding_mode=padding_mode,
                 device=device,
                 dtype=dtype,
             )
@@ -164,7 +162,6 @@ class CausalConv2dNormAct(nn.Module):
         stride: Tuple[int, int] = 1,
         padding: Tuple[int, int] = 0,
         dilation: Tuple[int, int] = 1,
-        padding_mode: str = "zeros",
         separable: bool = False,
         eps: float = 1e-05,
         momentum: float = 0.1,
@@ -172,11 +169,12 @@ class CausalConv2dNormAct(nn.Module):
         track_running_stats: bool = True,
         activation: nn.Module = nn.ReLU(),
         residual_merge: Optional[Callable] = None,
+        disable_batchnorm: bool = False,
         device=None,
         dtype=None,
     ) -> None:
         """
-        CausalConv2dNormAct + BatchNorm2d + Activation.
+        CausalConv2d + BatchNorm2d + Activation.
 
         Parameters
         ----------
@@ -189,9 +187,12 @@ class CausalConv2dNormAct(nn.Module):
         residual_merge: Optional[Callable], optional
             If different da None, it indicates the merge operation after
             the activation, by default None
+        disable_batchnorm: bool, optional
+            Disable the BatchNorm2d layer, by default False
         """
         super().__init__()
         self.separable = separable
+        self.disable_batchnorm = disable_batchnorm
 
         # inner modules
         self.conv = CausalConv2d(
@@ -202,7 +203,6 @@ class CausalConv2dNormAct(nn.Module):
             padding=padding,
             dilation=dilation,
             bias=False,
-            padding_mode=padding_mode,
             separable=separable,
             device=device,
             dtype=dtype,
@@ -224,7 +224,8 @@ class CausalConv2dNormAct(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         y = self.conv(x)
         y = self.batchnorm(y)
-        y = self.activation(y)
+        if self.disable_batchnorm:
+            y = self.activation(y)
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y
@@ -238,10 +239,10 @@ class CausalConvNeuralUpsampler(nn.Module):
         tconv_kernel_size: Tuple[int, int],
         conv_kernel_size: Tuple[int, int],
         tconv_stride: Tuple[int, int] = 2,
-        padding: Tuple[int, int] = 0,
+        tconv_padding: Tuple[int, int] = 0,
+        tconv_output_padding: Tuple[int, int] = 0,
+        conv_padding: Tuple[int, int] = 0,
         dilation: Tuple[int, int] = 1,
-        groups: int = 1,
-        padding_mode: str = "zeros",
         separable: bool = False,
         eps: float = 1e-05,
         momentum: float = 0.1,
@@ -249,7 +250,73 @@ class CausalConvNeuralUpsampler(nn.Module):
         track_running_stats: bool = True,
         activation: nn.Module = nn.LeakyReLU(),
         residual_merge: Optional[Callable] = None,
+        disable_batchnorm: bool = False,
         device=None,
         dtype=None,
     ) -> None:
+        """
+        ConvTranspose2d + CausalConv2d + BatchNorm2d + Activation.
+
+        Parameters
+        ----------
+        Combination of the modules parameters
+
+        separable: bool, optional
+            Enable separable convolution (depthwise + pointwise), by default False
+        activation: nn.Module, optional
+            Activation module, by default nn.Relu()
+        residual_merge: Optional[Callable], optional
+            If different da None, it indicates the merge operation after
+            the activation, by default None
+        disable_batchnorm: bool, optional
+            Disable the BatchNorm2d layer, by default False
+        """
         super().__init__()
+        self.separable = separable
+        self.disable_batchnorm = disable_batchnorm
+
+        # inner modules
+        self.tconv = nn.ConvTranspose2d(
+            in_channels=in_channels,
+            out_channels=in_channels,
+            kernel_size=tconv_kernel_size,
+            stride=tconv_stride,
+            padding=tconv_padding,
+            output_padding=tconv_output_padding,
+            bias=False,
+            device=device,
+            dtype=dtype,
+        )
+        self.conv = CausalConv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=conv_kernel_size,
+            padding=conv_padding,
+            dilation=dilation,
+            bias=False,
+            separable=separable,
+            device=device,
+            dtype=dtype,
+        )
+        self.batchnorm = nn.BatchNorm2d(
+            num_features=out_channels,
+            eps=eps,
+            momentum=momentum,
+            affine=affine,
+            track_running_stats=track_running_stats,
+            device=device,
+            dtype=dtype,
+        )
+
+        self.activation = activation
+        self.residual_merge = residual_merge
+
+    def forward(self, x: Tensor) -> Tensor:
+        y = self.tconv(x)
+        y = self.conv(y)
+        y = self.batchnorm(y)
+        if self.disable_batchnorm:
+            y = self.activation(y)
+        if self.residual_merge is not None:
+            y = self.residual_merge(x, y)
+        return y
