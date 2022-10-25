@@ -693,7 +693,7 @@ class HDF5Dataset(Dataset):
         dataset_path : Path
             Path to the .hdf5 file
         data_layout : list
-            Dictionary describing the layout of the data
+            List describing the layout of the data
             inside each group. For an input-label1-label2
             dataset the list would be ["input", "label1", "label2"]
         """
