@@ -161,7 +161,6 @@ class CausalConv2d(nn.Module):
                 padding=padding,
                 dilation=dilation,
                 bias=bias,
-                padding_mode=padding_mode,
                 groups=groups,
                 device=device,
                 dtype=dtype,
