@@ -1,4 +1,3 @@
-from turtle import forward
 import torch
 import numpy as np
 from typing import Callable, Optional, Tuple
