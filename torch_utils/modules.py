@@ -139,8 +139,8 @@ class CausalConv2d(nn.Module):
         in_channels: int,
         out_channels: int,
         kernel_size: Tuple[int, int],
-        stride: Tuple[int, int] = 1,
-        padding: Tuple[int, int] = 0,
+        stride_f: int = 1,
+        padding_f: int = 0,
         dilation: Tuple[int, int] = 1,
         bias: bool = True,
         separable: bool = False,
@@ -158,14 +158,8 @@ class CausalConv2d(nn.Module):
             Enable separable convolution (depthwise + pointwise), by default False
         """
         super().__init__()
-        self.causal_pad_amount = self._get_causal_pad_amount(kernel_size, stride, dilation)
+        self.causal_pad_amount = self._get_causal_pad_amount(kernel_size, dilation)
         self.separable = separable
-
-        # error handling
-        err_msg = "only stride[0] == 1 is supported"
-        assert get_time_value(stride) == 1, err_msg
-        err_msg = "temporal padding cannot be set explicitely"
-        assert get_time_value(padding) == 0, err_msg
 
         # inner modules
         self.causal_pad = nn.ConstantPad2d((0, 0, self.causal_pad_amount, 0), 0)
@@ -176,8 +170,8 @@ class CausalConv2d(nn.Module):
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=kernel_size,
-                stride=stride,
-                padding=padding,
+                stride=(1, stride_f),
+                padding=(0, padding_f),
                 dilation=dilation,
                 groups=groups,
                 bias=bias,
@@ -191,8 +185,8 @@ class CausalConv2d(nn.Module):
                 in_channels=in_channels,
                 out_channels=out_channels,
                 kernel_size=kernel_size,
-                stride=stride,
-                padding=padding,
+                stride=(1, stride_f),
+                padding=(0, padding_f),
                 dilation=dilation,
                 bias=bias,
                 groups=groups,
@@ -214,12 +208,11 @@ class CausalConv2d(nn.Module):
         x = self.conv(x)
         return x
 
-    def _get_causal_pad_amount(self, kernel_size, stride, dilation) -> int:
+    def _get_causal_pad_amount(self, kernel_size, dilation) -> int:
         """
         Calculates the causal padding.
         """
-        # TODO: support stride
-        kernel_size, stride, dilation = map(get_time_value, (kernel_size, stride, dilation))
+        kernel_size, dilation = map(get_time_value, (kernel_size, dilation))
         causal_pad = (kernel_size - 1) * dilation
         return causal_pad
 
@@ -230,7 +223,7 @@ class CausalConv2dNormAct(nn.Module):
         in_channels: int,
         out_channels: int,
         kernel_size: Tuple[int, int],
-        stride: Tuple[int, int] = 1,
+        stride_f: int = 1,
         dilation: Tuple[int, int] = 1,
         separable: bool = False,
         eps: float = 1e-05,
@@ -269,8 +262,8 @@ class CausalConv2dNormAct(nn.Module):
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
-            padding=(0, kernel_size[1] // 2),
-            stride=stride,
+            padding_f=kernel_size[1] // 2,
+            stride_f=stride_f,
             dilation=dilation,
             bias=False,
             separable=separable,
@@ -371,7 +364,7 @@ class CausalConvNeuralUpsampler(nn.Module):
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=conv_kernel_size,
-            padding=(0, conv_kernel_size[1] // 2),
+            padding_f=conv_kernel_size[1] // 2,
             dilation=dilation,
             bias=False,
             separable=separable,

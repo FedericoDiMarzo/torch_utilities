@@ -58,7 +58,7 @@ class TestCausalConv2d(unittest.TestCase):
 
     @torch.no_grad()
     def test_conv_padding(self):
-        conv = TU.CausalConv2d(in_channels=1, out_channels=1, kernel_size=(5, 3), padding=(0, 1))
+        conv = TU.CausalConv2d(in_channels=1, out_channels=1, kernel_size=(5, 3), padding_f=1)
         x = torch.ones((1, 100, 3))
         y = conv(x)
         self.assertEqual(y.shape, x.shape)
