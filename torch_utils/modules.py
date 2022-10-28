@@ -308,7 +308,6 @@ class CausalConv2dNormAct(nn.Module):
 
 
 class CausalConvNeuralUpsampler(nn.Module):
-    # TODO: tests
     def __init__(
         self,
         in_channels: int,

@@ -102,6 +102,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             (1, 4, 5),  # kernel_f
             (1, 2, 5),  # kernel_t
             (32, 33),  # freq_bins
+            (False, True),  # separable
         )
         params = itertools.product(*params)
         for p in params:
@@ -110,22 +111,11 @@ class TestCausalConv2dNormAct(unittest.TestCase):
                     in_channels=1,
                     out_channels=1,
                     kernel_size=(p[0], p[1]),
+                    separable=p[3],
                 )
                 x = torch.ones((1, 1, 100, p[2]))
                 y = conv(x)
                 self.assertEqual(y.shape, x.shape)
-
-    @torch.no_grad()
-    def test_conv_separable(self):
-        conv = TU.CausalConv2dNormAct(
-            in_channels=1,
-            out_channels=1,
-            kernel_size=(5, 1),
-            separable=True,
-        )
-        x = torch.ones((1, 1, 100, 3))
-        y = conv(x)
-        self.assertEqual(y.shape, x.shape)
 
     @torch.no_grad()
     def test_conv_sum(self):
@@ -216,9 +206,17 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
             (1, 3, 4, 21),  # tconv_kernelf_size
             (1, 2, 4),  # stride
             (1, 3),  # conv_kernel_size
+            (False, True),  # separable
+            (False, True),  # with sum?
         )
         params = itertools.product(*params)
         for p in params:
+            # residual_merge
+            if p[4] and p[1] == 1:
+                merge = lambda x, y: x + y
+            else:
+                merge = None
+
             with self.subTest(p=p):
                 upsam = TU.CausalConvNeuralUpsampler(
                     in_channels=1,
@@ -227,29 +225,12 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
                     tconv_padding_f=0,
                     conv_kernel_size=(1, p[2]),
                     tconv_stride_f=p[1],
+                    separable=p[3],
+                    residual_merge=merge,
                 )
                 x = torch.ones((1, 1, 100, 32))
                 y = upsam(x)
                 self.assertEqual(list(y.shape), [*x.shape[:-1], 32 * p[1]])
-
-    # @torch.no_grad()
-    # def test_forward_padding(self):
-    #     conv = TU.CausalConv2d(in_channels=1, out_channels=1, kernel_size=(5, 3), padding=(0, 1))
-    #     x = torch.ones((1, 100, 3))
-    #     y = conv(x)
-    #     self.assertEqual(y.shape, x.shape)
-
-    # @torch.no_grad()
-    # def test_forwarf_separable(self):
-    #     conv = TU.CausalConv2d(
-    #         in_channels=1,
-    #         out_channels=1,
-    #         kernel_size=(5, 1),
-    #         separable=True,
-    #     )
-    #     x = torch.ones((1, 100, 3))
-    #     y = conv(x)
-    #     self.assertEqual(y.shape, x.shape)
 
 
 if __name__ == "__main__":
