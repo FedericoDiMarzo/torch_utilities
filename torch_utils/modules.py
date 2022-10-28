@@ -231,7 +231,6 @@ class CausalConv2dNormAct(nn.Module):
         out_channels: int,
         kernel_size: Tuple[int, int],
         stride: Tuple[int, int] = 1,
-        padding: Tuple[int, int] = 0,
         dilation: Tuple[int, int] = 1,
         separable: bool = False,
         eps: float = 1e-05,
@@ -270,14 +269,19 @@ class CausalConv2dNormAct(nn.Module):
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
+            padding=(0, kernel_size[1] // 2),
             stride=stride,
-            padding=padding,
             dilation=dilation,
             bias=False,
             separable=separable,
             device=device,
             dtype=dtype,
         )
+
+        if kernel_size[1] % 2 == 0:
+            self.freq_trim = nn.ConstantPad2d((0, -1, 0, 0), 0)
+        else:
+            self.freq_trim = nn.Identity()
 
         self.batchnorm = nn.BatchNorm2d(
             num_features=out_channels,
@@ -294,6 +298,7 @@ class CausalConv2dNormAct(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         y = self.conv(x)
+        y = self.freq_trim(y)
         y = self.batchnorm(y)
         if self.disable_batchnorm:
             y = self.activation(y)
@@ -312,8 +317,6 @@ class CausalConvNeuralUpsampler(nn.Module):
         conv_kernel_size: Tuple[int, int],
         tconv_stride_f: int = 2,
         tconv_padding_f: int = 0,
-        tconv_output_padding_f: int = 0,
-        conv_padding: Tuple[int, int] = 0,
         dilation: Tuple[int, int] = 1,
         separable: bool = False,
         eps: float = 1e-05,
@@ -353,19 +356,23 @@ class CausalConvNeuralUpsampler(nn.Module):
             out_channels=in_channels,
             kernel_size=(1, tconv_kernelf_size),
             stride=(1, tconv_stride_f),
-            padding=(1, tconv_padding_f),
-            output_padding=(1, tconv_output_padding_f),
+            padding=(0, tconv_padding_f),
+            output_padding=(0, tconv_stride_f - 1),
             bias=False,
             device=device,
             dtype=dtype,
         )
         pad_f = tconv_kernelf_size // 2
-        self.padding_f = nn.ConstantPad2d((pad_f, pad_f, 0, 0), 0)
+        if tconv_kernelf_size % 2 == 0:
+            # # even tconv kernel
+            self.padding_f = nn.ConstantPad2d((-pad_f, -pad_f + 1, 0, 0), 0)
+        else:
+            self.padding_f = nn.ConstantPad2d((-pad_f, -pad_f, 0, 0), 0)
         self.conv = CausalConv2d(
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=conv_kernel_size,
-            padding=conv_padding,
+            padding=(0, conv_kernel_size[1] // 2),
             dilation=dilation,
             bias=False,
             separable=separable,
