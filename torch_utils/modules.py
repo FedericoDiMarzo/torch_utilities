@@ -10,6 +10,8 @@ from torch_utils.common import get_device
 
 __all__ = [
     "Lookahead",
+    "Reparameterize",
+    "ScaleChannels2d",
     "CausalConv2d",
     "CausalConv2dNormAct",
     "CausalConvNeuralUpsampler",
@@ -67,20 +69,13 @@ class Lookahead(nn.Module):
 
 
 class Reparameterize(nn.Module):
-    # TODO: tests
     def __init__(self) -> None:
         super().__init__()
 
     def forward(self, mu: Tensor, logvar: Tensor) -> Tensor:
         """
-
         Reparameterization trick to sample
         from N(mu, var) from N(0,1).
-
-        :param mu: (Tensor) Mean of the latent normal [B x D]
-        :param logvar: (Tensor) Standard deviation of the latent normal [B x D]
-        :return: (Tensor) [B x D]
-
 
         Parameters
         ----------
@@ -97,6 +92,45 @@ class Reparameterize(nn.Module):
         std = torch.exp(0.5 * logvar)
         eps = torch.randn_like(std)
         return eps * std + mu
+
+
+class ScaleChannels2d(nn.Module):
+    def __init__(self, in_channels: int) -> None:
+        """
+        Learns a per-channel gain.
+
+        Parameters
+        ----------
+        in_channels : int
+            Number of channels
+        """
+        super().__init__()
+
+        # inner modules
+        self.scale = nn.Conv2d(
+            in_channels=in_channels,
+            out_channels=in_channels,
+            kernel_size=1,
+            groups=in_channels,
+            bias=False,
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Applies a gain to the channels of the input.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input of shape (B, C, T, F)
+
+        Returns
+        -------
+        Tensor
+            Scaled input
+        """
+        x = self.scale(x)
+        return x
 
 
 class CausalConv2d(nn.Module):
@@ -135,6 +169,7 @@ class CausalConv2d(nn.Module):
 
         # inner modules
         self.causal_pad = nn.ConstantPad2d((0, 0, self.causal_pad_amount, 0), 0)
+        groups = np.gcd(in_channels, out_channels)
 
         if not self.separable:
             self.conv = nn.Conv2d(
@@ -152,7 +187,6 @@ class CausalConv2d(nn.Module):
         else:
             # separable convolution
             # depthwise + pointwise
-            groups = np.gcd(in_channels, out_channels)
             depthwise = nn.Conv2d(
                 in_channels=in_channels,
                 out_channels=out_channels,
@@ -274,11 +308,11 @@ class CausalConvNeuralUpsampler(nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        tconv_kernel_size: Tuple[int, int],
+        tconv_kernelf_size: int,
         conv_kernel_size: Tuple[int, int],
-        tconv_stride: Tuple[int, int] = 2,
-        tconv_padding: Tuple[int, int] = 0,
-        tconv_output_padding: Tuple[int, int] = 0,
+        tconv_stride_f: int = 2,
+        tconv_padding_f: int = 0,
+        tconv_output_padding_f: int = 0,
         conv_padding: Tuple[int, int] = 0,
         dilation: Tuple[int, int] = 1,
         separable: bool = False,
@@ -317,14 +351,16 @@ class CausalConvNeuralUpsampler(nn.Module):
         self.tconv = nn.ConvTranspose2d(
             in_channels=in_channels,
             out_channels=in_channels,
-            kernel_size=tconv_kernel_size,
-            stride=tconv_stride,
-            padding=tconv_padding,
-            output_padding=tconv_output_padding,
+            kernel_size=(1, tconv_kernelf_size),
+            stride=(1, tconv_stride_f),
+            padding=(1, tconv_padding_f),
+            output_padding=(1, tconv_output_padding_f),
             bias=False,
             device=device,
             dtype=dtype,
         )
+        pad_f = tconv_kernelf_size // 2
+        self.padding_f = nn.ConstantPad2d((pad_f, pad_f, 0, 0), 0)
         self.conv = CausalConv2d(
             in_channels=in_channels,
             out_channels=out_channels,
@@ -351,6 +387,7 @@ class CausalConvNeuralUpsampler(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         y = self.tconv(x)
+        y = self.padding_f(y)
         y = self.conv(y)
         y = self.batchnorm(y)
         if self.disable_batchnorm:
