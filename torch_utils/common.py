@@ -18,6 +18,7 @@ __all__ = [
     "DotDict",
     "Config",
     "get_np_or_torch",
+    "repeat_test",
     # io utilities
     "load_audio",
     "save_audio",
@@ -126,6 +127,24 @@ def get_np_or_torch(x: Union[np.ndarray, Tensor]):
         torch.hanning = torch.hann_window
         return np
 
+
+# fmt: off
+def repeat_test(times: int): 
+    """
+    Decorator to repeat a test n times.
+
+    Parameters
+    ----------
+    times : int
+        Number of repetitions
+    """
+    def repeatHelper(f):
+        def callHelper(*args):
+            for _ in range(0, times):
+                f(*args)
+        return callHelper
+    return repeatHelper 
+# fmt: on
 
 # = = = = io utilities
 
