@@ -221,7 +221,7 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
                 upsam = TU.CausalConvNeuralUpsampler(
                     in_channels=1,
                     out_channels=1,
-                    tconv_kernelf_size=p[0],
+                    tconv_kernel_f_size=p[0],
                     tconv_padding_f=0,
                     conv_kernel_size=(1, p[2]),
                     tconv_stride_f=p[1],
