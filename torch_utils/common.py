@@ -1,6 +1,6 @@
 from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler, SequentialSampler
 from torchaudio.functional import resample
-from typing import Tuple, Type, Union
+from typing import List, Tuple, Type, Union
 import torch.nn.functional as F
 from random import randrange
 from pathlib import Path
@@ -18,6 +18,7 @@ __all__ = [
     "DotDict",
     "Config",
     "get_np_or_torch",
+    "pack_many",
     "repeat_test",
     # io utilities
     "load_audio",
@@ -126,6 +127,22 @@ def get_np_or_torch(x: Union[np.ndarray, Tensor]):
         torch.iscomplex = torch.is_complex
         torch.hanning = torch.hann_window
         return np
+
+
+def pack_many(*xss: List[List]) -> List[Tuple]:
+    """
+    Packs many Lists in one.
+
+    Parameters
+    ----------
+    xss : List[List]
+
+    Returns
+    -------
+    List[Tuple]
+        Packed list
+    """
+    return list(zip(*xss))
 
 
 # fmt: off

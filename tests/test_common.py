@@ -434,5 +434,20 @@ class TestAudio(unittest.TestCase):
         self.assertEqual(y.shape, (1, 1, 2 * 160))
 
 
+class TestGeneric(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        pass
+
+    def setUp(self):
+        pass
+
+    def test_pack_many(self):
+        xs = [1, 2, 3]
+        ys = [4, 5, 6]
+        zss = TU.pack_many(xs, ys)
+        self.assertEqual(zss, [(1, 4), (2, 5), (3, 6)])
+
+
 if __name__ == "__main__":
     unittest.main()
