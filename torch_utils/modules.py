@@ -305,8 +305,8 @@ class CausalConvNeuralUpsampler(nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        tconv_kernelf_size: int,
         conv_kernel_size: Tuple[int, int],
+        tconv_kernel_f_size: int = 4,
         tconv_stride_f: int = 2,
         tconv_padding_f: int = 0,
         dilation: Tuple[int, int] = 1,
@@ -346,7 +346,7 @@ class CausalConvNeuralUpsampler(nn.Module):
         self.tconv = nn.ConvTranspose2d(
             in_channels=in_channels,
             out_channels=in_channels,
-            kernel_size=(1, tconv_kernelf_size),
+            kernel_size=(1, tconv_kernel_f_size),
             stride=(1, tconv_stride_f),
             padding=(0, tconv_padding_f),
             output_padding=(0, tconv_stride_f - 1),
@@ -354,8 +354,8 @@ class CausalConvNeuralUpsampler(nn.Module):
             device=device,
             dtype=dtype,
         )
-        pad_f = tconv_kernelf_size // 2
-        if tconv_kernelf_size % 2 == 0:
+        pad_f = tconv_kernel_f_size // 2
+        if tconv_kernel_f_size % 2 == 0:
             # # even tconv kernel
             self.padding_f = nn.ConstantPad2d((-pad_f, -pad_f + 1, 0, 0), 0)
         else:
