@@ -12,6 +12,7 @@ __all__ = [
     "Lookahead",
     "Reparameterize",
     "ScaleChannels2d",
+    "GroupedLinear",
     "CausalConv2d",
     "CausalConv2dNormAct",
     "CausalConvNeuralUpsampler",
@@ -133,6 +134,83 @@ class ScaleChannels2d(nn.Module):
         return x
 
 
+class GroupedLinear(nn.Module):
+    # TODO: tests
+    def __init__(
+        self,
+        input_dim: int,
+        output_dim: int,
+        groups: int = 1,
+    ):
+        """
+        Dense layer with grouping.
+
+        Parameters
+        ----------
+        input_dim : int
+            Input feature size
+        output_dim : int
+            Output feature size
+        groups : int, optional
+            number of groups, by default 1
+        """
+        super().__init__()
+        self.input_dim = input_dim
+        self.hidden_size = output_dim
+        self.ws = input_dim // groups
+        self.groups = groups
+
+        # error handling
+        assert input_dim % groups == 0, f"Input size {input_dim} not divisible by {groups}"
+        assert output_dim % groups == 0, f"Hidden size {output_dim} not divisible by {groups}"
+
+        # weights
+        self.register_parameter(
+            "weight",
+            nn.Parameter(
+                torch.zeros(groups, input_dim // groups, output_dim // groups),
+                requires_grad=True,
+            ),
+        )
+        self.reset_parameters()
+
+    def reset_parameters(self) -> None:
+        """
+        Resets the dense weights.
+        """
+        nn.init.kaiming_uniform_(self.weight, a=np.sqrt(5))
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Applies self.groups different dense layers
+        distributed per sections.
+
+        Parameters
+        ----------
+        x : Tensor
+            Input og shape (..., self.input_dim)
+
+        Returns
+        -------
+        Tensor
+            _description_
+        """
+        # x: [..., I]
+        b, t, _ = x.shape
+        # new_shape = list(x.shape)[:-1] + [self.groups, self.ws]
+        new_shape = (b, t, self.groups, self.ws)
+        x = x.view(new_shape)
+        # The better way, but not supported by torchscript
+        # x = x.unflatten(-1, (self.groups, self.ws))  # [..., G, I/G]
+        x = torch.einsum("btgi,gih->btgh", x, self.weight)  # [..., G, H/G]
+        x = x.flatten(2, 3)  # [B, T, H]
+        return x
+
+    def __repr__(self):
+        cls = self.__class__.__name__
+        return f"{cls}(input_dim: {self.input_dim}, hidden_size: {self.hidden_size}, groups: {self.groups})"
+
+
 class CausalConv2d(nn.Module):
     def __init__(
         self,
@@ -173,7 +251,6 @@ class CausalConv2d(nn.Module):
                 stride=(1, stride_f),
                 padding=(0, padding_f),
                 dilation=dilation,
-                groups=groups,
                 bias=bias,
                 device=device,
                 dtype=dtype,
