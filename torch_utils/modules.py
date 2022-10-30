@@ -135,7 +135,6 @@ class ScaleChannels2d(nn.Module):
 
 
 class GroupedLinear(nn.Module):
-    # TODO: tests
     def __init__(
         self,
         input_dim: int,
@@ -196,7 +195,7 @@ class GroupedLinear(nn.Module):
             _description_
         """
         # x: [..., I]
-        b, t, _ = x.shape
+        b, t, = x.shape[:2]
         # new_shape = list(x.shape)[:-1] + [self.groups, self.ws]
         new_shape = (b, t, self.groups, self.ws)
         x = x.view(new_shape)
