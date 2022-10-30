@@ -1,3 +1,4 @@
+from typing import Dict
 from pathimport import set_module_root
 from argparse import ArgumentParser
 from loguru import logger
@@ -45,7 +46,15 @@ def main(args):
             g.create_dataset("x", data=x)
 
 
-if __name__ == "__main__":
+def parse_args() -> Dict:
+    """
+    Parses command line arguments.
+
+    Returns
+    -------
+    Dict
+        Parsed arguments
+    """
     desc = "converts a list of absolute wav paths passed through stdin to an HDF5 dataset."
     argparser = ArgumentParser(description=desc)
     argparser.add_argument(
@@ -61,7 +70,7 @@ if __name__ == "__main__":
     argparser.add_argument(
         "--sample_rate",
         default=16000,
-        type=float,
+        type=int,
         help="resample to the sample rate indicated",
     )
     argparser.add_argument(
@@ -77,5 +86,9 @@ if __name__ == "__main__":
         type=float,
         help="duration in seconds inside the datasets",
     )
-    args = argparser.parse_args()
+    return argparser.parse_args()
+
+
+if __name__ == "__main__":
+    args = parse_args()
     main(args)
