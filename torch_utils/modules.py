@@ -168,7 +168,7 @@ class GroupedLinear(nn.Module):
         self.register_parameter(
             "weight",
             nn.Parameter(
-                torch.zeros(groups, input_dim // groups, output_dim // groups),
+                torch.zeros(groups, input_dim // groups, output_dim // groups).to(get_device()),
                 requires_grad=True,
             ),
         )
