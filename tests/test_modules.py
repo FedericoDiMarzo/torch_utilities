@@ -149,7 +149,7 @@ class TestReparameterize(unittest.TestCase):
 
     def setUp(self):
         self.reparam = TU.Reparameterize()
-        self.eps = 1e-2
+        self.eps = 1e-1
 
     @repeat_test(5)
     @torch.no_grad()
@@ -231,6 +231,33 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
                 x = torch.ones((1, 1, 100, 32))
                 y = upsam(x)
                 self.assertEqual(list(y.shape), [*x.shape[:-1], 32 * p[1]])
+
+
+class TestGroupedLinear(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        pass
+
+    def setUp(self):
+        pass
+
+    def test_assert(self):
+        params = (
+            (65, 32),
+            (64, 31),
+        )
+        for p in params:
+            with self.subTest(p=p):
+                with self.assertRaises(AssertionError):
+                    TU.GroupedLinear(p[0], p[1], groups=8)
+
+    def test_no_groups(self):
+        x = torch.rand((1, 10, 32)).to(TU.get_device())
+        gl = TU.GroupedLinear(32, 64, 1)
+        lin = nn.Linear(32, 64, bias=False).to(TU.get_device())
+        gl.weight.data = torch.ones_like(gl.weight.data)
+        lin.weight.data = torch.ones_like(lin.weight.data)
+        self.assertTrue(torch.allclose(gl(x), lin(x)))
 
 
 if __name__ == "__main__":
