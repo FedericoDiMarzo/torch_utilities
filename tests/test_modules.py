@@ -14,6 +14,7 @@ from torch_utils.common import repeat_test, to_numpy
 
 torch.manual_seed(984)
 np.random.seed(876)
+D = tu.get_device()
 
 
 class TestLookahead(unittest.TestCase):
@@ -22,7 +23,7 @@ class TestLookahead(unittest.TestCase):
         pass
 
     def setUp(self):
-        self.x = torch.zeros(1, 2, 10, 16)
+        self.x = torch.zeros(1, 2, 10, 16, device=D)
 
     @torch.no_grad()
     def test_no_maintain_shape(self):
@@ -51,8 +52,9 @@ class TestCausalConv2d(unittest.TestCase):
             in_channels=1,
             out_channels=1,
             kernel_size=(5, 1),
+            device=D,
         )
-        x = torch.ones((1, 100, 3))
+        x = torch.ones((1, 100, 3), device=D)
         y = conv(x)
         self.assertEqual(y.shape, x.shape)
 

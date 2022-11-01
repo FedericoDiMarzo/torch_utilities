@@ -8,6 +8,8 @@ from pathimport import set_module_root
 set_module_root(".", prefix=True)
 from torch_utils.common import get_device
 
+# TODO: document device
+
 __all__ = [
     "Lookahead",
     "Reparameterize",
@@ -41,7 +43,12 @@ def get_time_value(param):
 
 
 class Lookahead(nn.Module):
-    def __init__(self, lookahead: int, maintain_shape: bool = False) -> None:
+    def __init__(
+        self,
+        lookahead: int,
+        maintain_shape: bool = False,
+        device: Optional[torch.device] = None,
+    ) -> None:
         """
         Temporal lookahead layer.
         Input shape: (B, C, T, F)
@@ -70,8 +77,12 @@ class Lookahead(nn.Module):
 
 
 class Reparameterize(nn.Module):
-    def __init__(self) -> None:
+    def __init__(
+        self,
+        device: Optional[torch.device] = None,
+    ) -> None:
         super().__init__()
+        self.device = device
 
     def forward(self, mu: Tensor, logvar: Tensor) -> Tensor:
         """
@@ -91,12 +102,16 @@ class Reparameterize(nn.Module):
             Sample from the normal distribution
         """
         std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std)
+        eps = torch.randn_like(std, device=self.device)
         return eps * std + mu
 
 
 class ScaleChannels2d(nn.Module):
-    def __init__(self, in_channels: int) -> None:
+    def __init__(
+        self,
+        in_channels: int,
+        device: Optional[torch.device] = None,
+    ) -> None:
         """
         Learns a per-channel gain.
 
@@ -114,6 +129,7 @@ class ScaleChannels2d(nn.Module):
             kernel_size=1,
             groups=in_channels,
             bias=False,
+            device=device,
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -140,6 +156,7 @@ class GroupedLinear(nn.Module):
         input_dim: int,
         output_dim: int,
         groups: int = 1,
+        device: Optional[torch.device] = None,
     ):
         """
         Dense layer with grouping.
@@ -195,7 +212,10 @@ class GroupedLinear(nn.Module):
             _description_
         """
         # x: [..., I]
-        b, t, = x.shape[:2]
+        (
+            b,
+            t,
+        ) = x.shape[:2]
         # new_shape = list(x.shape)[:-1] + [self.groups, self.ws]
         new_shape = (b, t, self.groups, self.ws)
         x = x.view(new_shape)
@@ -221,7 +241,7 @@ class CausalConv2d(nn.Module):
         dilation: Tuple[int, int] = 1,
         bias: bool = True,
         separable: bool = False,
-        device=None,
+        device: Optional[torch.device] = None,
         dtype=None,
     ) -> None:
         """
@@ -309,7 +329,7 @@ class CausalConv2dNormAct(nn.Module):
         activation: nn.Module = nn.ReLU(),
         residual_merge: Optional[Callable] = None,
         disable_batchnorm: bool = False,
-        device=None,
+        device: Optional[torch.device] = None,
         dtype=None,
     ) -> None:
         """
@@ -348,7 +368,10 @@ class CausalConv2dNormAct(nn.Module):
         )
 
         if kernel_size[1] % 2 == 0:
-            self.freq_trim = nn.ConstantPad2d((0, -1, 0, 0), 0)
+            self.freq_trim = nn.ConstantPad2d(
+                (0, -1, 0, 0),
+                0,
+            )
         else:
             self.freq_trim = nn.Identity()
 
@@ -364,6 +387,13 @@ class CausalConv2dNormAct(nn.Module):
 
         self.activation = activation
         self.residual_merge = residual_merge
+
+        if device is not None:
+            self.activation.to(device)
+            try:
+                self.residual_merge.to(residual_merge)
+            except Exception as e:
+                raise e
 
     def forward(self, x: Tensor) -> Tensor:
         y = self.conv(x)
@@ -394,7 +424,7 @@ class CausalConvNeuralUpsampler(nn.Module):
         activation: nn.Module = nn.LeakyReLU(),
         residual_merge: Optional[Callable] = None,
         disable_batchnorm: bool = False,
-        device=None,
+        device: Optional[torch.device] = None,
         dtype=None,
     ) -> None:
         """
@@ -459,6 +489,13 @@ class CausalConvNeuralUpsampler(nn.Module):
 
         self.activation = activation
         self.residual_merge = residual_merge
+
+        if device is not None:
+            self.activation.to(device)
+            try:
+                self.residual_merge.to(residual_merge)
+            except Exception as e:
+                raise e
 
     def forward(self, x: Tensor) -> Tensor:
         y = self.tconv(x)
