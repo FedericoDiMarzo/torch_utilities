@@ -668,24 +668,13 @@ def to_numpy(x: Tensor) -> np.ndarray:
     return x.cpu().detach().numpy()
 
 
-def default_device(func: Callable) -> Callable:
+def set_auto_device() -> None:
     """
-    Decorator to force the use of the
-    default pytorch device inside a function.
+    Sets the default pytorch tensor
+    to 'torch.{get_device()}.FloatTensor'
 
-    Parameters
-    ----------
-    func : Callable
-        Target function
-
-    Returns
-    -------
-    Callable
-        Decorated function
     """
-    device = torch.device(get_device())
-    with device:
-        return func
+    torch.set_default_tensor_type(f"torch.{get_device()}.FloatTensor")
 
 
 # = = = = pytorch data loading

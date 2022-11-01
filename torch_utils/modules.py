@@ -6,9 +6,6 @@ import torch.nn.functional as F
 from pathimport import set_module_root
 
 set_module_root(".", prefix=True)
-from torch_utils.common import get_device
-
-# TODO: document device
 
 __all__ = [
     "Lookahead",
@@ -47,7 +44,6 @@ class Lookahead(nn.Module):
         self,
         lookahead: int,
         maintain_shape: bool = False,
-        device: Optional[torch.device] = None,
     ) -> None:
         """
         Temporal lookahead layer.
@@ -77,12 +73,8 @@ class Lookahead(nn.Module):
 
 
 class Reparameterize(nn.Module):
-    def __init__(
-        self,
-        device: Optional[torch.device] = None,
-    ) -> None:
+    def __init__(self) -> None:
         super().__init__()
-        self.device = device
 
     def forward(self, mu: Tensor, logvar: Tensor) -> Tensor:
         """
@@ -102,7 +94,7 @@ class Reparameterize(nn.Module):
             Sample from the normal distribution
         """
         std = torch.exp(0.5 * logvar)
-        eps = torch.randn_like(std, device=self.device)
+        eps = torch.randn_like(std)
         return eps * std + mu
 
 
@@ -110,7 +102,6 @@ class ScaleChannels2d(nn.Module):
     def __init__(
         self,
         in_channels: int,
-        device: Optional[torch.device] = None,
     ) -> None:
         """
         Learns a per-channel gain.
@@ -129,7 +120,6 @@ class ScaleChannels2d(nn.Module):
             kernel_size=1,
             groups=in_channels,
             bias=False,
-            device=device,
         )
 
     def forward(self, x: Tensor) -> Tensor:
@@ -156,7 +146,6 @@ class GroupedLinear(nn.Module):
         input_dim: int,
         output_dim: int,
         groups: int = 1,
-        device: Optional[torch.device] = None,
     ):
         """
         Dense layer with grouping.
@@ -184,7 +173,7 @@ class GroupedLinear(nn.Module):
         self.register_parameter(
             "weight",
             nn.Parameter(
-                torch.zeros(groups, input_dim // groups, output_dim // groups).to(get_device()),
+                torch.zeros(groups, input_dim // groups, output_dim // groups),
                 requires_grad=True,
             ),
         )
@@ -241,7 +230,6 @@ class CausalConv2d(nn.Module):
         dilation: Tuple[int, int] = 1,
         bias: bool = True,
         separable: bool = False,
-        device: Optional[torch.device] = None,
         dtype=None,
     ) -> None:
         """
@@ -271,7 +259,6 @@ class CausalConv2d(nn.Module):
                 padding=(0, padding_f),
                 dilation=dilation,
                 bias=bias,
-                device=device,
                 dtype=dtype,
             )
         else:
@@ -286,7 +273,6 @@ class CausalConv2d(nn.Module):
                 dilation=dilation,
                 bias=bias,
                 groups=groups,
-                device=device,
                 dtype=dtype,
             )
             pointwise = nn.Conv2d(
@@ -294,7 +280,6 @@ class CausalConv2d(nn.Module):
                 out_channels=out_channels,
                 kernel_size=1,
                 bias=False,
-                device=device,
                 dtype=dtype,
             )
             self.conv = nn.Sequential(depthwise, pointwise)
@@ -329,7 +314,6 @@ class CausalConv2dNormAct(nn.Module):
         activation: nn.Module = nn.ReLU(),
         residual_merge: Optional[Callable] = None,
         disable_batchnorm: bool = False,
-        device: Optional[torch.device] = None,
         dtype=None,
     ) -> None:
         """
@@ -363,7 +347,6 @@ class CausalConv2dNormAct(nn.Module):
             dilation=dilation,
             bias=False,
             separable=separable,
-            device=device,
             dtype=dtype,
         )
 
@@ -381,19 +364,11 @@ class CausalConv2dNormAct(nn.Module):
             momentum=momentum,
             affine=affine,
             track_running_stats=track_running_stats,
-            device=device,
             dtype=dtype,
         )
 
         self.activation = activation
         self.residual_merge = residual_merge
-
-        if device is not None:
-            self.activation.to(device)
-            try:
-                self.residual_merge.to(residual_merge)
-            except Exception as e:
-                raise e
 
     def forward(self, x: Tensor) -> Tensor:
         y = self.conv(x)
@@ -424,7 +399,6 @@ class CausalConvNeuralUpsampler(nn.Module):
         activation: nn.Module = nn.LeakyReLU(),
         residual_merge: Optional[Callable] = None,
         disable_batchnorm: bool = False,
-        device: Optional[torch.device] = None,
         dtype=None,
     ) -> None:
         """
@@ -457,7 +431,6 @@ class CausalConvNeuralUpsampler(nn.Module):
             padding=(0, tconv_padding_f),
             output_padding=(0, tconv_stride_f - 1),
             bias=False,
-            device=device,
             dtype=dtype,
         )
         pad_f = tconv_kernel_f_size // 2
@@ -474,7 +447,6 @@ class CausalConvNeuralUpsampler(nn.Module):
             dilation=dilation,
             bias=False,
             separable=separable,
-            device=device,
             dtype=dtype,
         )
         self.batchnorm = nn.BatchNorm2d(
@@ -483,19 +455,11 @@ class CausalConvNeuralUpsampler(nn.Module):
             momentum=momentum,
             affine=affine,
             track_running_stats=track_running_stats,
-            device=device,
             dtype=dtype,
         )
 
         self.activation = activation
         self.residual_merge = residual_merge
-
-        if device is not None:
-            self.activation.to(device)
-            try:
-                self.residual_merge.to(residual_merge)
-            except Exception as e:
-                raise e
 
     def forward(self, x: Tensor) -> Tensor:
         y = self.tconv(x)

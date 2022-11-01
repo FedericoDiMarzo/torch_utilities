@@ -9,12 +9,11 @@ import torch
 
 set_module_root("../torch_utils", prefix=True)
 import torch_utils as tu
-from tests.generate_test_data import get_test_data_dir
-from torch_utils.common import repeat_test, to_numpy
+from torch_utils.common import repeat_test, set_auto_device
 
 torch.manual_seed(984)
 np.random.seed(876)
-D = tu.get_device()
+set_auto_device()
 
 
 class TestLookahead(unittest.TestCase):
@@ -23,7 +22,7 @@ class TestLookahead(unittest.TestCase):
         pass
 
     def setUp(self):
-        self.x = torch.zeros(1, 2, 10, 16, device=D)
+        self.x = torch.zeros(1, 2, 10, 16)
 
     @torch.no_grad()
     def test_no_maintain_shape(self):
@@ -52,9 +51,8 @@ class TestCausalConv2d(unittest.TestCase):
             in_channels=1,
             out_channels=1,
             kernel_size=(5, 1),
-            device=D,
         )
-        x = torch.ones((1, 100, 3), device=D)
+        x = torch.ones((1, 100, 3))
         y = conv(x)
         self.assertEqual(y.shape, x.shape)
 
@@ -254,9 +252,9 @@ class TestGroupedLinear(unittest.TestCase):
                     tu.GroupedLinear(p[0], p[1], groups=8)
 
     def test_no_groups(self):
-        x = torch.rand((1, 10, 32)).to(tu.get_device())
+        x = torch.rand((1, 10, 32))
         gl = tu.GroupedLinear(32, 64, 1)
-        lin = nn.Linear(32, 64, bias=False).to(tu.get_device())
+        lin = nn.Linear(32, 64, bias=False)
         gl.weight.data = torch.ones_like(gl.weight.data)
         lin.weight.data = torch.ones_like(lin.weight.data)
         self.assertTrue(torch.allclose(gl(x), lin(x)))
