@@ -1,6 +1,6 @@
 from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler, SequentialSampler
 from torchaudio.functional import resample
-from typing import List, Tuple, Type, Union
+from typing import Callable, List, Tuple, Type, Union
 import torch.nn.functional as F
 from random import randrange
 from pathlib import Path
@@ -666,6 +666,26 @@ def to_numpy(x: Tensor) -> np.ndarray:
         Converted np array
     """
     return x.cpu().detach().numpy()
+
+
+def default_device(func: Callable) -> Callable:
+    """
+    Decorator to force the use of the
+    default pytorch device inside a function.
+
+    Parameters
+    ----------
+    func : Callable
+        Target function
+
+    Returns
+    -------
+    Callable
+        Decorated function
+    """
+    device = torch.device(get_device())
+    with device:
+        return func
 
 
 # = = = = pytorch data loading

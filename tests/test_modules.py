@@ -8,7 +8,7 @@ import unittest
 import torch
 
 set_module_root("../torch_utils", prefix=True)
-import torch_utils as TU
+import torch_utils as tu
 from tests.generate_test_data import get_test_data_dir
 from torch_utils.common import repeat_test, to_numpy
 
@@ -26,13 +26,13 @@ class TestLookahead(unittest.TestCase):
 
     @torch.no_grad()
     def test_no_maintain_shape(self):
-        lookahead = TU.Lookahead(4)
+        lookahead = tu.Lookahead(4)
         y = lookahead(self.x)
         self.assertEqual(y.shape, (1, 2, 6, 16))
 
     @torch.no_grad()
     def test_maintain_shape(self):
-        lookahead = TU.Lookahead(4, maintain_shape=True)
+        lookahead = tu.Lookahead(4, maintain_shape=True)
         y = lookahead(self.x)
         self.assertEqual(y.shape, self.x.shape)
 
@@ -47,7 +47,7 @@ class TestCausalConv2d(unittest.TestCase):
 
     @torch.no_grad()
     def test_conv(self):
-        conv = TU.CausalConv2d(
+        conv = tu.CausalConv2d(
             in_channels=1,
             out_channels=1,
             kernel_size=(5, 1),
@@ -58,14 +58,14 @@ class TestCausalConv2d(unittest.TestCase):
 
     @torch.no_grad()
     def test_conv_padding(self):
-        conv = TU.CausalConv2d(in_channels=1, out_channels=1, kernel_size=(5, 3), padding_f=1)
+        conv = tu.CausalConv2d(in_channels=1, out_channels=1, kernel_size=(5, 3), padding_f=1)
         x = torch.ones((1, 100, 3))
         y = conv(x)
         self.assertEqual(y.shape, x.shape)
 
     @torch.no_grad()
     def test_conv_separable(self):
-        conv = TU.CausalConv2d(
+        conv = tu.CausalConv2d(
             in_channels=1,
             out_channels=1,
             kernel_size=(5, 1),
@@ -77,7 +77,7 @@ class TestCausalConv2d(unittest.TestCase):
 
     @torch.no_grad()
     def test_conv_dilation(self):
-        conv = TU.CausalConv2d(
+        conv = tu.CausalConv2d(
             in_channels=1,
             out_channels=1,
             kernel_size=(5, 1),
@@ -107,7 +107,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
         params = itertools.product(*params)
         for p in params:
             with self.subTest(p=p):
-                conv = TU.CausalConv2dNormAct(
+                conv = tu.CausalConv2dNormAct(
                     in_channels=1,
                     out_channels=1,
                     kernel_size=(p[0], p[1]),
@@ -119,7 +119,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
 
     @torch.no_grad()
     def test_conv_sum(self):
-        conv = TU.CausalConv2dNormAct(
+        conv = tu.CausalConv2dNormAct(
             in_channels=1,
             out_channels=1,
             kernel_size=(5, 1),
@@ -131,7 +131,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
 
     @torch.no_grad()
     def test_conv_concat(self):
-        conv = TU.CausalConv2dNormAct(
+        conv = tu.CausalConv2dNormAct(
             in_channels=1,
             out_channels=1,
             kernel_size=(5, 1),
@@ -148,7 +148,7 @@ class TestReparameterize(unittest.TestCase):
         pass
 
     def setUp(self):
-        self.reparam = TU.Reparameterize()
+        self.reparam = tu.Reparameterize()
         self.eps = 1e-1
 
     @repeat_test(5)
@@ -175,7 +175,7 @@ class TestScaleChannels2d(unittest.TestCase):
         pass
 
     def setUp(self):
-        self.scale = TU.ScaleChannels2d(2)
+        self.scale = tu.ScaleChannels2d(2)
 
     def set_weights(self, weights: list):
         w = self.scale.scale.weight.data
@@ -218,7 +218,7 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
                 merge = None
 
             with self.subTest(p=p):
-                upsam = TU.CausalConvNeuralUpsampler(
+                upsam = tu.CausalConvNeuralUpsampler(
                     in_channels=1,
                     out_channels=1,
                     tconv_kernel_f_size=p[0],
@@ -249,12 +249,12 @@ class TestGroupedLinear(unittest.TestCase):
         for p in params:
             with self.subTest(p=p):
                 with self.assertRaises(AssertionError):
-                    TU.GroupedLinear(p[0], p[1], groups=8)
+                    tu.GroupedLinear(p[0], p[1], groups=8)
 
     def test_no_groups(self):
-        x = torch.rand((1, 10, 32)).to(TU.get_device())
-        gl = TU.GroupedLinear(32, 64, 1)
-        lin = nn.Linear(32, 64, bias=False).to(TU.get_device())
+        x = torch.rand((1, 10, 32)).to(tu.get_device())
+        gl = tu.GroupedLinear(32, 64, 1)
+        lin = nn.Linear(32, 64, bias=False).to(tu.get_device())
         gl.weight.data = torch.ones_like(gl.weight.data)
         lin.weight.data = torch.ones_like(lin.weight.data)
         self.assertTrue(torch.allclose(gl(x), lin(x)))
