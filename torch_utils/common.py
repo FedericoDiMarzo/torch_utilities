@@ -37,6 +37,7 @@ __all__ = [
     # pytorch utilities
     "get_device",
     "to_numpy",
+    "set_auto_device"
     # pytorch data loading
     "WeakShufflingSampler",
     "HDF5Dataset",
@@ -776,7 +777,7 @@ class HDF5Dataset(Dataset):
         a, b = idx[0] % gbl, idx[-1] % gbl
         data = {k: d[a:b] for k, d in self._cache.items()}
 
-        return data
+        return DotDict(data)
 
     def _update_cache(self, idx: int) -> None:
         """
@@ -821,7 +822,7 @@ def get_hdf5_dataloader(
     dataset: HDF5Dataset,
     batch_size: int = None,
     dataloader_kwargs: dict = None,
-):
+) -> DataLoader:
     """
     Create a dataloader binded to a HDF5Dataset.
 
