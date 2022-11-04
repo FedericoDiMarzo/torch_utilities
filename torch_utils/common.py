@@ -1,6 +1,6 @@
 from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler, SequentialSampler
-from torchaudio.functional import resample
 from typing import Callable, List, Tuple, Type, Union
+from torchaudio.functional import resample
 import torch.nn.functional as F
 from random import randrange
 from pathlib import Path
