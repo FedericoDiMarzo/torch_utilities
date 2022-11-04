@@ -37,7 +37,7 @@ __all__ = [
     # pytorch utilities
     "get_device",
     "to_numpy",
-    "set_auto_device"
+    "set_auto_device",
     # pytorch data loading
     "WeakShufflingSampler",
     "HDF5Dataset",
