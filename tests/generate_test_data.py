@@ -65,7 +65,7 @@ def generate_yaml():
         },
     }
 
-    with open(get_test_data_dir() / "test.yaml", "w") as f:
+    with open(get_test_data_dir() / "test.yml", "w") as f:
         yaml.dump(data, f)
 
 
