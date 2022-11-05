@@ -57,6 +57,9 @@ class DotDict(dict):
     __setattr__ = dict.__setitem__
     __delattr__ = dict.__delitem__
 
+    def copy(self) -> "DotDict":
+        return DotDict(super().copy())
+
 
 class Config:
     def __init__(self, config_path: Path) -> None:
