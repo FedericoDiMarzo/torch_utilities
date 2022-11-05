@@ -9,9 +9,11 @@ import torch
 set_module_root("../torch_utils", prefix=True)
 import torch_utils as tu
 from tests.generate_test_data import get_test_data_dir
+from torch_utils.common import repeat_test, set_auto_device
 
 torch.manual_seed(984)
-np.random.seed(876)
+np.random.seed(901)
+set_auto_device()
 
 
 class TestConfig(unittest.TestCase):
@@ -20,7 +22,7 @@ class TestConfig(unittest.TestCase):
         pass
 
     def setUp(self):
-        self.config_path = get_test_data_dir() / "test.yaml"
+        self.config_path = get_test_data_dir() / "test.yml"
         self.config = tu.Config(self.config_path)
 
     def test_get_str(self):
@@ -50,7 +52,7 @@ class TestConfig(unittest.TestCase):
 
     def test_default(self):
         y_true = "default"
-        y_test = self.config.get("section1", "param10", default="default", type=int)
+        y_test = self.config.get("section1", "param10", default="default", _type=int)
         self.assertEqual(y_true, y_test)
 
 
@@ -102,12 +104,12 @@ class TestIO(unittest.TestCase):
         self.delete_tmp()
 
     def test_tensor_mono_save(self):
-        x = torch.zeros((1, self.tmp_sr)).to(tu.get_device())
+        x = torch.zeros((1, self.tmp_sr))
         tu.save_audio(self.tmp_file, x, self.tmp_sr)
         self.delete_tmp()
 
     def test_tensor_stereo_save(self):
-        x = torch.zeros((2, self.tmp_sr)).to(tu.get_device())
+        x = torch.zeros((2, self.tmp_sr))
         tu.save_audio(self.tmp_file, x, self.tmp_sr)
         self.delete_tmp()
 
@@ -124,9 +126,9 @@ class TestSTFT(unittest.TestCase):
         self.sample_rate = 16000
         self.framesize_ms = 10
         self.x_np = np.zeros((self.sample_rate))
-        self.x_pt = torch.zeros((self.sample_rate)).to(tu.get_device())
+        self.x_pt = torch.zeros((self.sample_rate))
         self.x_np_stft = np.zeros((50, 321)).astype(complex)
-        self.x_pt_stft = torch.zeros((50, 321)).type(torch.cfloat).to(tu.get_device())
+        self.x_pt_stft = torch.zeros((50, 321)).type(torch.cfloat)
 
     def test_mono_stft(self):
         x = self.x_np
@@ -206,7 +208,7 @@ class TestSTFT(unittest.TestCase):
             self.assertEqual(x_stft.shape[1], bins)
 
     def test_tensor_multich_stft(self):
-        x = torch.stack([self.x_pt] * 4).to(tu.get_device())
+        x = torch.stack([self.x_pt] * 4)
         for ovs, bins in zip([1, 4], [81, 321]):
             x_stft = tu.stft(
                 x,
@@ -251,7 +253,7 @@ class TestHDF5DataLoader(unittest.TestCase):
         self.dataset = tu.HDF5Dataset(self.hdf5_path, self.data_layout)
 
     def dummy_input(self, g_idx):
-        return torch.ones((16, 8)).to(tu.get_device()) * g_idx
+        return torch.ones((16, 8)) * g_idx
 
     def test_weak_shuffling_len(self):
         batch_size = 16
@@ -265,13 +267,13 @@ class TestHDF5DataLoader(unittest.TestCase):
         self.assertEqual(self.dataset._cache_idx, None)
 
         self.dataset[[0, 1]]
-        self.assertTrue(torch.all(self.dataset._cache["x"] == self.dummy_input(0)))
-        self.assertTrue(torch.all(self.dataset._cache["y_true"] == self.dummy_input(0)))
+        self.assertTrue(torch.all(self.dataset._cache[0] == self.dummy_input(0)))
+        self.assertTrue(torch.all(self.dataset._cache[1] == self.dummy_input(0)))
         self.assertEqual(self.dataset._cache_idx, 0)
 
         self.dataset[[group_len * 3, group_len * 3 + 1]]
-        self.assertTrue(torch.all(self.dataset._cache["x"] == self.dummy_input(3)))
-        self.assertTrue(torch.all(self.dataset._cache["y_true"] == self.dummy_input(3)))
+        self.assertTrue(torch.all(self.dataset._cache[0] == self.dummy_input(3)))
+        self.assertTrue(torch.all(self.dataset._cache[1] == self.dummy_input(3)))
         self.assertEqual(self.dataset._cache_idx, group_len * 3)
 
     def test_hdf5dataset_raise_idx_not_list(self):
@@ -315,7 +317,7 @@ class TestAudio(unittest.TestCase):
         x = torch.rand(100)
         y = tu.db(x)
         x_hat = tu.invert_db(y)
-        self.assertTrue(np.allclose(x, x_hat))
+        self.assertTrue(torch.allclose(x, x_hat))
 
     def test_power(self):
         x = np.ones(100)
@@ -330,12 +332,12 @@ class TestAudio(unittest.TestCase):
         self.assertAlmostEqual(y[1], 100)
 
     def test_power_tensor(self):
-        x = torch.ones(100).to(tu.get_device())
+        x = torch.ones(100)
         x[50:] = -1
         self.assertAlmostEqual(tu.power(x), 100)
 
     def test_power_multichannel_tensor(self):
-        x = torch.ones((2, 100)).to(tu.get_device())
+        x = torch.ones((2, 100))
         x[:, 50:] = -1
         y = tu.power(x)
         self.assertAlmostEqual(y[0], 100)
@@ -354,12 +356,12 @@ class TestAudio(unittest.TestCase):
         self.assertAlmostEqual(y[1], 1)
 
     def test_energy_tensor(self):
-        x = torch.ones(100).to(tu.get_device())
+        x = torch.ones(100)
         x[50:] = -1
         self.assertAlmostEqual(tu.energy(x), 1)
 
     def test_energy_multichannel_tensor(self):
-        x = torch.ones((2, 100)).to(tu.get_device())
+        x = torch.ones((2, 100))
         x[:, 50:] = -1
         y = tu.energy(x)
         self.assertAlmostEqual(y[0], 1)
@@ -378,12 +380,12 @@ class TestAudio(unittest.TestCase):
         self.assertAlmostEqual(y[1], 1)
 
     def test_rms_tensor(self):
-        x = torch.ones(100).to(tu.get_device())
+        x = torch.ones(100)
         x[50:] = -1
         self.assertAlmostEqual(tu.rms(x), 1)
 
     def test_rms_multichannel_tensor(self):
-        x = torch.ones((2, 100)).to(tu.get_device())
+        x = torch.ones((2, 100))
         x[:, 50:] = -1
         y = tu.rms(x)
         self.assertAlmostEqual(y[0], 1)
@@ -395,8 +397,8 @@ class TestAudio(unittest.TestCase):
         self.assertAlmostEqual(tu.snr(x, noise), 20)
 
     def test_snr_tensor(self):
-        x = torch.ones(10).to(tu.get_device()) * 10
-        noise = torch.ones(10).to(tu.get_device()) * 1
+        x = torch.ones(10) * 10
+        noise = torch.ones(10) * 1
         self.assertAlmostEqual(tu.snr(x, noise), 20)
 
     def test_fade_sides_1d(self):
@@ -412,7 +414,7 @@ class TestAudio(unittest.TestCase):
         self.assertEqual(x[0, 0, -1], 0)
 
     def test_tensor_fade_sides_1d(self):
-        x = torch.ones(200).to(tu.get_device())
+        x = torch.ones(200)
         x = tu.fade_sides(x)
         self.assertEqual(x[0], 0)
         self.assertEqual(x[-1], 0)
@@ -429,7 +431,7 @@ class TestAudio(unittest.TestCase):
         self.assertEqual(y.shape, (1, 1, 2 * 160))
 
     def test_tensor_trim(self):
-        x = torch.zeros((1, 1, 5 * 160)).to(tu.get_device())
+        x = torch.zeros((1, 1, 5 * 160))
         y = tu.trim(x, 160, 2)
         self.assertEqual(y.shape, (1, 1, 2 * 160))
 

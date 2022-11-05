@@ -1,5 +1,5 @@
 from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler, SequentialSampler
-from typing import Callable, List, Tuple, Type, Union
+from typing import Any, Callable, List, Tuple, Type, Union
 from torchaudio.functional import resample
 import torch.nn.functional as F
 from random import randrange
@@ -75,11 +75,17 @@ class Config:
         """
         # loading the configuration
         err_msg = "only YAML configurations are supported"
-        assert config_path.suffix == ".yaml", err_msg
+        assert config_path.suffix == ".yml", err_msg
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
 
-    def get(self, section: str, parameter: str, type: Type = str, default=None):
+    def get(
+        self,
+        section: str,
+        parameter: str,
+        _type: Type = str,
+        default: Any = None,
+    ) -> Any:
         """
         Gets a parameter from the configuration.
 
@@ -89,9 +95,9 @@ class Config:
             Configuration section
         parameter : str
             Name of the parameter
-        type : Type, optional
+        _type : Type, optional
             Type of the parameter, by default str
-        default : optional
+        default : Any, optional
             Default if the parameter does not exist, by default None
 
         Returns
@@ -104,7 +110,7 @@ class Config:
             # getting the section
             sec = cfg[section]
             # getting the parameter
-            param = type(sec[parameter])
+            param = _type(sec[parameter])
         except KeyError:
             return default
 
@@ -759,7 +765,7 @@ class HDF5Dataset(Dataset):
     def __len__(self):
         return len(self.groups) * self.group_batch_len
 
-    def __getitem__(self, idx):
+    def __getitem__(self, idx) -> List[Tensor]:
         # error handling
         err_msg = None
         if not isinstance(idx, list):
@@ -778,9 +784,9 @@ class HDF5Dataset(Dataset):
         # using the cache
         gbl = self.group_batch_len
         a, b = idx[0] % gbl, idx[-1] % gbl
-        data = {k: d[a:b] for k, d in self._cache.items()}
+        data = [x[a:b] for x in self._cache]
 
-        return DotDict(data)
+        return data
 
     def _update_cache(self, idx: int) -> None:
         """
@@ -799,7 +805,7 @@ class HDF5Dataset(Dataset):
         g_idx = idx // self.group_batch_len
         g = self.dataset_file[self.groups[g_idx]]
         cast = lambda x: torch.from_numpy(np.array(x)).to(get_device())
-        data = {k: cast(g[k]) for k in self.data_layout}
+        data = [cast(g[k]) for k in self.data_layout]
         self._cache = data
 
     def _in_cache(self, idx: int) -> bool:
