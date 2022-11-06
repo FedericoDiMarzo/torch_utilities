@@ -87,7 +87,7 @@ class ModelTrainer(ABC):
         self.log_every = self.from_config("log_every", int, 100)
         self.max_epochs = self.from_config("max_epochs", int, 100)
         self.losses_weight = self.from_config(
-            "losses_weights", np.ndarray, np.ones(len(self.losses))
+            "losses_weights", np.array, np.ones(len(self.losses))
         )
 
         # other dirs
