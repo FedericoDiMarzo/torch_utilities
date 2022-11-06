@@ -1,6 +1,5 @@
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from torch.utils.tensorboard import SummaryWriter
-from torch.utils.data import DataLoader
 from pathimport import set_module_root
 from torch import optim, nn, Tensor
 from contextlib import suppress
@@ -16,6 +15,7 @@ import abc
 set_module_root(".", prefix=True)
 from torch_utils.common import DotDict
 
+__all__ = ["ModelTrainer"]
 
 class ModelTrainer(ABC):
     def __init__(

@@ -5,7 +5,7 @@ import yaml
 import h5py
 
 set_module_root(".", prefix=True)
-from torch_utils.common import save_audio
+from torch_utils import save_audio
 
 
 def create_data_dir():

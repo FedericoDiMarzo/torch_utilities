@@ -1,7 +1,5 @@
 from pathimport import set_module_root
-from typing import Callable
-from pathlib import Path
-from torch import Tensor, nn
+from torch import  nn
 import numpy as np
 import itertools
 import unittest
@@ -9,7 +7,7 @@ import torch
 
 set_module_root("../torch_utils", prefix=True)
 import torch_utils as tu
-from torch_utils.common import repeat_test, set_auto_device
+from torch_utils import repeat_test, set_auto_device
 
 torch.manual_seed(984)
 np.random.seed(876)
