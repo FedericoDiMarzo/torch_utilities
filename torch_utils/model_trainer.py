@@ -1,4 +1,5 @@
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from pathimport import set_module_root
 from torch import optim, nn, Tensor
@@ -103,12 +104,12 @@ class ModelTrainer(ABC):
 
         # extra stuff
         self.save_buffer = deque([], maxlen=5)
+        self.log_writer = SummaryWriter(self.logs_dir)
 
     def start_training(self) -> None:
         """
         Trains a model.
         """
-
         for epoch in range(self.start_epoch, self.max_epochs):
             logger.info(f"epoch [{epoch}/{self.max_epochs}]")
 
@@ -123,13 +124,16 @@ class ModelTrainer(ABC):
             self._reset_running_losses()
             self.save_model(epoch)
 
-            # validation
-            self.model.eval()
             with torch.no_grad():
+                self.model.eval()
+                self.tensorboard_logs(self.train_ds[0], is_training=True)
+
+                # validation
                 for i, data in enumerate(self.valid_ds):
                     self.valid_step(data)
                 self._log_losses(is_training=False, steps=i)
                 self._reset_running_losses()
+                self.tensorboard_logs(self.valid_ds[0], is_training=False)
 
     def train_step(self, data: List[Tensor]) -> None:
         """
@@ -180,11 +184,22 @@ class ModelTrainer(ABC):
             epoch, model_state, optim_state = self._load_checkpoint()
             self.start_epoch = epoch
             m.load_state_dict(model_state)
-            with suppress(RuntimeError): 
+            with suppress(RuntimeError):
                 # ignore errors for optimizer mismatches
                 self.optimizer.load_state_dict(optim_state)
 
         return m
+
+    def get_tensorboard_writer(self) -> SummaryWriter:
+        """
+        Getter to the tensorboard log writer
+
+        Returns
+        -------
+        SummaryWriter
+            tensorboard log writer
+        """
+        return self.log_writer
 
     def _get_checkpoints(self) -> List[Path]:
         """
@@ -327,6 +342,20 @@ class ModelTrainer(ABC):
         -------
         List[Tensor]
             List of computed losses (not weighted)
+        """
+        pass
+
+    @abc.abstractclassmethod
+    def tensorboard_logs(self, net_ins: List[Tensor], is_training: bool) -> None:
+        """
+
+
+        Parameters
+        ----------
+        net_ins : List[Tensor]
+            Network inputs
+        is_training : bool
+            Flag to separate train/valid logging
         """
         pass
 
