@@ -17,6 +17,7 @@ from torch_utils.common import DotDict
 
 __all__ = ["ModelTrainer"]
 
+
 class ModelTrainer(ABC):
     def __init__(
         self,
@@ -59,6 +60,7 @@ class ModelTrainer(ABC):
         losses_names : Optional[List[str]]
             Names of the losses, by default ["loss0", "loss1", ...]
 
+
         config.yml [training] parameters
         ----------
         max_epochs : int, optional
@@ -86,9 +88,7 @@ class ModelTrainer(ABC):
         self.learning_rate = self.from_config("learning_rate", float, 0.001)
         self.log_every = self.from_config("log_every", int, 100)
         self.max_epochs = self.from_config("max_epochs", int, 100)
-        self.losses_weight = self.from_config(
-            "losses_weights", np.array, np.ones(len(self.losses))
-        )
+        self.losses_weight = self.from_config("losses_weights", np.array, np.ones(len(self.losses)))
 
         # other dirs
         self.checkpoints_dir = model_path / "checkpoints"
@@ -342,6 +342,23 @@ class ModelTrainer(ABC):
         -------
         List[Tensor]
             List of computed losses (not weighted)
+        """
+        pass
+
+    @abc.abstractmethod
+    def apply_transforms(self, net_ins: List[Tensor]) -> List[Tensor]:
+        """
+        Apply tranforms to the inputs.
+
+        Parameters
+        ----------
+        net_ins : List[Tensor]
+            Network inputs
+
+        Returns
+        -------
+        List[Tensor]
+            Transformed input
         """
         pass
 
