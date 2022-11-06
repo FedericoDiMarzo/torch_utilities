@@ -116,6 +116,8 @@ class ModelTrainer(ABC):
             # training
             self.net.train()
             for i, data in enumerate(self.train_ds):
+                with torch.no_grad():
+                    data = self.apply_transforms(data)
                 self.train_step(data)
                 if i % self.log_every == 0 and i != 0:
                     self._log_losses(is_training=True, steps=self.log_every)
@@ -130,6 +132,7 @@ class ModelTrainer(ABC):
 
                 # validation
                 for i, data in enumerate(self.valid_ds):
+                    data = self.apply_transforms(data)
                     self.valid_step(data)
                 self._log_losses(is_training=False, steps=i)
                 self._reset_running_losses()
