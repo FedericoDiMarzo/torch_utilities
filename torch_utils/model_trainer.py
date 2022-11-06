@@ -2,6 +2,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from torch.utils.data import DataLoader
 from pathimport import set_module_root
 from torch import optim, nn, Tensor
+from contextlib import suppress
 from collections import deque
 from loguru import logger
 import torch_utils as tu
@@ -22,7 +23,7 @@ class ModelTrainer(ABC):
         model: nn.Module,
         train_ds: tu.HDF5Dataset,
         valid_ds: tu.HDF5Dataset,
-        optimizer: optim.Optimizer,
+        optimizer_class: optim.Optimizer,
         losses: List[Callable],
         losses_names: Optional[List[str]] = None,
     ) -> None:
@@ -50,17 +51,19 @@ class ModelTrainer(ABC):
             Training dataset
         train_ds : tu.HDF5Dataset
             Validation dataset
-        optimizer : optim.Optimizer
-            Optimizer
+        optimizer_class : optim.Optimizer
+            Optimizer class
         losses : List[Callable]
             List of losses to be computed
         losses_names : Optional[List[str]]
-            Names of the losses, by default [loss0, loss1, ...]
+            Names of the losses, by default ["loss0", "loss1", ...]
 
         config.yml [training] parameters
         ----------
         max_epochs : int, optional
             Max number of epochs, by default 100
+        learning_rate : float, optional
+            Optimizer learning rate, by default 0.001
         losses_weights : List[float], optional
             Per-loss gains, by default all ones
         log_every : int, optional
@@ -72,16 +75,19 @@ class ModelTrainer(ABC):
         self.model = model
         self.train_ds = train_ds
         self.valid_ds = valid_ds
-        self.optimizer = optimizer
         self.losses = losses
         self.losses_names = losses_names or self._default_losses_names()
+        self.optimizer_class = optimizer_class
 
         # configuration attributes
         self.config_path = self.model_path / "config.yml"
         self.config = self._parse_config(self.config_path)
-        self.losses_weight = self.from_config("losses_weights", list, np.ones(len(self.losses)))
+        self.learning_rate = self.from_config("learning_rate", float, 0.001)
         self.log_every = self.from_config("log_every", int, 100)
         self.max_epochs = self.from_config("max_epochs", int, 100)
+        self.losses_weight = self.from_config(
+            "losses_weights", np.ndarray, np.ones(len(self.losses))
+        )
 
         # other dirs
         self.checkpoints_dir = model_path / "checkpoints"
@@ -89,7 +95,9 @@ class ModelTrainer(ABC):
         [d.make_dir(exist_ok=True) for d in (self.checkpoints_dir, self.logs_dir)]
 
         # model and running_losses setup
+        self.start_epoch = 0
         self.net = self.load_model()
+        self.optimizer = self._setup_optimizer()
         self.running_losses = None
         self._reset_running_losses()
 
@@ -100,9 +108,8 @@ class ModelTrainer(ABC):
         """
         Trains a model.
         """
-        # TODO: recover from previous training
 
-        for epoch in range(self.max_epochs):
+        for epoch in range(self.start_epoch, self.max_epochs):
             logger.info(f"epoch [{epoch}/{self.max_epochs}]")
 
             # training
@@ -166,9 +173,78 @@ class ModelTrainer(ABC):
         nn.Module
             Loaded model
         """
-        # TODO: load checkpoint if it exists
         m = self.model(self.config)
+
+        # load checkpoint if it exists
+        if self._prev_train_exists():
+            epoch, model_state, optim_state = self._load_checkpoint()
+            self.start_epoch = epoch
+            m.load_state_dict(model_state)
+            with suppress(RuntimeError): 
+                # ignore errors for optimizer mismatches
+                self.optimizer.load_state_dict(optim_state)
+
         return m
+
+    def _get_checkpoints(self) -> List[Path]:
+        """
+        Gets the checkpoints paths.
+
+        Returns
+        -------
+        List[Path]
+            Checkpoints paths
+        """
+        checkpoints = list(self.checkpoints_dir.glob("*.pt"))
+        return checkpoints
+
+    def _prev_train_exists(self) -> bool:
+        """
+        Checks if a previous training exists.
+
+        Returns
+        -------
+        bool
+            True if a previous training exists
+        """
+        if not self.checkpoints_dir.exists():
+            return False
+        checkpoints = self._get_checkpoints()
+        return len(checkpoints) > 0
+
+    def _load_checkpoint(self) -> Tuple[int, Dict, Dict]:
+        """
+        Loads the last checkpoint.
+
+        Returns
+        -------
+        Tuple[int, Dict, Dict]
+            (epoch, model_state, optim_state)
+        """
+        # choosing the last checkpoint
+        checkpoints = self._get_checkpoints()
+        chkp_idx = [int(x.name.split("_")[1].split(".pt")[0]) for x in checkpoints]
+        i = np.argmax(chkp_idx)
+        chosen = checkpoints[i]
+
+        # loading and parsing
+        chosen = DotDict(torch.load(chosen))
+        epoch = chosen.epoch
+        model_state = chosen.model_state
+        optim_state = chosen.optim_state
+        return epoch, model_state, optim_state
+
+    def _setup_optimizer(self) -> torch.optim.Optimizer:
+        """
+        Sets up the optimizer to the model.
+
+        Returns
+        -------
+        torch.optim.Optimizer
+            Optimizer instance
+        """
+        optim = self.optimizer_class(self.net.parameters(), lr=self.learning_rate)
+        return optim
 
     def _apply_losses_weights(
         self,
@@ -223,15 +299,28 @@ class ModelTrainer(ABC):
         losses = [loss.item() for loss in losses]
         self.running_losses = [l0 + l1 for l0, l1 in zip(self.running_losses, losses)]
 
+    def _default_losses_names(self) -> List[str]:
+        """
+        Default loss names
+
+        Returns
+        -------
+        List[str]
+            ["loss0", "loss1", ...]
+        """
+        return [f"loss{i}" for i in range(len(self.losses))]
+
     @abc.abstractmethod
-    def apply_losses(self, net_outputs: List[Tensor]) -> List[Tensor]:
+    def apply_losses(self, net_ins: List[Tensor], net_outs: List[Tensor]) -> List[Tensor]:
         """
         Use the new_outputs to calculate the losses and
         return them.
 
         Parameters
         ----------
-        net_outputs : List[Tensor]
+        net_ins : List[Tensor]
+            Network inputs
+        net_outs : List[Tensor]
             Network outputs
 
         Returns
