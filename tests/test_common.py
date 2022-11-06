@@ -289,12 +289,12 @@ class TestHDF5DataLoader(unittest.TestCase):
             self.dataset[[1, 2, 3]]
 
     def test_hdf5_dataloader_full_batch(self):
-        dataloader = tu.get_hdf5_dataloader(self.dataset, 16)
+        dataloader = tu.get_hdf5_dataloader(self.hdf5_path, self.data_layout, 16)
         data = [x for x in dataloader]
         self.assertEqual(len(data), 10)
 
     def test_hdf5_dataloader_half_batch(self):
-        dataloader = tu.get_hdf5_dataloader(self.dataset, 8)
+        dataloader = tu.get_hdf5_dataloader(self.hdf5_path, self.data_layout, 8)
         data = [x for x in dataloader]
         self.assertEqual(len(data), 20)
 

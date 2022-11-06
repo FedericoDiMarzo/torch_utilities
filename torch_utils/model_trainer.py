@@ -82,7 +82,7 @@ class ModelTrainer(ABC):
 
         # configuration attributes
         self.config_path = self.model_path / "config.yml"
-        self.config = self._parse_config(self.config_path)
+        self.config = tu.Config(self.config_path)
         self.learning_rate = self.from_config("learning_rate", float, 0.001)
         self.log_every = self.from_config("log_every", int, 100)
         self.max_epochs = self.from_config("max_epochs", int, 100)
@@ -93,7 +93,7 @@ class ModelTrainer(ABC):
         # other dirs
         self.checkpoints_dir = model_path / "checkpoints"
         self.logs_dir = model_path / "logs_dir"
-        [d.make_dir(exist_ok=True) for d in (self.checkpoints_dir, self.logs_dir)]
+        [d.mkdir(exist_ok=True) for d in (self.checkpoints_dir, self.logs_dir)]
 
         # model and running_losses setup
         self.start_epoch = 0
@@ -114,7 +114,7 @@ class ModelTrainer(ABC):
             logger.info(f"epoch [{epoch}/{self.max_epochs}]")
 
             # training
-            self.model.train()
+            self.net.train()
             for i, data in enumerate(self.train_ds):
                 self.train_step(data)
                 if i % self.log_every == 0 and i != 0:
@@ -125,7 +125,7 @@ class ModelTrainer(ABC):
             self.save_model(epoch)
 
             with torch.no_grad():
-                self.model.eval()
+                self.net.eval()
                 self.tensorboard_logs(self.train_ds[0], is_training=True)
 
                 # validation
@@ -177,7 +177,7 @@ class ModelTrainer(ABC):
         nn.Module
             Loaded model
         """
-        m = self.model(self.config)
+        m = self.model(self.config_path)
 
         # load checkpoint if it exists
         if self._prev_train_exists():
@@ -359,22 +359,17 @@ class ModelTrainer(ABC):
         """
         pass
 
-    def _parse_config(config: Path) -> tu.DotDict:
+    def _parse_config(self) -> tu.DotDict:
         """
         Parse the configuration file
         to read the training section.
-
-        Parameters
-        ----------
-        config : Path
-            Path to the config file
 
         Returns
         -------
         Dict
             Dictionary of the training section
         """
-        config = tu.Config(config)
+        config = tu.Config(self.config_path)
         _config = tu.DotDict(
             learning_rate=config.get("training", "learning_rate", float, 0.001),
         )

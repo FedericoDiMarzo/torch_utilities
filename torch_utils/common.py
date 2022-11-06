@@ -828,7 +828,8 @@ class HDF5Dataset(Dataset):
 
 
 def get_hdf5_dataloader(
-    dataset: HDF5Dataset,
+    dataset_path: Path,
+    data_layout: List[str],
     batch_size: int = None,
     dataloader_kwargs: dict = None,
 ) -> DataLoader:
@@ -837,18 +838,24 @@ def get_hdf5_dataloader(
 
     Parameters
     ----------
-    dataset : HDF5Dataset
-        HDF5 Dataset
+    dataset : Path
+        Path to the HDF5 Dataset
+    data_layout : List[str]
+            List describing the layout of the data
+            inside each group. For an input-label1-label2
+            dataset the list would be ["input", "label1", "label2"]
     batch_size : int, optional
         Batch size of the dataloader, by default HDF5Dataset.group_batch_len
     dataloader_kwargs : dict, optional
         DataLoader arguments, by default {}
     """
     if batch_size is None:
-        batch_size = dataset.group_batch_len
+        batch_size = dataset_path.group_batch_len
 
     if dataloader_kwargs is None:
         dataloader_kwargs = {}
+
+    dataset = HDF5Dataset(dataset_path, data_layout)
 
     sampler = BatchSampler(
         SequentialSampler(dataset),
