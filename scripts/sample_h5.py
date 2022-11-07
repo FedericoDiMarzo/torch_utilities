@@ -9,7 +9,7 @@ import numpy as np
 import h5py
 
 set_module_root("..")
-from torch_utils.common import save_audio
+from torch_utils import save_audio
 
 
 def main(args):
@@ -32,7 +32,6 @@ def main(args):
             x = ds[g]["x"]
             sample_idx = np.random.randint(x.shape[0])
             x = x[sample_idx]
-            print(x.shape)
             filename = f"{dataset_path.stem}_{g}_sample{sample_idx}.wav"
             save_audio(cwd / filename, x, sr)
             logger.info(f"{filename} extracted")

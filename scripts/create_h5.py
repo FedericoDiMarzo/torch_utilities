@@ -9,7 +9,7 @@ import h5py
 import sys
 
 set_module_root("..")
-from torch_utils.common import load_audio, trim, fade_sides
+from torch_utils import load_audio, trim, fade_sides
 
 
 def main(args):

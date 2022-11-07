@@ -111,7 +111,7 @@ class HDF5Dataset(Dataset):
 
         # using the cache
         gbl = self.group_batch_len
-        a, b = idx[0] % gbl, idx[-1] % gbl
+        a, b = idx[0] % gbl, (idx[-1] % gbl) + 1
         data = [x[a:b] for x in self._cache]
 
         return data
@@ -159,7 +159,7 @@ def get_hdf5_dataloader(
     dataset_path: Path,
     data_layout: List[str],
     batch_size: int = None,
-    dataloader_kwargs: dict = None,
+    **dataloader_kwargs: dict,
 ) -> DataLoader:
     """
     Create a dataloader binded to a HDF5Dataset.
@@ -196,5 +196,5 @@ def get_hdf5_dataloader(
         sampler=sampler,
         **dataloader_kwargs,
     )
-
+    
     return dataloader
