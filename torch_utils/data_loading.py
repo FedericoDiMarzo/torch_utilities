@@ -8,7 +8,7 @@ import torch
 import h5py
 
 set_module_root(".", prefix=True)
-from torch_utils.common import get_device
+from torch_utils.common import set_device
 
 # export list
 __all__ = [
@@ -94,6 +94,7 @@ class HDF5Dataset(Dataset):
         return len(self.groups) * self.group_batch_len
 
     def __getitem__(self, idx) -> List[Tensor]:
+        set_device("cpu")
         # error handling
         err_msg = None
         if not isinstance(idx, list):
@@ -113,6 +114,7 @@ class HDF5Dataset(Dataset):
         gbl = self.group_batch_len
         a, b = idx[0] % gbl, (idx[-1] % gbl) + 1
         data = [x[a:b] for x in self._cache]
+        set_device("auto")
 
         return data
 
@@ -132,7 +134,7 @@ class HDF5Dataset(Dataset):
         del self._cache
         g_idx = idx // self.group_batch_len
         g = self.dataset_file[self.groups[g_idx]]
-        cast = lambda x: torch.from_numpy(np.array(x)).to(get_device())
+        cast = lambda x: torch.from_numpy(np.array(x))
         data = [cast(g[k]) for k in self.data_layout]
         self._cache = data
 
@@ -196,5 +198,5 @@ def get_hdf5_dataloader(
         sampler=sampler,
         **dataloader_kwargs,
     )
-    
+
     return dataloader
