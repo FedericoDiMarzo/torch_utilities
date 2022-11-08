@@ -6,11 +6,11 @@ import torch
 set_module_root("../torch_utils", prefix=True)
 import torch_utils as tu
 from tests.generate_test_data import get_test_data_dir
-from torch_utils import repeat_test, set_auto_device
+from torch_utils import repeat_test, set_device, get_device
 
 torch.manual_seed(984)
 np.random.seed(901)
-set_auto_device()
+set_device("auto")
 
 
 class TestConfig(unittest.TestCase):

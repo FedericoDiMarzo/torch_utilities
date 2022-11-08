@@ -23,7 +23,7 @@ __all__ = [
     # pytorch utilities
     "get_device",
     "to_numpy",
-    "set_auto_device",
+    "set_device",
 ]
 
 
@@ -190,10 +190,18 @@ def to_numpy(x: Tensor) -> np.ndarray:
     return x.cpu().detach().numpy()
 
 
-def set_auto_device() -> None:
+def set_device(device: str) -> None:
     """
     Sets the default pytorch tensor
-    to 'torch.{get_device()}.FloatTensor'
+    to 'torch.{device}.FloatTensor'
 
+    if device == "auto" it's inferred from get_device()
+
+    Parameters
+    ----------
+    device : str
+        Name of the device or "auto"
     """
-    torch.set_default_tensor_type(f"torch.{get_device()}.FloatTensor")
+    if device == "auto":
+        device = get_device()
+    torch.set_default_tensor_type(f"torch.{device}.FloatTensor")

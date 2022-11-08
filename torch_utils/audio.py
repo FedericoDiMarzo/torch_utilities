@@ -147,7 +147,7 @@ def _stft_istft_core(
     # converting to Tensor
     in_type = type(x)
     if in_type == np.ndarray:
-        x = torch.from_numpy(x).to(get_device())
+        x = torch.from_numpy(x)
 
     # getting the window function
     try:
@@ -167,8 +167,9 @@ def _stft_istft_core(
     win_length = int(sample_rate * framesize_ms / 1000)
     hop_size = int(win_length * window_overlap)
     n_fft = int(win_length * frame_oversampling)
-    _window = torch.zeros(n_fft).to(get_device())
+    _window = torch.zeros(n_fft)
     _window[:win_length] = win_fun(win_length)
+    _window = _window.to(x.device)
 
     # STFT/ISTFT dependent code
     _transpose = lambda x: x.transpose(-1, -2)
@@ -380,7 +381,7 @@ def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 100) -> Union[np.nd
     else:
         win = win.to(get_device())
         win[-1] = 0
-        y = x.detach().clone().to(get_device())
+        y = x.detach().clone()
     y = _win_to_sides(y, win, fade_len)
 
     return y
