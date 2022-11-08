@@ -23,6 +23,7 @@ __all__ = [
     # pytorch utilities
     "get_device",
     "to_numpy",
+    "split_complex",
     "set_device",
 ]
 
@@ -189,6 +190,25 @@ def to_numpy(x: Tensor) -> np.ndarray:
     """
     return x.cpu().detach().numpy()
 
+# TODO: test
+def split_complex(x:Tensor)->Tensor:
+    """
+    Splits a complex Tensor in a float 
+    Tensor with the double of the channels.
+
+    Parameters
+    ----------
+    x : Tensor
+        Complex input of shape (B, C, T, F)
+
+    Returns
+    -------
+    Tensor
+        Float output of shape (B, 2*C, T, F)
+    """
+    x = torch.cat((x.real, x.imag), dim=1)
+    return x
+
 
 def set_device(device: str) -> None:
     """
@@ -202,6 +222,9 @@ def set_device(device: str) -> None:
     device : str
         Name of the device or "auto"
     """
-    if device == "auto":
-        device = get_device()
-    torch.set_default_tensor_type(f"torch.{device}.FloatTensor")
+    if device == "cpu":
+        torch.set_default_tensor_type(f"torch.FloatTensor")
+    else:
+        if device == "auto":
+            device = get_device()
+        torch.set_default_tensor_type(f"torch.{device}.FloatTensor")
