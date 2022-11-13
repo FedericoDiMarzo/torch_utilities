@@ -74,13 +74,15 @@ class TestGeneric(unittest.TestCase):
         chl = (1, 2, 4, 8)
         params = itertools.product(mod, chl)
         xs = [m.ones((1, c, 16), dtype=m.complex64) for m, c in params]
-        for x in xs:
-            with self.subTest(x=x):
+        for x, p in zip(xs, params):
+            with self.subTest(p=p):
                 y = tu.split_complex(x)
                 c = y.shape[1]
+                _ones = mod.ones_like(y[:, : c // 2])
+                _zeros = mod.zeros_like(y[:, : c // 2])
                 self.assertEqual(c, x.shape[1] * 2)
-                self.assertTrue(np.allclose(y[:, : c // 2]), ) # TODO : TeSt
-                self.assertTrue(np.allclose(y[:, c // 2 :]), ) # TODO : TeSt
+                self.assertTrue(mod.allclose(y[:, : c // 2]), _ones)
+                self.assertTrue(mod.allclose(y[:, c // 2 :]), _zeros)
 
     def test_pack_complex(self):
         mod = (np, torch)
