@@ -1,3 +1,4 @@
+import itertools
 import unittest
 from pathimport import set_module_root
 import numpy as np
@@ -18,123 +19,58 @@ class TestSTFT(unittest.TestCase):
         pass
 
     def setUp(self):
-        self.sample_rate = 16000
-        self.framesize_ms = 10
-        self.x_np = np.zeros((self.sample_rate))
-        self.x_pt = torch.zeros((self.sample_rate))
-        self.x_np_stft = np.zeros((50, 321)).astype(complex)
-        self.x_pt_stft = torch.zeros((50, 321)).type(torch.cfloat)
-
-    def test_mono_stft(self):
-        x = self.x_np
-        for ovs, bins in zip([1, 4], [81, 321]):
-            x_stft = tu.stft(
-                x,
-                sample_rate=self.sample_rate,
-                framesize_ms=self.framesize_ms,
-                frame_oversampling=ovs,
-            )
-            self.assertEqual(len(x_stft.shape), 2)
-            self.assertEqual(x_stft.shape[1], bins)
-
-    def test_multich_stft(self):
-        x = np.stack([self.x_np] * 4)
-        for ovs, bins in zip([1, 4], [81, 321]):
-            x_stft = tu.stft(
-                x,
-                sample_rate=self.sample_rate,
-                framesize_ms=self.framesize_ms,
-                frame_oversampling=ovs,
-            )
-            self.assertEqual(len(x_stft.shape), 3)
-            self.assertEqual(x_stft.shape[0], 4)
-            self.assertEqual(x_stft.shape[2], bins)
-
-    def test_mono_istft(self):
-        x = self.x_np_stft
-        x_istft = tu.istft(
-            x,
-            sample_rate=self.sample_rate,
-            framesize_ms=self.framesize_ms,
-            frame_oversampling=4,
+        module = (np, torch)  # 0
+        module = (torch,)  # 0
+        channels = (1, 4)  # 1
+        sample_rate = (8000, 16000, 24000, 48000)  # 2
+        hopsize_ms = (8, 10)  # 3
+        win_len_ms = tuple(2 * x for x in hopsize_ms)  # 4
+        win_oversamp = (1, 2)  # 5
+        win_oversamp = (1,)  # 5
+        self.params = itertools.product(
+            module,
+            channels,
+            sample_rate,
+            hopsize_ms,
+            win_len_ms,
+            win_oversamp,
         )
-        self.assertEqual(len(x_istft.shape), 1)
 
-    def test_multich_istft(self):
-        x = np.stack([self.x_np_stft] * 4)
-        x_istft = tu.istft(
-            x,
-            sample_rate=self.sample_rate,
-            framesize_ms=self.framesize_ms,
-            frame_oversampling=4,
-        )
-        self.assertEqual(len(x_istft.shape), 2)
-        self.assertEqual(x_istft.shape[0], 4)
+    def test_stft(self):
+        for p in self.params:
+            mod = p[0]
+            with self.subTest(p=p):
+                x = mod.ones((p[1], p[2] * 1))
+                y = tu.stft(x, p[2], p[3], "hann", p[4], p[5])
+                bins = int(p[2] * p[4] * p[5] / 2000 + 1)
+                self.assertEqual(y.shape[-1], bins)
+
+    def test_istft(self):
+        for p in self.params:
+            mod = p[0]
+            with self.subTest(p=p):
+                bins = int(p[2] * p[4] * p[5] / 2000 + 1)
+                x = mod.ones((p[1], int(p[2] * 0.05), bins)) + 0j
+                y = tu.istft(x, p[2], p[3], "hann", p[4], p[5])
 
     def test_inversion(self):
-        eps = 1e-6
-        x_len = 16000
-        x = np.random.uniform(-1, 1, x_len)
-        kwargs = dict(
-            sample_rate=self.sample_rate,
-            framesize_ms=self.framesize_ms,
-        )
-        x_stft = tu.stft(x, **kwargs)
-        x_hat = tu.istft(x_stft, **kwargs)
+        import matplotlib.pyplot as plt
 
-        # skipping the fist frame (due to the windowing artifacts)
-        x_len -= 1
-        x = x[1:]
-        x_hat = x_hat[1:]
-        err = np.mean(np.abs(x - x_hat[:x_len]))
-
-        self.assertLess(err, eps)
-
-    def test_tensor_mono_stft(self):
-        x = self.x_pt
-        for ovs, bins in zip([1, 4], [81, 321]):
-            x_stft = tu.stft(
-                x,
-                sample_rate=self.sample_rate,
-                framesize_ms=self.framesize_ms,
-                frame_oversampling=ovs,
-            )
-            self.assertEqual(len(x_stft.shape), 2)
-            self.assertEqual(x_stft.shape[1], bins)
-
-    def test_tensor_multich_stft(self):
-        x = torch.stack([self.x_pt] * 4)
-        for ovs, bins in zip([1, 4], [81, 321]):
-            x_stft = tu.stft(
-                x,
-                sample_rate=self.sample_rate,
-                framesize_ms=self.framesize_ms,
-                frame_oversampling=ovs,
-            )
-            self.assertEqual(len(x_stft.shape), 3)
-            self.assertEqual(x_stft.shape[0], 4)
-            self.assertEqual(x_stft.shape[2], bins)
-
-    def test_tensor_mono_istft(self):
-        x = self.x_pt_stft
-        x_istft = tu.istft(
-            x,
-            sample_rate=self.sample_rate,
-            framesize_ms=self.framesize_ms,
-            frame_oversampling=4,
-        )
-        self.assertEqual(len(x_istft.shape), 1)
-
-    def test_tensor_multich_istft(self):
-        x = torch.stack([self.x_pt_stft] * 4)
-        x_istft = tu.istft(
-            x,
-            sample_rate=self.sample_rate,
-            framesize_ms=self.framesize_ms,
-            frame_oversampling=4,
-        )
-        self.assertEqual(len(x_istft.shape), 2)
-        self.assertEqual(x_istft.shape[0], 4)
+        for p in self.params:
+            mod = p[0]
+            with self.subTest(p=p):
+                if mod == np:
+                    x = np.random.normal(size=(p[1], p[2] * 1))
+                else:
+                    x = torch.randn((p[1], p[2] * 1))
+                _select = lambda x: x[int(p[2] * 50 / 1000) : -int(p[2] * 50 / 1000)]
+                y = tu.stft(x, p[2], p[3], "hann", p[4], p[5])
+                x_hat = tu.istft(y, p[2], p[3], "hann", p[4], p[5])
+                x = x[0, : x_hat.shape[1]]
+                x_hat = x_hat[0, : x.shape[0]]
+                x = _select(x)
+                x_hat = _select(x_hat)
+                self.assertTrue(mod.allclose(x, x_hat, atol=1e-5))
 
 
 class TestAudio(unittest.TestCase):

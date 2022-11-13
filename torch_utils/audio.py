@@ -28,10 +28,10 @@ __all__ = [
 def stft(
     x: Union[np.ndarray, Tensor],
     sample_rate: int = 16000,
-    framesize_ms: int = 10,
-    window="hann_window",
-    window_overlap=0.5,
-    frame_oversampling=4,
+    hopsize_ms: int = 10,
+    window: str = "hann",
+    win_len_ms: int = 20,
+    win_oversamp: int = 2,
 ) -> Union[np.ndarray, Tensor]:
     """
     Calculates the STFT of a signal.
@@ -42,14 +42,15 @@ def stft(
         Input signal of shape (..., T)
     sample_rate : int, optional
         Sample rate of the signal, by default 16000
-    framesize_ms : int, optional
-        STFT framesize in ms, by default 10
+    hopsize_ms : int, optional
+        STFT hopsize in ms, by default 10
     window : str, optional
-        Torch window to use, by default "hann_window"
-    window_overlap : float, optional
+        Torch window to use, by default "hann"
+    win_len_ms : int, optional
         Window overlap factor between frames, by default 0.5
-    frame_oversampling : int, optional
-        Lef zero padding applied for each frame (1 equals to no zero pad), by default 4
+    win_oversamp : int, optional
+        Zero padding applied equal to the window length
+        (1 equals to no zero pad), by default 2
 
     Returns
     -------
@@ -62,17 +63,23 @@ def stft(
         If the window chosen does not exist
     """
     return _stft_istft_core(
-        x, True, sample_rate, framesize_ms, window, window_overlap, frame_oversampling
+        True,
+        x,
+        sample_rate,
+        hopsize_ms,
+        window,
+        win_len_ms,
+        win_oversamp,
     )
 
 
 def istft(
     x: Union[np.ndarray, Tensor],
     sample_rate: int = 16000,
-    framesize_ms: int = 10,
-    window="hann_window",
-    window_overlap=0.5,
-    frame_oversampling=4,
+    hopsize_ms: int = 10,
+    window: str = "hann",
+    win_len_ms: int = 20,
+    win_oversamp: int = 2,
 ) -> Union[np.ndarray, Tensor]:
     """
     Calculates the ISTFT of a signal.
@@ -83,14 +90,15 @@ def istft(
         Input signal of shape (..., T, F)
     sample_rate : int, optional
         Sample rate of the signal, by default 16000
-    framesize_ms : int, optional
-        STFT framesize in ms, by default 10
+    hopsize_ms : int, optional
+        STFT hopsize in ms, by default 10
     window : str, optional
-        Torch window to use, by default "hann_window"
-    window_overlap : float, optional
+        Torch window to use, by default "hann"
+    win_len_ms : int, optional
         Window overlap factor between frames, by default 0.5
-    frame_oversampling : int, optional
-        Lef zero padding applied for each frame (1 equals to no zero pad), by default 4
+    win_oversamp : int, optional
+        Zero padding applied equal to the window length
+        (1 equals to no zero pad), by default 2
 
     Returns
     -------
@@ -103,36 +111,45 @@ def istft(
         If the window chosen does not exist
     """
     return _stft_istft_core(
-        x, False, sample_rate, framesize_ms, window, window_overlap, frame_oversampling
+        False,
+        x,
+        sample_rate,
+        hopsize_ms,
+        window,
+        win_len_ms,
+        win_oversamp,
     )
 
 
 def _stft_istft_core(
-    x: Union[np.ndarray, Tensor],
     is_stft: bool,
+    x: Union[np.ndarray, Tensor],
     sample_rate: int = 16000,
-    framesize_ms: int = 10,
-    window="hann_window",
-    window_overlap=0.5,
-    frame_oversampling=2,
+    hopsize_ms: int = 10,
+    window: str = "hann",
+    win_len_ms: int = 20,
+    win_oversamp: int = 2,
 ) -> Union[np.ndarray, Tensor]:
     """
     Calculates the STFT/ISTFT of a signal.
 
     Parameters
     ----------
+    is_stft : bool
+        Selects between STFT and ISTFT
     x : Union[np.ndarray, Tensor]
         Input signal
     sample_rate : int, optional
         Sample rate of the signal, by default 16000
-    framesize_ms : int, optional
-        STFT framesize in ms, by default 10
+    hopsize_ms : int, optional
+        STFT hopsize in ms, by default 10
     window : str, optional
-        Torch window to use, by default "hann_window"
-    window_overlap : float, optional
-        Window overlap factor between frames, by default 0.5
-    frame_oversampling : int, optional
-        Lef zero padding applied for each frame (1 equals to no zero pad), by default 4
+        Torch window to use, by default "hann"
+    win_len_ms : int, optional
+        Window length in ms, by default 20 ms
+    win_oversamp : int, optional
+        Zero padding applied equal to the window length
+        (1 equals to no zero pad), by default 2
 
     Returns
     -------
@@ -151,24 +168,20 @@ def _stft_istft_core(
 
     # getting the window function
     try:
+        window += "_window"
         win_fun = getattr(torch, window)
     except AttributeError:
-        allowed_win = [
-            "hann_window",
-            "hamming_window",
-            "bartlett_window",
-            "blackman_window",
-            "kaiser_window",
-        ]
+        allowed_win = [w + "_window" for w in ["hann", "hamming", "bartlett", "blackman", "kaiser"]]
         err_msg = "choose a window between:\n" + ", ".join(allowed_win)
         raise AttributeError(err_msg)
 
     # parameters of the STFT
-    win_length = int(sample_rate * framesize_ms / 1000)
-    hop_size = int(win_length * window_overlap)
-    n_fft = int(win_length * frame_oversampling)
+    _ms_to_samples = lambda x: int(x * sample_rate / 1000)
+    win_len = _ms_to_samples(win_len_ms)
+    hopsize = _ms_to_samples(hopsize_ms)
+    n_fft = int(win_len * win_oversamp)
     _window = torch.zeros(n_fft)
-    _window[:win_length] = win_fun(win_length)
+    _window[:win_len] = win_fun(win_len)
     _window = _window.to(x.device)
 
     # STFT/ISTFT dependent code
@@ -176,7 +189,7 @@ def _stft_istft_core(
     if is_stft:
         transform = torch.stft
         # compensating for oversampling
-        padding = n_fft - win_length
+        padding = n_fft - win_len
         x = F.pad(x, (0, padding))
     else:
         transform = torch.istft
@@ -188,7 +201,7 @@ def _stft_istft_core(
     y = transform(
         x,
         n_fft=n_fft,
-        hop_length=hop_size,
+        hop_length=hopsize,
         window=_window,
         return_complex=is_stft,
         center=False,
