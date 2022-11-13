@@ -1,6 +1,8 @@
-import unittest
 from pathimport import set_module_root
+from torch import Tensor
 import numpy as np
+import itertools
+import unittest
 import torch
 
 set_module_root("../torch_utils", prefix=True)
@@ -66,6 +68,29 @@ class TestGeneric(unittest.TestCase):
         ys = [4, 5, 6]
         zss = tu.pack_many(xs, ys)
         self.assertEqual(zss, [(1, 4), (2, 5), (3, 6)])
+
+    def test_split_complex(self):
+        mod = (np, torch)
+        chl = (1, 2, 4, 8)
+        params = itertools.product(mod, chl)
+        xs = [m.ones((1, c, 16), dtype=m.complex64) for m, c in params]
+        for x in xs:
+            with self.subTest(x=x):
+                y = tu.split_complex(x)
+                c = y.shape[1]
+                self.assertEqual(c, x.shape[1] * 2)
+                self.assertTrue(np.allclose(y[:, : c // 2]), ) # TODO : TeSt
+                self.assertTrue(np.allclose(y[:, c // 2 :]), ) # TODO : TeSt
+
+    def test_pack_complex(self):
+        mod = (np, torch)
+        chl = (2, 4, 8)
+        params = itertools.product(mod, chl)
+        xs = [m.ones((1, c, 16)) for m, c in params]
+        for x in xs:
+            with self.subTest(x=x):
+                y = tu.pack_complex(x)
+                self.assertEqual(y.shape[1], x.shape[1] // 2)
 
 
 if __name__ == "__main__":

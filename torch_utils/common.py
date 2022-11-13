@@ -24,6 +24,7 @@ __all__ = [
     "get_device",
     "to_numpy",
     "split_complex",
+    "pack_complex",
     "set_device",
 ]
 
@@ -120,6 +121,7 @@ def get_np_or_torch(x: Union[np.ndarray, Tensor]):
     else:
         torch.iscomplex = torch.is_complex
         torch.hanning = torch.hann_window
+        np.cat = np.concatenate
         return np
 
 
@@ -190,23 +192,43 @@ def to_numpy(x: Tensor) -> np.ndarray:
     """
     return x.cpu().detach().numpy()
 
-# TODO: test
-def split_complex(x:Tensor)->Tensor:
+
+def split_complex(x: Tensor) -> Tensor:
     """
-    Splits a complex Tensor in a float 
+    Splits a complex Tensor in a float
     Tensor with the double of the channels.
 
     Parameters
     ----------
     x : Tensor
-        Complex input of shape (B, C, T, F)
+        Complex input of shape (B, C, ...)
 
     Returns
     -------
     Tensor
-        Float output of shape (B, 2*C, T, F)
+        Float output of shape (B, 2*C, ...)
     """
-    x = torch.cat((x.real, x.imag), dim=1)
+    module = get_np_or_torch(x)
+    x = module.cat((x.real, x.imag), 1)
+    return x
+
+
+def pack_complex(x: Tensor) -> Tensor:
+    """
+    Merges a 2*C channels float Tensor in a complex Tensor.
+
+    Parameters
+    ----------
+    x : Tensor
+        Float input of shape (B, 2*C, ...)
+
+    Returns
+    -------
+    Tensor
+        Complex output of shape (B, C, ...)
+    """
+    c = x.shape[1]
+    x = x[:, : c // 2] + 1j * x[:, c // 2 :]
     return x
 
 
