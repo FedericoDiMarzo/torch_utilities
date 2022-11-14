@@ -190,10 +190,8 @@ class ModelTrainer(ABC):
         if self._prev_train_exists():
             epoch, model_state, optim_state = self._load_checkpoint()
             self.start_epoch = epoch
+            self.optim_state = optim_state
             m.load_state_dict(model_state)
-            with suppress(RuntimeError):
-                # ignore errors for optimizer mismatches
-                self.optimizer.load_state_dict(optim_state)
 
         return m
 
@@ -217,7 +215,7 @@ class ModelTrainer(ABC):
         List[Path]
             Checkpoints paths
         """
-        checkpoints = list(self.checkpoints_dir.glob("*.pt"))
+        checkpoints = list(self.checkpoints_dir.glob("*.ckpt"))
         return checkpoints
 
     def _prev_train_exists(self) -> bool:
@@ -245,7 +243,7 @@ class ModelTrainer(ABC):
         """
         # choosing the last checkpoint
         checkpoints = self._get_checkpoints()
-        chkp_idx = [int(x.name.split("_")[1].split(".pt")[0]) for x in checkpoints]
+        chkp_idx = [int(x.name.split("_")[1].split(".ckpt")[0]) for x in checkpoints]
         i = np.argmax(chkp_idx)
         chosen = checkpoints[i]
 
@@ -266,6 +264,10 @@ class ModelTrainer(ABC):
             Optimizer instance
         """
         optim = self.optimizer_class(self.net.parameters(), lr=self.learning_rate)
+        if self.optim_state is not None:
+            with suppress(RuntimeError):
+                # ignore errors for optimizer mismatches
+                optim.load_state_dict(self.optim_state)
         return optim
 
     def _apply_losses_weights(
@@ -433,11 +435,18 @@ class ModelTrainer(ABC):
             Current epoch
         """
         # saving
-        name = self.checkpoints_dir / f"checkpoint_{epoch}.ckpt"
-        torch.save(self.net.state_dict(), name)
+        checkpoint_path = self.checkpoints_dir / f"checkpoint_{epoch}.ckpt"
+        torch.save(
+            dict(
+                model_state=self.net.state_dict(),
+                optim_state=self.optimizer.state_dict(),
+                epoch=epoch,
+            ),
+            checkpoint_path,
+        )
 
         # removing old checkpoints
-        self.save_buffer.append(name)
+        self.save_buffer.append(checkpoint_path.name)
         sb = self.save_buffer
         checkpoints = self.checkpoints_dir.glob("*.ckpt")
         targets = filter(lambda x: x.name not in sb, checkpoints)
