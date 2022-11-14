@@ -232,7 +232,7 @@ def pack_complex(x: Tensor) -> Tensor:
     return x
 
 
-def set_device(device: str) -> None:
+def set_device(device: str, dtype: str = "Float") -> None:
     """
     Sets the default pytorch tensor
     to 'torch.{device}.FloatTensor'
@@ -243,10 +243,12 @@ def set_device(device: str) -> None:
     ----------
     device : str
         Name of the device or "auto"
+    device : str, optional
+        Type of the tensor, by default Float
     """
     if device == "cpu":
-        torch.set_default_tensor_type(f"torch.FloatTensor")
+        torch.set_default_tensor_type(f"torch.{dtype}Tensor")
     else:
         if device == "auto":
             device = get_device()
-        torch.set_default_tensor_type(f"torch.{device}.FloatTensor")
+        torch.set_default_tensor_type(f"torch.{device}.{dtype}Tensor")
