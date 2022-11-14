@@ -128,7 +128,8 @@ class ModelTrainer(ABC):
 
             with torch.no_grad():
                 self.net.eval()
-                self.tensorboard_logs(self.train_ds[0], is_training=True)
+                log_data = [x.to(tu.get_device()) for x in self.train_ds.dataset[[0, 1]]]
+                self.tensorboard_logs(log_data, epoch=epoch, is_training=True)
 
                 # validation
                 for i, data in enumerate(self.valid_ds):
@@ -136,7 +137,8 @@ class ModelTrainer(ABC):
                     self.valid_step(data)
                 self._log_losses(is_training=False, steps=i)
                 self._reset_running_losses()
-                self.tensorboard_logs(self.valid_ds[0], is_training=False)
+                log_data = [x.to(tu.get_device()) for x in self.valid_ds.dataset[[0, 1]]]
+                self.tensorboard_logs(log_data, epoch=epoch, is_training=False)
 
     def train_step(self, data: List[Tensor]) -> None:
         """
@@ -147,9 +149,10 @@ class ModelTrainer(ABC):
         data : List[Tensor]
             Inputs to the model
         """
+        data = [x.to(tu.get_device()) for x in data]
         self.optimizer.zero_grad()
         net_outputs = self.net(*data)
-        _losses = self.apply_losses(net_outputs)
+        _losses = self.apply_losses(data, net_outputs)
         _losses = self._apply_losses_weights(_losses)
         total_loss = sum(_losses)
         total_loss.backward()
@@ -166,8 +169,9 @@ class ModelTrainer(ABC):
         data : List[Tensor]
             Inputs to the model
         """
+        data = [x.to(tu.get_device()) for x in data]
         net_outputs = self.net(*data)
-        _losses = self.apply_losses(net_outputs)
+        _losses = self.apply_losses(data, net_outputs)
         _losses = self._apply_losses_weights(_losses)
         self._update_running_losses(_losses)
 
@@ -297,11 +301,13 @@ class ModelTrainer(ABC):
         ----------
         is_training : bool
             Flag to separate train/valid logging
+        steps : bool
+            Iterations before this function was called
         """
         scope = "[TRAIN LOSSES]" if is_training else "[VALID LOSSES]"
         logger.info(scope)
         for loss, name in zip(self.running_losses, self.losses_names):
-            logger.info(f"{name}: {loss}")
+            logger.info(f"{name}: {loss / steps}")
 
         self._reset_running_losses()
 
@@ -366,7 +372,7 @@ class ModelTrainer(ABC):
         pass
 
     @abc.abstractclassmethod
-    def tensorboard_logs(self, net_ins: List[Tensor], is_training: bool) -> None:
+    def tensorboard_logs(self, net_ins: List[Tensor], epoch: int, is_training: bool) -> None:
         """
 
 
@@ -374,6 +380,8 @@ class ModelTrainer(ABC):
         ----------
         net_ins : List[Tensor]
             Network inputs
+        epoch : int
+            Current epoch
         is_training : bool
             Flag to separate train/valid logging
         """
@@ -426,7 +434,7 @@ class ModelTrainer(ABC):
         """
         # saving
         name = self.checkpoints_dir / f"checkpoint_{epoch}.ckpt"
-        torch.save(self.net.state_dict(), self)
+        torch.save(self.net.state_dict(), name)
 
         # removing old checkpoints
         self.save_buffer.append(name)
