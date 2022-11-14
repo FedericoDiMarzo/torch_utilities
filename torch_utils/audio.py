@@ -47,7 +47,7 @@ def stft(
     window : str, optional
         Torch window to use, by default "hann"
     win_len_ms : int, optional
-        Window overlap factor between frames, by default 0.5
+        Window length in ms, by default 20 ms
     win_oversamp : int, optional
         Zero padding applied equal to the window length
         (1 equals to no zero pad), by default 2
@@ -95,7 +95,7 @@ def istft(
     window : str, optional
         Torch window to use, by default "hann"
     win_len_ms : int, optional
-        Window overlap factor between frames, by default 0.5
+        Window length in ms, by default 20 ms
     win_oversamp : int, optional
         Zero padding applied equal to the window length
         (1 equals to no zero pad), by default 2
