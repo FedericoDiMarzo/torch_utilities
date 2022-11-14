@@ -132,7 +132,7 @@ class HDF5Dataset(Dataset):
         del self._cache
         g_idx = idx // self.group_batch_len
         g = self.dataset_file[self.groups[g_idx]]
-        cast = lambda x: torch.from_numpy(np.array(x)).to(get_device())
+        cast = lambda x: torch.from_numpy(np.array(x)).to("cpu")
         data = [cast(g[k]) for k in self.data_layout]
         self._cache = data
 
