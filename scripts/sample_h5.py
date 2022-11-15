@@ -12,7 +12,7 @@ set_module_root("..")
 from torch_utils import save_audio
 
 
-def main(args):
+def main():
     # argparse
     args = parse_args()
     sr = args.sample_rate
