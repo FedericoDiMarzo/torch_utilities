@@ -98,6 +98,7 @@ class ModelTrainer(ABC):
         # model and running_losses setup
         self.start_epoch = 0
         self.net = self.load_model()
+        self.optim_state = None
         self.optimizer = self._setup_optimizer()
         self.running_losses = None
         self._reset_running_losses()
