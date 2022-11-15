@@ -1,7 +1,8 @@
+from pathimport import set_module_root
+from contextlib import suppress
+import numpy as np
 import itertools
 import unittest
-from pathimport import set_module_root
-import numpy as np
 import torch
 
 set_module_root("../torch_utils", prefix=True)
@@ -63,14 +64,18 @@ class TestSTFT(unittest.TestCase):
                     x = np.random.normal(size=(p[1], p[2] * 1))
                 else:
                     x = torch.randn((p[1], p[2] * 1))
-                _select = lambda x: x[int(p[2] * 50 / 1000) : -int(p[2] * 50 / 1000)]
+                sides_0 = x.shape[1] // 4
+                x[:, -sides_0:] = 0
+                x[:, :sides_0] = 0
+
                 y = tu.stft(x, p[2], p[3], "hann", p[4], p[5])
                 x_hat = tu.istft(y, p[2], p[3], "hann", p[4], p[5])
                 x = x[0, : x_hat.shape[1]]
                 x_hat = x_hat[0, : x.shape[0]]
-                x = _select(x)
-                x_hat = _select(x_hat)
-                self.assertTrue(mod.allclose(x, x_hat, atol=1e-5))
+                err = mod.abs(x - x_hat).max()
+                with suppress(Exception):
+                    err = err.item()
+                self.assertAlmostEqual(err, 0, places=5)
 
 
 class TestAudio(unittest.TestCase):
