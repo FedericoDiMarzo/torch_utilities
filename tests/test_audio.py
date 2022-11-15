@@ -216,11 +216,12 @@ class TestAudio(unittest.TestCase):
 
     def test_trim_silence(self):
         margins = (0, 10)
-        params = itertools.product(self.modules, margins)
-        for module, marg in params:
+        values = (1, 0.1, 100)
+        params = itertools.product(self.modules, margins, values)
+        for module, marg, val in params:
             x = module.zeros(100)
-            x[30:40] = 1
-            with self.subTest(module=module, marg=marg):
+            x[30:40] = 0.1
+            with self.subTest(module=module, marg=marg, val=val):
                 y = tu.trim_silence(x, margin=marg)
                 self.assertEqual(y.shape[-1], 10 + 2 * marg)
 
