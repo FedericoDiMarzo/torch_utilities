@@ -136,7 +136,7 @@ class ModelTrainer(ABC):
                 for i, data in enumerate(self.valid_ds):
                     data = self.apply_transforms(data)
                     self.valid_step(data)
-                self._log_losses(is_training=False, steps=i)
+                self._log_losses(is_training=False, steps=i, epoch=epoch)
                 self._reset_running_losses()
                 log_data = [x.to(tu.get_device()) for x in self.valid_ds.dataset[[0, 1]]]
                 self.tensorboard_logs(log_data, epoch=epoch, is_training=False)
@@ -296,7 +296,7 @@ class ModelTrainer(ABC):
         """
         self.running_losses = np.zeros(len(self.losses))
 
-    def _log_losses(self, is_training: bool, steps: int) -> None:
+    def _log_losses(self, is_training: bool, steps: int, epoch: int) -> None:
         """
         Logs running_losses.
 
@@ -304,13 +304,17 @@ class ModelTrainer(ABC):
         ----------
         is_training : bool
             Flag to separate train/valid logging
-        steps : bool
+        steps : int
             Iterations before this function was called
+        epoch : int
+            Current epoch
         """
         scope = "[TRAIN LOSSES]" if is_training else "[VALID LOSSES]"
+        tag_suffix = "train" if is_training else "valid"
         logger.info(scope)
         for loss, name in zip(self.running_losses, self.losses_names):
             logger.info(f"{name}: {loss / steps}")
+            self.log_writer.add_scalar(f"{name}_{tag_suffix}", global_step=epoch)
 
         self._reset_running_losses()
 
