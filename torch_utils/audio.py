@@ -21,7 +21,8 @@ __all__ = [
     "rms",
     "snr",
     "fade_sides",
-    "trim",
+    "random_trim",
+    "trim_silence",
 ]
 
 
@@ -353,7 +354,7 @@ def _win_to_sides(
     Parameters
     ----------
     x : Union[np.ndarray, Tensor]
-        Input of shape [..., C, T]
+        Input of shape (..., C, T)
     win : Union[np.ndarray, Tensor]
         Window
     fade_len : Union[np.ndarray, Tensor]
@@ -377,7 +378,7 @@ def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 100) -> Union[np.nd
     Parameters
     ----------
     x : Union[np.ndarray, Tensor]
-        Input of shape [..., C, T]
+        Input of shape (..., C, T)
     fade_len : int, optional
         Length of the fade in samples, by default 10.
         The length of the window is 2 * fade_len + 1.
@@ -400,7 +401,7 @@ def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 100) -> Union[np.nd
     return y
 
 
-def trim(
+def random_trim(
     x: Union[np.ndarray, Tensor],
     sample_rate: int,
     duration: float = 3,
@@ -411,7 +412,7 @@ def trim(
     Parameters
     ----------
     x : Union[np.ndarray, Tensor]
-        Input of shape [..., T]
+        Input of shape (..., T)
     sample_rate : int
         Sample rate in Hz
     duration : float, optional
@@ -437,4 +438,41 @@ def trim(
         start = randrange(0, selection_start_max)
         end = start + duration_samples
         y = x[..., start:end]
+    return y
+
+
+def trim_silence(
+    x: Union[np.ndarray, Tensor],
+    threshold: float = 0.05,
+    margin: int = 0,
+) -> Union[np.ndarray, Tensor]:
+    """
+    Trims the silences at the beginning and end of a sample.
+
+    Parameters
+    ----------
+    x : Union[np.ndarray, Tensor]
+        Input sample of shape (T,)
+    threshold : float, optional
+        Relative to x.max() to detect the silences, by default 0.05
+    margin : int, optional
+        Samples keeped at both sides after the trimming, by default 0
+
+    Returns
+    -------
+    Union[np.ndarray, Tensor]
+        Trimmed ouput of shape (T',)
+    """
+    module = get_np_or_torch(x)
+
+    # finding the start and end points
+    thr = module.zeros_like(x, dtype=int)
+    thr[module.abs(x) > threshold] = 1
+    thr = thr if module == np else thr.cpu().detach().numpy()
+    thr = thr.tolist()
+    start = thr.index(1)
+    end = len(thr) - thr[::-1].index(1)
+
+    # trimming the silences
+    y = x[..., start - margin : end + margin]
     return y

@@ -7,7 +7,7 @@ import torch
 
 set_module_root("../torch_utils", prefix=True)
 import torch_utils as tu
-from torch_utils import repeat_test, set_device, get_device
+from torch_utils import set_device
 
 torch.manual_seed(984)
 np.random.seed(901)
@@ -84,7 +84,7 @@ class TestAudio(unittest.TestCase):
         pass
 
     def setUp(self):
-        pass
+        self.modules = (np, torch)
 
     def test_db(self):
         x = np.random.uniform(0, 1, 100)
@@ -206,13 +206,23 @@ class TestAudio(unittest.TestCase):
 
     def test_trim(self):
         x = np.zeros((1, 1, 5 * 160))
-        y = tu.trim(x, 160, 2)
+        y = tu.random_trim(x, 160, 2)
         self.assertEqual(y.shape, (1, 1, 2 * 160))
 
     def test_tensor_trim(self):
         x = torch.zeros((1, 1, 5 * 160))
-        y = tu.trim(x, 160, 2)
+        y = tu.random_trim(x, 160, 2)
         self.assertEqual(y.shape, (1, 1, 2 * 160))
+
+    def test_trim_silence(self):
+        margins = (0, 10)
+        params = itertools.product(self.modules, margins)
+        for module, marg in params:
+            x = module.zeros(100)
+            x[30:40] = 1
+            with self.subTest(module=module, marg=marg):
+                y = tu.trim_silence(x, margin=marg)
+                self.assertEqual(y.shape[-1], 10 + 2 * marg)
 
 
 if __name__ == "__main__":
