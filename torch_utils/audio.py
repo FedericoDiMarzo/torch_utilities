@@ -443,7 +443,7 @@ def random_trim(
 
 def trim_silence(
     x: Union[np.ndarray, Tensor],
-    threshold: float = 0.05,
+    threshold: float = 0.1,
     margin: int = 0,
 ) -> Union[np.ndarray, Tensor]:
     """
@@ -466,13 +466,18 @@ def trim_silence(
     module = get_np_or_torch(x)
 
     # finding the start and end points
+    threshold *= module.abs(x).max()
     thr = module.zeros_like(x, dtype=int)
     thr[module.abs(x) > threshold] = 1
     thr = thr if module == np else thr.cpu().detach().numpy()
     thr = thr.tolist()
-    start = thr.index(1)
-    end = len(thr) - thr[::-1].index(1)
+    try:
+        start = thr.index(1)
+        end = len(thr) - thr[::-1].index(1)
 
-    # trimming the silences
-    y = x[..., start - margin : end + margin]
-    return y
+        # trimming the silences
+        y = x[..., start - margin : end + margin]
+        return y
+    except ValueError:
+        # no value found
+        return x
