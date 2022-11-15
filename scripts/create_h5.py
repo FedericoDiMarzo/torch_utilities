@@ -9,7 +9,7 @@ import h5py
 import sys
 
 set_module_root("..")
-from torch_utils import load_audio, trim, fade_sides
+from torch_utils import load_audio, random_trim, fade_sides, trim_silence
 
 
 def main():
@@ -34,7 +34,7 @@ def main():
 
     # writing into the HDF5
     groups = len(stdin) // gbl
-    transform = lambda x: fade_sides(trim(x, sr, args.len))
+    transform = lambda x: fade_sides(random_trim(trim_silence(x, margin=100), sr, args.len))
     with h5py.File(dataset_path, "w") as ds:
         for i in tqdm(range(groups)):
             selection = stdin[i * gbl : (i + 1) * gbl]
@@ -80,7 +80,7 @@ def parse_args() -> Dict:
         dest="mono",
         default=True,
         action="store_false",
-        help="Loads first channel only",
+        help="Loads the samples with their original channels count",
     )
     argparser.add_argument(
         "--len",
