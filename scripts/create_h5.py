@@ -12,7 +12,9 @@ set_module_root("..")
 from torch_utils import load_audio, trim, fade_sides
 
 
-def main(args):
+def main():
+    # argparse
+    args = parse_args()
     gbl = args.group_batch_len
     sr = args.sample_rate
 
@@ -90,5 +92,4 @@ def parse_args() -> Dict:
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    main(args)
+    main()

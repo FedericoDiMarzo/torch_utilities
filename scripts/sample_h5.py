@@ -13,6 +13,8 @@ from torch_utils import save_audio
 
 
 def main(args):
+    # argparse
+    args = parse_args()
     sr = args.sample_rate
 
     # seed
@@ -81,5 +83,4 @@ def parse_args() -> Dict:
 
 
 if __name__ == "__main__":
-    args = parse_args()
-    main(args)
+    main()
