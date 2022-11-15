@@ -10,7 +10,7 @@ from torch_utils import set_device, get_device
 
 torch.manual_seed(984)
 np.random.seed(901)
-set_device("auto")
+set_device("cpu")
 
 
 class TestHDF5DataLoader(unittest.TestCase):
