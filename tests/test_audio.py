@@ -27,7 +27,6 @@ class TestSTFT(unittest.TestCase):
         hopsize_ms = (8, 10)  # 3
         win_len_ms = tuple(2 * x for x in hopsize_ms)  # 4
         win_oversamp = (1, 2)  # 5
-        win_oversamp = (1,)  # 5
         self.params = itertools.product(
             module,
             channels,
