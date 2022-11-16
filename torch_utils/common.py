@@ -1,15 +1,11 @@
-from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler, SequentialSampler
-from typing import Any, Callable, List, Tuple, Type, Union
-from torchaudio.functional import resample
+from typing import Any, Callable, List, Tuple, Type, Union, Dict
 import torch.nn.functional as F
-from random import randrange
+from functools import partial
+from torch import nn, Tensor
 from pathlib import Path
 from torch import Tensor
-import soundfile as sf
 import numpy as np
-import torchaudio
 import torch
-import h5py
 import yaml
 
 # export list
@@ -26,6 +22,8 @@ __all__ = [
     "split_complex",
     "pack_complex",
     "set_device",
+    "auto_device",
+    "load_model",
 ]
 
 
@@ -243,8 +241,8 @@ def set_device(device: str, dtype: str = "Float") -> None:
     ----------
     device : str
         Name of the device or "auto"
-    device : str, optional
-        Type of the tensor, by default Float
+    dtype : str, optional
+        Type of the tensor, by default "Float"
     """
     if device == "cpu":
         torch.set_default_tensor_type(f"torch.{dtype}Tensor")
@@ -252,3 +250,63 @@ def set_device(device: str, dtype: str = "Float") -> None:
         if device == "auto":
             device = get_device()
         torch.set_default_tensor_type(f"torch.{device}.{dtype}Tensor")
+
+
+def auto_device(dtype: str = "Float") -> Callable:
+    def _auto_device(f: Callable) -> Callable:
+        """
+        Decorator to set the pytorch device to auto.
+
+        Parameters
+        ----------
+        f : Callable
+            Function to decorate
+        dtype : str, optional
+            Type of the tensor, by default "Float"
+
+        Returns
+        -------
+        Callable
+            Decorated function
+        """
+        set_device("auto", dtype)
+        return f
+
+    return _auto_device
+
+
+auto_device = partial(auto_device)
+
+
+# TODO: test
+def load_model(
+    model_path: Path,
+    model_class: nn.Module,
+    *model_args: List,
+    **model_kwargs: Dict,
+) -> nn.Module:
+    """
+    Creates a model from its last checkpoint.
+
+    Parameters
+    ----------
+    model_path : Path
+        Basepath to the model
+    model_class : nn.Module
+        Class of the model
+
+    Returns
+    -------
+    nn.Module
+        Loaded model
+    """
+
+    sort_key = lambda x: -int(x.name.split(".ckpt")[0].split("_")[1])
+    checkpoint = model_path / "checkpoints"
+    checkpoint = list(checkpoint.glob("*.ckpt"))
+    checkpoint.sort(key=sort_key)
+    model_state = torch.load(checkpoint[0])["model_state"]
+    model = model_class(*model_args, **model_kwargs)
+    model.load_state_dict(model_state)
+    model.eval()
+    return model
