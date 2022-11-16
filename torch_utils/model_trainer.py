@@ -121,7 +121,7 @@ class ModelTrainer(ABC):
                     data = self.apply_transforms(data)
                 self.train_step(data)
                 if i % self.log_every == 0 and i != 0:
-                    self._log_losses(is_training=True, steps=self.log_every)
+                    self._log_losses(is_training=True, steps=self.log_every, epoch=epoch)
                     self._reset_running_losses()
                 #
             self._reset_running_losses()
@@ -309,12 +309,13 @@ class ModelTrainer(ABC):
         epoch : int
             Current epoch
         """
-        scope = "[TRAIN LOSSES]" if is_training else "[VALID LOSSES]"
         tag_suffix = "train" if is_training else "valid"
-        logger.info(scope)
-        for loss, name in zip(self.running_losses, self.losses_names):
+        losses_names = self.losses_names + ["total"]
+        total_loss = sum([loss * w for loss, w in zip(self.running_losses, self.losses_weight)])
+        losses = self.running_losses + [total_loss]
+        for loss, name in zip(losses, losses_names):
             logger.info(f"{name}: {loss / steps}")
-            self.log_writer.add_scalar(f"{name}_{tag_suffix}", global_step=epoch)
+            self.log_writer.add_scalar(f"{name}_{tag_suffix}", loss, global_step=epoch)
 
         self._reset_running_losses()
 
