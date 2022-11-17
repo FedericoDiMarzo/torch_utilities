@@ -189,15 +189,13 @@ def _stft_istft_core(
     _transpose = lambda x: x.transpose(-1, -2)
     if is_stft:
         transform = torch.stft
-        # compensating for oversampling
-        padding = n_fft - win_len
-        x = F.pad(x, (0, padding))
+        # compensating for oversampling and center==True
+        pad_ovr = n_fft - win_len
+        pad_ctr = win_len // 2
+        x = F.pad(x, (pad_ctr, pad_ovr))
     else:
         transform = torch.istft
         x = _transpose(x)
-        # fix for torch NOLA check
-        eps = 1e-5
-        _window[_window < eps] = eps
 
     y = transform(
         x,
@@ -205,12 +203,14 @@ def _stft_istft_core(
         hop_length=hopsize,
         window=_window,
         return_complex=is_stft,
-        center=False,
+        center=True,
     )
 
-    # reshaping
     if is_stft:
+        # reshaping
         y = _transpose(y)
+        # compensating for center==True
+        y = y[:, 1:]
 
     if in_type == np.ndarray:
         # converting to numpy

@@ -25,16 +25,16 @@ class TestSTFT(unittest.TestCase):
         channels = (1, 4)  # 1
         sample_rate = (8000, 16000, 24000, 48000)  # 2
         hopsize_ms = (8, 10)  # 3
-        win_len_ms = tuple(2 * x for x in hopsize_ms)  # 4
+        # win_len = 2 * hopsize_ms # 4
         win_oversamp = (1, 2)  # 5
         self.params = itertools.product(
             module,
             channels,
             sample_rate,
             hopsize_ms,
-            win_len_ms,
             win_oversamp,
         )
+        self.params = [(*p[:4], 2 * p[3], p[4]) for p in self.params]
 
     def test_stft(self):
         for p in self.params:
@@ -54,8 +54,6 @@ class TestSTFT(unittest.TestCase):
                 y = tu.istft(x, p[2], p[3], "hann", p[4], p[5])
 
     def test_inversion(self):
-        import matplotlib.pyplot as plt
-
         for p in self.params:
             mod = p[0]
             with self.subTest(p=p):
@@ -63,9 +61,6 @@ class TestSTFT(unittest.TestCase):
                     x = np.random.normal(size=(p[1], p[2] * 1))
                 else:
                     x = torch.randn((p[1], p[2] * 1))
-                sides_0 = x.shape[1] // 4
-                x[:, -sides_0:] = 0
-                x[:, :sides_0] = 0
 
                 y = tu.stft(x, p[2], p[3], "hann", p[4], p[5])
                 x_hat = tu.istft(y, p[2], p[3], "hann", p[4], p[5])
