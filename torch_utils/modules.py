@@ -68,9 +68,9 @@ class Lookahead(nn.Module):
         else:
             self.lookahead_pad = nn.ConstantPad2d((0, 0, -self.lookahead, 0), 0)
 
-    def forward(self, net_ins: List[Tensor]) -> Tensor:
-        x = net_ins[0]
-        return self.lookahead_pad(x)
+    def forward(self, x: Tensor) -> Tensor:
+        x = self.lookahead_pad(x)
+        return x
 
 
 class Reparameterize(nn.Module):
