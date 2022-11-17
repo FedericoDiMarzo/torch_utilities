@@ -244,11 +244,11 @@ def set_device(device: str, dtype: str = "Float") -> None:
     dtype : str, optional
         Type of the tensor, by default "Float"
     """
+    if device == "auto":
+        device = get_device()
     if device == "cpu":
         torch.set_default_tensor_type(f"torch.{dtype}Tensor")
     else:
-        if device == "auto":
-            device = get_device()
         torch.set_default_tensor_type(f"torch.{device}.{dtype}Tensor")
 
 
@@ -305,7 +305,7 @@ def load_model(
     checkpoint = model_path / "checkpoints"
     checkpoint = list(checkpoint.glob("*.ckpt"))
     checkpoint.sort(key=sort_key)
-    model_state = torch.load(checkpoint[0])["model_state"]
+    model_state = torch.load(checkpoint[0], map_location=get_device())["model_state"]
     model = model_class(*model_args, **model_kwargs)
     model.load_state_dict(model_state)
     model.eval()

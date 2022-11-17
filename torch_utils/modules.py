@@ -1,6 +1,6 @@
 import torch
 import numpy as np
-from typing import Callable, Optional, Tuple
+from typing import Callable, List, Optional, Tuple
 from torch import nn, Tensor
 import torch.nn.functional as F
 from pathimport import set_module_root
@@ -68,7 +68,8 @@ class Lookahead(nn.Module):
         else:
             self.lookahead_pad = nn.ConstantPad2d((0, 0, -self.lookahead, 0), 0)
 
-    def forward(self, x: Tensor) -> Tensor:
+    def forward(self, net_ins: List[Tensor]) -> Tensor:
+        x = net_ins[0]
         return self.lookahead_pad(x)
 
 
