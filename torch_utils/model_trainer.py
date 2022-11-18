@@ -118,7 +118,6 @@ class ModelTrainer(ABC):
             self.net.train()
             for i, data in enumerate(self.train_ds):
                 with torch.no_grad():
-                    data = data[0]
                     data = self.apply_transforms(data)
                 self.train_step(data)
                 if i % self.log_every == 0 and i != 0:
