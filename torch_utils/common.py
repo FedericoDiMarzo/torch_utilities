@@ -302,11 +302,13 @@ def load_model(
     """
 
     sort_key = lambda x: -int(x.name.split(".ckpt")[0].split("_")[1])
-    checkpoint = model_path / "checkpoints"
-    checkpoint = list(checkpoint.glob("*.ckpt"))
-    checkpoint.sort(key=sort_key)
-    model_state = torch.load(checkpoint[0], map_location=get_device())["model_state"]
-    model = model_class(*model_args, **model_kwargs)
+    checkpoints = model_path / "checkpoints"
+    checkpoints = list(checkpoints.glob("*.ckpt"))
+    checkpoints.sort(key=sort_key)
+    config = model_path / "config.yml"
+    model_state = torch.load(checkpoints[0], map_location=get_device())
+    model_state = model_state["model_state"]
+    model = model_class(config, *model_args, **model_kwargs)
     model.load_state_dict(model_state)
     model.eval()
     return model
