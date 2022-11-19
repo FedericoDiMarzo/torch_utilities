@@ -354,10 +354,7 @@ class CausalConv2dNormAct(nn.Module):
         )
 
         if kernel_size[1] % 2 == 0:
-            self.freq_trim = nn.ConstantPad2d(
-                (0, -1, 0, 0),
-                0,
-            )
+            self.freq_trim = nn.ConstantPad2d((0, -1, 0, 0), 0)
         else:
             self.freq_trim = nn.Identity()
 
@@ -376,9 +373,9 @@ class CausalConv2dNormAct(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         y = self.conv(x)
         y = self.freq_trim(y)
-        y = self.batchnorm(y)
-        if self.disable_batchnorm:
-            y = self.activation(y)
+        if not self.disable_batchnorm:
+            y = self.batchnorm(y)
+        y = self.activation(y)
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y
@@ -468,9 +465,9 @@ class CausalConvNeuralUpsampler(nn.Module):
         y = self.tconv(x)
         y = self.padding_f(y)
         y = self.conv(y)
-        y = self.batchnorm(y)
-        if self.disable_batchnorm:
-            y = self.activation(y)
+        if not self.disable_batchnorm:
+            y = self.batchnorm(y)
+        y = self.activation(y)
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y
