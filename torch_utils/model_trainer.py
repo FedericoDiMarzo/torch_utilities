@@ -112,6 +112,7 @@ class ModelTrainer(ABC):
         """
         Trains a model.
         """
+        self._log_graph()
         for epoch in range(self.start_epoch, self.max_epochs):
             logger.info(f"epoch [{epoch}/{self.max_epochs}]")
 
@@ -127,12 +128,12 @@ class ModelTrainer(ABC):
                 #
             self._reset_running_losses()
             self.save_model(epoch)
-            self._log_gradients()
+            self._log_gradients(epoch)
 
             with torch.no_grad():
                 self.net.eval()
-                log_data = [x.to(tu.get_device()) for x in self.train_ds.dataset[[0, 1]]]
-                self.tensorboard_logs(log_data, epoch=epoch, is_training=True)
+                _log_data = lambda t: [x.to(tu.get_device()) for x in self._get_dummy_input(t)]
+                self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
 
                 # validation
                 for i, data in enumerate(self.valid_ds):
@@ -140,8 +141,7 @@ class ModelTrainer(ABC):
                     self.valid_step(data)
                 self._log_losses(is_training=False, steps=i, epoch=epoch)
                 self._reset_running_losses()
-                log_data = [x.to(tu.get_device()) for x in self.valid_ds.dataset[[0, 1]]]
-                self.tensorboard_logs(log_data, epoch=epoch, is_training=False)
+                self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
 
     def train_step(self, data: List[Tensor]) -> None:
         """
@@ -208,6 +208,25 @@ class ModelTrainer(ABC):
             tensorboard log writer
         """
         return self.log_writer
+
+    def _get_dummy_input(self, is_training: bool) -> List[Tensor]:
+        """
+        Returns an input from the validation dataset
+
+        Parameters
+        -------
+        is_training : bool
+            Flag to separate train/valid logging
+
+        Returns
+        -------
+        List[Tensor]
+            Validation input selection
+        """
+        ds = self.train_ds if is_training else self.valid_ds
+        x = [x[None, ...].to(tu.get_device()) for x in ds.dataset[[0, 1]]]
+        x = self.apply_transforms(x)
+        return x
 
     def _get_checkpoints(self) -> List[Path]:
         """
@@ -321,6 +340,55 @@ class ModelTrainer(ABC):
 
         self._reset_running_losses()
 
+    def _log_gradients(self, epoch: int) -> None:
+        """
+        Saves a plot of the gradient module
+        in tensorboard.
+
+        Parameters
+        ----------
+        epoch : int
+            Current epoch
+        """
+        grad = tu.get_gradients(self.net)
+        plt.figure(figsize=(8, 6))
+        plt.plot(grad)
+        plt.title("model gradient")
+        plt.grid()
+        plt.xlabel("submodule index")
+        plt.ylabel("gradient norm")
+        fig = plt.gcf()
+        self.log_writer.add_figure("gradient", fig, epoch)
+        plt.close()
+
+    def _log_graph(self) -> None:
+        """
+        Saves the model graph
+
+        Parameters
+        ----------
+        epoch : int
+            Current epoch
+        """
+        x = self._get_dummy_input(True)
+        self.log_writer.add_graph(self.net, x)
+
+    @abc.abstractclassmethod
+    def tensorboard_logs(self, net_ins: List[Tensor], epoch: int, is_training: bool) -> None:
+        """
+        Additional tensorboard logging.
+
+        Parameters
+        ----------
+        net_ins : List[Tensor]
+            Network inputs
+        epoch : int
+            Current epoch
+        is_training : bool
+            Flag to separate train/valid logging
+        """
+        pass
+
     def _update_running_losses(self, losses: List[Tensor]) -> None:
         """
         Updates the running losses.
@@ -380,43 +448,6 @@ class ModelTrainer(ABC):
             Transformed input
         """
         pass
-
-    @abc.abstractclassmethod
-    def tensorboard_logs(self, net_ins: List[Tensor], epoch: int, is_training: bool) -> None:
-        """
-        Additional tensorboard logging.
-
-        Parameters
-        ----------
-        net_ins : List[Tensor]
-            Network inputs
-        epoch : int
-            Current epoch
-        is_training : bool
-            Flag to separate train/valid logging
-        """
-        pass
-
-    def _log_gradients(self, epoch: int) -> None:
-        """
-        Saves a plot of the gradient module
-        in tensorboard.
-
-        Parameters
-        ----------
-        epoch : int
-            Current epoch
-        """
-        grad = tu.get_gradients(self.net)
-        plt.figure(figsize=(8, 6))
-        plt.plot(grad)
-        plt.title("model gradient")
-        plt.grid()
-        plt.xlabel("submodule index")
-        plt.ylabel("gradient norm")
-        fig = plt.gcf()
-        self.log_writer.add_figure("gradient", fig, epoch)
-        plt.close()
 
     def _parse_config(self) -> tu.DotDict:
         """
