@@ -397,7 +397,7 @@ class ModelTrainer(ABC):
         """
         pass
 
-    def _log_gradients(self) -> None:
+    def _log_gradients(self, epoch: int) -> None:
         """
         Saves a plot of the gradient module
         in tensorboard.
@@ -413,9 +413,10 @@ class ModelTrainer(ABC):
         plt.title("model gradient")
         plt.grid()
         plt.xlabel("submodule index")
-        plt.ylabel("gradiplt.close()ent norm")
+        plt.ylabel("gradient norm")
         fig = plt.gcf()
-        self.log_writer.add_figure("gradient", fig, 0)
+        self.log_writer.add_figure("gradient", fig, epoch)
+        plt.close()
 
     def _parse_config(self) -> tu.DotDict:
         """
