@@ -373,7 +373,7 @@ class ModelTrainer(ABC):
         """
         net_ins = self._get_dummy_input(is_training=True)
         net_outs = self.net(*net_ins)
-        norm = [torch.linalg.norm(x).item() for x in net_outs]
+        norm = [torch.linalg.norm(x[0]).item() for x in net_outs]
         norm = Tensor(norm).cpu()
         plt.figure(figsize=self.figsize)
         plt.bar(range(norm.shape[0]), norm)
