@@ -2,6 +2,7 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from torch.utils.tensorboard import SummaryWriter
 from pathimport import set_module_root
 from torch import optim, nn, Tensor
+import matplotlib.pyplot as plt
 from contextlib import suppress
 from collections import deque
 from loguru import logger
@@ -126,6 +127,7 @@ class ModelTrainer(ABC):
                 #
             self._reset_running_losses()
             self.save_model(epoch)
+            self._log_gradients()
 
             with torch.no_grad():
                 self.net.eval()
@@ -382,7 +384,7 @@ class ModelTrainer(ABC):
     @abc.abstractclassmethod
     def tensorboard_logs(self, net_ins: List[Tensor], epoch: int, is_training: bool) -> None:
         """
-
+        Additional tensorboard logging.
 
         Parameters
         ----------
@@ -394,6 +396,26 @@ class ModelTrainer(ABC):
             Flag to separate train/valid logging
         """
         pass
+
+    def _log_gradients(self) -> None:
+        """
+        Saves a plot of the gradient module
+        in tensorboard.
+
+        Parameters
+        ----------
+        epoch : int
+            Current epoch
+        """
+        grad = tu.get_gradients(self.net)
+        plt.figure(figsize=(8, 6))
+        plt.plot(grad)
+        plt.title("model gradient")
+        plt.grid()
+        plt.xlabel("submodule index")
+        plt.ylabel("gradiplt.close()ent norm")
+        fig = plt.gcf()
+        self.log_writer.add_figure("gradient", fig, 0)
 
     def _parse_config(self) -> tu.DotDict:
         """

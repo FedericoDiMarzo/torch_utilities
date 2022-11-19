@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Tuple, Type, Union, Dict
+from typing import Any, Callable, Iterator, List, Tuple, Type, Union, Dict
 import torch.nn.functional as F
 from functools import partial
 from torch import nn, Tensor
@@ -24,6 +24,8 @@ __all__ = [
     "set_device",
     "auto_device",
     "load_model",
+    "get_submodules",
+    "get_gradients",
 ]
 
 
@@ -312,3 +314,48 @@ def load_model(
     model.load_state_dict(model_state)
     model.eval()
     return model
+
+
+# TODO: test
+def get_submodules(model: nn.Module) -> List[nn.Module]:
+    """
+    Gets all the submodules without children from a model.
+
+    Parameters
+    ----------
+    model : nn.Module
+        Target model
+
+    Returns
+    -------
+    List[nn.Module]
+        Model submodules
+    """
+    modules = [x for x in model.modules() if len(list(x.children())) == 0]
+    return modules
+
+
+# TODO: test
+def get_gradients(model: nn.Module) -> Tensor:
+    """
+    Gets a model gradients norm through its submodules.
+
+    Parameters
+    ----------
+    model : nn.Module
+        Target model
+
+    Returns
+    -------
+    Tensor
+        Model gradients
+    """
+    modules = get_submodules(model)
+    valid = lambda x, n: hasattr(x, n) and hasattr(getattr(x, n), "grad")
+    _norm = lambda x: torch.linalg.norm(x).item()
+    f = lambda n: [_norm(getattr(x, n).grad) if valid(x, n) else 0 for x in modules]
+    w_grad = f("weight")
+    b_grad = f("bias")
+    grad = [w + b for w, b in zip(w_grad, b_grad)]
+    grad = torch.FloatTensor(grad)
+    return grad
