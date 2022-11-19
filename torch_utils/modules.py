@@ -367,7 +367,7 @@ class CausalConv2dNormAct(nn.Module):
             dtype=dtype,
         )
 
-        self.activation = activation
+        self.activation = activation or nn.Identity()
         self.residual_merge = residual_merge
 
     def forward(self, x: Tensor) -> Tensor:
@@ -458,7 +458,7 @@ class CausalConvNeuralUpsampler(nn.Module):
             dtype=dtype,
         )
 
-        self.activation = activation
+        self.activation = activation or nn.Identity()
         self.residual_merge = residual_merge
 
     def forward(self, x: Tensor) -> Tensor:
