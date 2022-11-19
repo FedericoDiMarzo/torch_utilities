@@ -1,5 +1,5 @@
 from pathimport import set_module_root
-from torch import  nn
+from torch import nn
 import numpy as np
 import itertools
 import unittest
@@ -159,6 +159,7 @@ class TestReparameterize(unittest.TestCase):
         self.assertLess(y.item(), self.eps)
 
     @repeat_test(5)
+    @torch.no_grad()
     def test_nonzero_mean(self):
         mu = torch.ones(100000)
         logvar = torch.ones(100000)
@@ -239,6 +240,7 @@ class TestGroupedLinear(unittest.TestCase):
     def setUp(self):
         pass
 
+    @torch.no_grad()
     def test_assert(self):
         params = (
             (65, 32),
@@ -249,6 +251,7 @@ class TestGroupedLinear(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     tu.GroupedLinear(p[0], p[1], groups=8)
 
+    @torch.no_grad()
     def test_no_groups(self):
         x = torch.rand((1, 10, 32))
         gl = tu.GroupedLinear(32, 64, 1)
@@ -256,6 +259,49 @@ class TestGroupedLinear(unittest.TestCase):
         gl.weight.data = torch.ones_like(gl.weight.data)
         lin.weight.data = torch.ones_like(lin.weight.data)
         self.assertTrue(torch.allclose(gl(x), lin(x)))
+
+        pass
+
+
+class TestMergeLayers(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        pass
+
+    def setUp(self):
+        self.in_ch = (1, 2, 3)
+        self.out_ch = (6, 12)
+        self.strides = (1, 2, 4)
+
+    @torch.no_grad()
+    def test_down_merge(self):
+        params = itertools.product(
+            self.in_ch,
+            self.out_ch,
+            self.strides,
+        )
+        for i, o, s in params:
+            with self.subTest(i=i, o=o, s=s):
+                merge = tu.DownMerge(o, s)
+                x = torch.ones(1, i, 10, 4 * s)
+                y = torch.ones(1, o, 10, 4)
+                z = merge(x, y)
+                self.assertEqual(y.shape, z.shape)
+
+    @torch.no_grad()
+    def test_up_merge(self):
+        params = itertools.product(
+            self.out_ch,
+            self.in_ch,
+            self.strides,
+        )
+        for i, o, s in params:
+            with self.subTest(i=i, o=o, s=s):
+                merge = tu.UpMerge(o, s)
+                x = torch.ones(1, i, 10, 4)
+                y = torch.ones(1, o, 10, 4 * s)
+                z = merge(x, y)
+                self.assertEqual(y.shape, z.shape)
 
 
 if __name__ == "__main__":

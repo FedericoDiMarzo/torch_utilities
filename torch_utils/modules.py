@@ -1,9 +1,9 @@
-import torch
-import numpy as np
 from typing import Callable, List, Optional, Tuple
-from torch import nn, Tensor
-import torch.nn.functional as F
 from pathimport import set_module_root
+import torch.nn.functional as F
+from torch import nn, Tensor
+import numpy as np
+import torch
 
 set_module_root(".", prefix=True)
 
@@ -15,6 +15,8 @@ __all__ = [
     "CausalConv2d",
     "CausalConv2dNormAct",
     "CausalConvNeuralUpsampler",
+    "DownMerge",
+    "UpMerge",
 ]
 
 
@@ -472,3 +474,100 @@ class CausalConvNeuralUpsampler(nn.Module):
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y
+
+
+class DownMerge(nn.Module):
+    def __init__(self, channels: int, scaling: int) -> None:
+        """
+        Merge node that can be associated
+        to CausalConv2dNormAct o similar encoding nodes.
+
+        Parameters
+        ----------
+        channels : int
+            Output channels of a encoding module
+        scaling : int
+            Stride of a encoding module
+        """
+        super().__init__()
+        self.channels = channels
+        self.scaling = scaling
+
+    def forward(self, x: Tensor, y: Tensor) -> Tensor:
+        """
+        Parameters
+        ----------
+        x : Tensor
+            Input before the encoding module
+        y : Tensor
+            Input after the encoding module
+
+        Returns
+        -------
+        Tensor
+            Merged thensor with the same shape as y
+        """
+        # reducing the frequencies
+        x = x[..., :: self.scaling]
+        c_in = x.shape[1]
+        c_out = self.channels
+
+        # increasing the channels
+        err_msg = f"c_in=={c_in} should divide c_out=={c_out},"
+        ratio = c_out // c_in
+        assert ratio > 0, err_msg
+        if ratio > 0:
+            x = torch.cat([x] * ratio, dim=1)
+
+        # merging
+        x = x + y
+
+        return x
+
+
+class UpMerge(nn.Module):
+    def __init__(self, channels: int, scaling: int) -> None:
+        """
+        Merge node that can be associated to
+        CausalConvNeuralUpsampler o similar decoding modules.
+
+        Parameters
+        ----------
+        channels : int
+            Output channels of a decoding module
+        scaling : int
+            Stride of a decoding module
+        """
+        super().__init__()
+        self.channels = channels
+        self.scaling = scaling
+
+    def forward(self, x: Tensor, y: Tensor) -> Tensor:
+        """
+        Parameters
+        ----------
+        x : Tensor
+            Input before the decoding module
+        y : Tensor
+            Input after the decoding module
+
+        Returns
+        -------
+        Tensor
+            Merged thensor with the same shape as y
+        """
+        # increasing the frequencies
+        x = F.interpolate(x, scale_factor=(1, self.scaling))
+        c_in = x.shape[1]
+        c_out = self.channels
+
+        # reducing the channels
+        err_msg = f"c_out=={c_out} should divide c_in=={c_in}"
+        ratio = c_in // c_out
+        assert ratio > 0, err_msg
+        x = x[:, ::ratio]
+
+        # merging
+        x = x + y
+
+        return x
