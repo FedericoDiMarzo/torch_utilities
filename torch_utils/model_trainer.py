@@ -107,6 +107,7 @@ class ModelTrainer(ABC):
         # extra stuff
         self.save_buffer = deque([], maxlen=5)
         self.log_writer = SummaryWriter(self.logs_dir)
+        self.figsize = (8, 6)
 
     def start_training(self) -> None:
         """
@@ -132,8 +133,9 @@ class ModelTrainer(ABC):
 
             with torch.no_grad():
                 self.net.eval()
-                _log_data = lambda t: [x.to(tu.get_device()) for x in self._get_dummy_input(t)]
+                _log_data = lambda t: self._get_dummy_input(t)
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
+                self._log_outs(epoch)
 
                 # validation
                 for i, data in enumerate(self.valid_ds):
@@ -342,8 +344,7 @@ class ModelTrainer(ABC):
 
     def _log_gradients(self, epoch: int) -> None:
         """
-        Saves a plot of the gradient module
-        in tensorboard.
+        Saves a plot of the gradient norm in tensorboard.
 
         Parameters
         ----------
@@ -351,14 +352,37 @@ class ModelTrainer(ABC):
             Current epoch
         """
         grad = tu.get_gradients(self.net)
-        plt.figure(figsize=(8, 6))
-        plt.plot(grad)
+        plt.figure(figsize=self.figsize)
+        plt.bar(range(grad.shape[0]), grad)
         plt.title("model gradient")
         plt.grid()
         plt.xlabel("submodule index")
         plt.ylabel("gradient norm")
         fig = plt.gcf()
         self.log_writer.add_figure("gradient", fig, epoch)
+        plt.close()
+
+    def _log_outs(self, epoch: int) -> None:
+        """
+        Saves a plot of the outputs norm in tensorboard.
+
+        Parameters
+        ----------
+        epoch : int
+            Current epoch
+        """
+        net_ins = self._get_dummy_input(is_training=True)
+        net_outs = self.net(*net_ins)
+        norm = [torch.linalg.norm(x).item() for x in net_outs]
+        norm = Tensor(norm).cpu()
+        plt.figure(figsize=self.figsize)
+        plt.bar(range(norm.shape[0]), norm)
+        plt.title("model outputs")
+        plt.grid()
+        plt.xlabel("output index")
+        plt.ylabel("output norm")
+        fig = plt.gcf()
+        self.log_writer.add_figure("outputs", fig, epoch)
         plt.close()
 
     def _log_graph(self) -> None:
