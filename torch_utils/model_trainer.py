@@ -133,7 +133,8 @@ class ModelTrainer(ABC):
 
             with torch.no_grad():
                 self.net.eval()
-                _log_data = lambda t: self._get_dummy_input(t)
+                _ds = lambda t: self.train_ds if t else self.valid_ds
+                _log_data = lambda t: _ds(t)[[0, 1]][None, ...]
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
                 self._log_outs(epoch)
 
