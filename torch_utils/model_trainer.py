@@ -52,9 +52,9 @@ class ModelTrainer(ABC):
             Path to the model directory
         model : nn.Module
             Model to train
-        train_ds : tu.HDF5Dataset
+        train_ds : DataLoader
             Training dataset
-        train_ds : tu.HDF5Dataset
+        train_ds : DataLoader
             Validation dataset
         optimizer_class : optim.Optimizer
             Optimizer class
@@ -122,6 +122,8 @@ class ModelTrainer(ABC):
             # training
             self.net.train()
             for i, data in enumerate(self.train_ds):
+                if self._is_loading_batches(self.train_ds):
+                    data = data[0]
                 with torch.no_grad():
                     data = self.apply_transforms(data)
                 self.train_step(data)
@@ -136,12 +138,14 @@ class ModelTrainer(ABC):
             with torch.no_grad():
                 self.net.eval()
                 _dl = lambda t: self.train_ds if t else self.valid_ds
-                _log_data = lambda t: _dl(t).dataset[[0, 1]][None, ...]
+                _log_data = lambda t: [x.to(tu.get_device()) for x in _dl(t).dataset[[0, 1]]]
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
                 self._log_outs(epoch)
 
                 # validation
                 for i, data in enumerate(self.valid_ds):
+                    if self._is_loading_batches(self.valid_ds):
+                        data = data[0]
                     data = self.apply_transforms(data)
                     self.valid_step(data)
                 self._log_losses(is_training=False, steps=i, epoch=epoch)
@@ -229,7 +233,7 @@ class ModelTrainer(ABC):
             Validation input selection
         """
         ds = self.train_ds if is_training else self.valid_ds
-        x = [x[None, ...].to(tu.get_device()) for x in ds.dataset[[0, 1]]]
+        x = [x.to(tu.get_device()) for x in ds.dataset[[0, 1]]]
         x = self.apply_transforms(x)
         return x
 
@@ -244,6 +248,25 @@ class ModelTrainer(ABC):
         """
         checkpoints = list(self.checkpoints_dir.glob("*.ckpt"))
         return checkpoints
+
+    def _is_loading_batches(self, dl: DataLoader) -> bool:
+        """
+        Checks if a DataLoader is loading one item at the time (False)
+        or multiple items (True).
+
+        Parameters
+        ----------
+        dl : DataLoader
+            Target DataLoader
+
+        Returns
+        -------
+        bool
+            True if multiple indices are passed to the DataLoader
+        """
+        samp = dl.sampler
+        idx = iter(samp).__next__()
+        return isinstance(idx, list)
 
     def _prev_train_exists(self) -> bool:
         """
@@ -410,7 +433,7 @@ class ModelTrainer(ABC):
         Parameters
         ----------
         net_ins : List[Tensor]
-            Network inputs
+            Network raw inputs (no transforms)
         epoch : int
             Current epoch
         is_training : bool
