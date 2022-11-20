@@ -1,5 +1,6 @@
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import DataLoader
 from pathimport import set_module_root
 from torch import optim, nn, Tensor
 import matplotlib.pyplot as plt
@@ -10,6 +11,7 @@ import torch_utils as tu
 from pathlib import Path
 import numpy as np
 from abc import ABC
+import warnings
 import torch
 import abc
 
@@ -24,8 +26,8 @@ class ModelTrainer(ABC):
         self,
         model_path: Path,
         model: nn.Module,
-        train_ds: tu.HDF5Dataset,
-        valid_ds: tu.HDF5Dataset,
+        train_dl: DataLoader,
+        valid_dl: DataLoader,
         optimizer_class: optim.Optimizer,
         losses: List[Callable],
         losses_names: Optional[List[str]] = None,
@@ -77,8 +79,8 @@ class ModelTrainer(ABC):
         # explicit attributes
         self.model_path = model_path
         self.model = model
-        self.train_ds = train_ds
-        self.valid_ds = valid_ds
+        self.train_ds = train_dl
+        self.valid_ds = valid_dl
         self.losses = losses
         self.losses_names = losses_names or self._default_losses_names()
         self.optimizer_class = optimizer_class
@@ -133,8 +135,8 @@ class ModelTrainer(ABC):
 
             with torch.no_grad():
                 self.net.eval()
-                _ds = lambda t: self.train_ds if t else self.valid_ds
-                _log_data = lambda t: _ds(t)[[0, 1]][None, ...]
+                _dl = lambda t: self.train_ds if t else self.valid_ds
+                _log_data = lambda t: _dl(t).dataset[[0, 1]][None, ...]
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
                 self._log_outs(epoch)
 
@@ -396,7 +398,9 @@ class ModelTrainer(ABC):
             Current epoch
         """
         x = self._get_dummy_input(True)
-        self.log_writer.add_graph(self.net, x)
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")
+            self.log_writer.add_graph(self.net, x)
 
     @abc.abstractclassmethod
     def tensorboard_logs(self, net_ins: List[Tensor], epoch: int, is_training: bool) -> None:
