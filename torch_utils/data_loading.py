@@ -186,7 +186,10 @@ def get_hdf5_dataloader(
     dataset = HDF5Dataset(dataset_path, data_layout)
 
     sampler = BatchSampler(
-        SequentialSampler(dataset),
+        sampler=WeakShufflingSampler(
+            dataset=dataset,
+            batch_size=batch_size,
+        ),
         batch_size=batch_size,
         drop_last=False,
     )
