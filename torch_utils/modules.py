@@ -137,7 +137,7 @@ class ScaleChannels2d(nn.Module):
         Returns
         -------
         Tensor
-            Scaled input
+            Scaled input of shape (B, C, T, F)
         """
         x = self.scale(x)
         return x
