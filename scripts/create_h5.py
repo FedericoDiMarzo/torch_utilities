@@ -84,9 +84,9 @@ def parse_args() -> Dict:
     )
     argparser.add_argument(
         "--len",
-        default=5,
+        default=3,
         type=float,
-        help="duration in seconds inside the datasets",
+        help="duration in seconds inside the datasets, by default 3 s",
     )
     return argparser.parse_args()
 
