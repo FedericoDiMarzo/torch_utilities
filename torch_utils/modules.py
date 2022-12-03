@@ -433,12 +433,14 @@ class CausalConvNeuralUpsampler(nn.Module):
             bias=False,
             dtype=dtype,
         )
+
         pad_f = tconv_kernel_f_size // 2
         if tconv_kernel_f_size % 2 == 0:
-            # # even tconv kernel
+            # even tconv kernel
             self.padding_f = nn.ConstantPad2d((-pad_f, -pad_f + 1, 0, 0), 0)
         else:
             self.padding_f = nn.ConstantPad2d((-pad_f, -pad_f, 0, 0), 0)
+
         self.conv = CausalConv2d(
             in_channels=in_channels,
             out_channels=out_channels,
@@ -449,6 +451,7 @@ class CausalConvNeuralUpsampler(nn.Module):
             separable=separable,
             dtype=dtype,
         )
+        
         self.batchnorm = nn.BatchNorm2d(
             num_features=out_channels,
             eps=eps,
