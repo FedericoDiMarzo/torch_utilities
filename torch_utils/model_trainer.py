@@ -131,9 +131,10 @@ class ModelTrainer(ABC):
                     self._log_losses(is_training=True, steps=self.log_every, epoch=epoch)
                     self._reset_running_losses()
                 #
-            self._reset_running_losses()
             self.save_model(epoch)
             self._log_gradients(epoch)
+            self._log_losses(is_training=True, steps=(i % self.log_every) + 1 , epoch=epoch)
+            self._reset_running_losses()
 
             with torch.no_grad():
                 self.net.eval()
@@ -148,7 +149,7 @@ class ModelTrainer(ABC):
                         data = data[0]
                     data = self.apply_transforms(data)
                     self.valid_step(data)
-                self._log_losses(is_training=False, steps=i, epoch=epoch)
+                self._log_losses(is_training=False, steps=i+1, epoch=epoch)
                 self._reset_running_losses()
                 self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
 
