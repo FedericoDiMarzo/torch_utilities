@@ -31,6 +31,7 @@ class ModelTrainer(ABC):
         optimizer_class: optim.Optimizer,
         losses: List[Callable],
         losses_names: Optional[List[str]] = None,
+        overfit_mode: bool = False,
     ) -> None:
         """
         Abstract class to structure a model training.
@@ -62,6 +63,8 @@ class ModelTrainer(ABC):
             List of losses to be computed
         losses_names : Optional[List[str]]
             Names of the losses, by default ["loss0", "loss1", ...]
+        overfit_mode : bool, optional
+            Enables overfit mode, by default False
 
 
         config.yml [training] parameters
@@ -84,6 +87,7 @@ class ModelTrainer(ABC):
         self.losses = losses
         self.losses_names = losses_names or self._default_losses_names()
         self.optimizer_class = optimizer_class
+        self.overfit_mode = overfit_mode
 
         # configuration attributes
         self.config_path = self.model_path / "config.yml"
@@ -133,25 +137,26 @@ class ModelTrainer(ABC):
                 #
             self.save_model(epoch)
             self._log_gradients(epoch)
-            self._log_losses(is_training=True, steps=(i % self.log_every) + 1 , epoch=epoch)
+            self._log_losses(is_training=True, steps=(i % self.log_every) + 1, epoch=epoch)
             self._reset_running_losses()
 
             with torch.no_grad():
-                self.net.eval()
                 _dl = lambda t: self.train_ds if t else self.valid_ds
                 _log_data = lambda t: [x.to(tu.get_device()) for x in _dl(t).dataset[[0, 1]]]
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
                 self._log_outs(epoch)
 
-                # validation
-                for i, data in enumerate(self.valid_ds):
-                    if self._is_loading_batches(self.valid_ds):
-                        data = data[0]
-                    data = self.apply_transforms(data)
-                    self.valid_step(data)
-                self._log_losses(is_training=False, steps=i+1, epoch=epoch)
-                self._reset_running_losses()
-                self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
+                if not self.overfit_mode:
+                    # validation
+                    self.net.eval()
+                    for i, data in enumerate(self.valid_ds):
+                        if self._is_loading_batches(self.valid_ds):
+                            data = data[0]
+                        data = self.apply_transforms(data)
+                        self.valid_step(data)
+                    self._log_losses(is_training=False, steps=i + 1, epoch=epoch)
+                    self._reset_running_losses()
+                    self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
 
     def train_step(self, data: List[Tensor]) -> None:
         """
