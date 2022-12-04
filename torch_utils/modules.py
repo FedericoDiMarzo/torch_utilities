@@ -358,14 +358,17 @@ class CausalConv2dNormAct(nn.Module):
         else:
             self.freq_trim = nn.Identity()
 
-        self.batchnorm = nn.BatchNorm2d(
-            num_features=out_channels,
-            eps=eps,
-            momentum=momentum,
-            affine=affine,
-            track_running_stats=track_running_stats,
-            dtype=dtype,
-        )
+        if self.disable_batchnorm:
+            self.batchnorm = nn.Identity()
+        else:
+            self.batchnorm = nn.BatchNorm2d(
+                num_features=out_channels,
+                eps=eps,
+                momentum=momentum,
+                affine=affine,
+                track_running_stats=track_running_stats,
+                dtype=dtype,
+            )
 
         self.activation = activation or nn.Identity()
         self.residual_merge = residual_merge
@@ -373,8 +376,7 @@ class CausalConv2dNormAct(nn.Module):
     def forward(self, x: Tensor) -> Tensor:
         y = self.conv(x)
         y = self.freq_trim(y)
-        if not self.disable_batchnorm:
-            y = self.batchnorm(y)
+        y = self.batchnorm(y)
         y = self.activation(y)
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
@@ -451,15 +453,18 @@ class CausalConvNeuralUpsampler(nn.Module):
             separable=separable,
             dtype=dtype,
         )
-        
-        self.batchnorm = nn.BatchNorm2d(
-            num_features=out_channels,
-            eps=eps,
-            momentum=momentum,
-            affine=affine,
-            track_running_stats=track_running_stats,
-            dtype=dtype,
-        )
+
+        if disable_batchnorm:
+            self.batchnorm = nn.Identity()
+        else:
+            self.batchnorm = nn.BatchNorm2d(
+                num_features=out_channels,
+                eps=eps,
+                momentum=momentum,
+                affine=affine,
+                track_running_stats=track_running_stats,
+                dtype=dtype,
+            )
 
         self.activation = activation or nn.Identity()
         self.residual_merge = residual_merge
@@ -468,8 +473,7 @@ class CausalConvNeuralUpsampler(nn.Module):
         y = self.tconv(x)
         y = self.padding_f(y)
         y = self.conv(y)
-        if not self.disable_batchnorm:
-            y = self.batchnorm(y)
+        y = self.batchnorm(y)
         y = self.activation(y)
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
