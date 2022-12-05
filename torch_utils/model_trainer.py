@@ -53,10 +53,10 @@ class ModelTrainer(ABC):
             Path to the model directory
         model : nn.Module
             Model to train
-        train_ds : DataLoader
-            Training dataset
-        train_ds : DataLoader
-            Validation dataset
+        train_dl : DataLoader
+            Training DataLoader
+        train_dl : DataLoader
+            Validation DataLoader
         optimizer_class : optim.Optimizer
             Optimizer class
         losses : List[Callable]
@@ -111,10 +111,13 @@ class ModelTrainer(ABC):
         self._reset_running_losses()
 
         # extra stuff
-        self.save_buffer = deque([], maxlen=5)
+        self.save_buffer = deque([], maxlen=5)  # TODO: best saving mechanism
         self.log_writer = SummaryWriter(self.logs_dir)
         self.figsize = (8, 6)
 
+    # = = = = = = = = = = = = = = = = = = = = = =
+    #             Training loop
+    # = = = = = = = = = = = = = = = = = = = = = =
     def start_training(self) -> None:
         """
         Trains a model.
@@ -193,6 +196,110 @@ class ModelTrainer(ABC):
         _losses = self._apply_losses_weights(_losses)
         self._update_running_losses(_losses)
 
+    # = = = = = = = = = = = = = = = = = = = = = =
+    #            Handling Losses
+    # = = = = = = = = = = = = = = = = = = = = = =
+    @abc.abstractmethod
+    def apply_losses(self, net_ins: List[Tensor], net_outs: List[Tensor]) -> List[Tensor]:
+        """
+        Use the new_outputs to calculate the losses and
+        return them.
+
+        Parameters
+        ----------
+        net_ins : List[Tensor]
+            Network inputs
+        net_outs : List[Tensor]
+            Network outputs
+
+        Returns
+        -------
+        List[Tensor]
+            List of computed losses (not weighted)
+        """
+        pass
+
+    def _apply_losses_weights(
+        self,
+        losses: List[Union[Tensor, float]],
+    ) -> List[Union[Tensor, float]]:
+        """
+        Weights the losses by losses_weights.
+
+        Parameters
+        ----------
+        losses : List[Union[Tensor, float]]
+            List of losses to weight
+
+        Returns
+        -------
+        Tensor
+            Weighted losses
+        """
+        return [loss * w for loss, w in zip(losses, self.losses_weight)]
+
+    def _update_running_losses(self, losses: List[Tensor]) -> None:
+        """
+        Updates the running losses.
+
+        Parameters
+        ----------
+        losses : List[Tensor]
+            Current losses
+        """
+        losses = [loss.item() for loss in losses]
+        self.running_losses = [l0 + l1 for l0, l1 in zip(self.running_losses, losses)]
+
+    def _reset_running_losses(self) -> None:
+        """
+        Resets the state of the running_losses.
+        """
+        self.running_losses = np.zeros(len(self.losses))
+
+    # = = = = = = = = = = = = = = = = = = = = = =
+    #             Input Features
+    # = = = = = = = = = = = = = = = = = = = = = =
+    @abc.abstractmethod
+    def apply_transforms(self, net_ins: List[Tensor]) -> List[Tensor]:
+        """
+        Apply tranforms to the inputs.
+
+        Parameters
+        ----------
+        net_ins : List[Tensor]
+            Network inputs
+
+        Returns
+        -------
+        List[Tensor]
+            Transformed input
+        """
+        pass
+
+    # = = = = = = = = = = = = = = = = = = = = = =
+    #               Callbacks
+    # = = = = = = = = = = = = = = = = = = = = = =
+    def on_train_begin(self) -> None:
+        pass
+
+    def on_train_end(self) -> None:
+        pass
+
+    def on_train_step_begin(self) -> None:
+        pass
+
+    def on_train_step_end(self) -> None:
+        pass
+
+    def on_valid_step_begin(self) -> None:
+        pass
+
+    def on_valid_step_end(self) -> None:
+        pass
+
+    # = = = = = = = = = = = = = = = = = = = = = =
+    #             Model loading
+    # = = = = = = = = = = = = = = = = = = = = = =
     def load_model(self) -> nn.Module:
         """
         Loads a model from its class and configuration file.
@@ -213,67 +320,6 @@ class ModelTrainer(ABC):
 
         return m
 
-    def get_tensorboard_writer(self) -> SummaryWriter:
-        """
-        Getter to the tensorboard log writer
-
-        Returns
-        -------
-        SummaryWriter
-            tensorboard log writer
-        """
-        return self.log_writer
-
-    def _get_dummy_input(self, is_training: bool) -> List[Tensor]:
-        """
-        Returns an input from the validation dataset
-
-        Parameters
-        -------
-        is_training : bool
-            Flag to separate train/valid logging
-
-        Returns
-        -------
-        List[Tensor]
-            Validation input selection
-        """
-        ds = self.train_ds if is_training else self.valid_ds
-        x = [x.to(tu.get_device()) for x in ds.dataset[[0, 1]]]
-        x = self.apply_transforms(x)
-        return x
-
-    def _get_checkpoints(self) -> List[Path]:
-        """
-        Gets the checkpoints paths.
-
-        Returns
-        -------
-        List[Path]
-            Checkpoints paths
-        """
-        checkpoints = list(self.checkpoints_dir.glob("*.ckpt"))
-        return checkpoints
-
-    def _is_loading_batches(self, dl: DataLoader) -> bool:
-        """
-        Checks if a DataLoader is loading one item at the time (False)
-        or multiple items (True).
-
-        Parameters
-        ----------
-        dl : DataLoader
-            Target DataLoader
-
-        Returns
-        -------
-        bool
-            True if multiple indices are passed to the DataLoader
-        """
-        samp = dl.sampler
-        idx = iter(samp).__next__()
-        return isinstance(idx, list)
-
     def _prev_train_exists(self) -> bool:
         """
         Checks if a previous training exists.
@@ -287,6 +333,18 @@ class ModelTrainer(ABC):
             return False
         checkpoints = self._get_checkpoints()
         return len(checkpoints) > 0
+
+    def _get_checkpoints(self) -> List[Path]:
+        """
+        Gets the checkpoints paths.
+
+        Returns
+        -------
+        List[Path]
+            Checkpoints paths
+        """
+        checkpoints = list(self.checkpoints_dir.glob("*.ckpt"))
+        return checkpoints
 
     def _load_checkpoint(self) -> Tuple[int, Dict, Dict]:
         """
@@ -310,6 +368,39 @@ class ModelTrainer(ABC):
         optim_state = chosen.optim_state
         return epoch, model_state, optim_state
 
+    # = = = = = = = = = = = = = = = = = = = = = =
+    #             Model saving
+    # = = = = = = = = = = = = = = = = = = = = = =
+    def save_model(self, epoch: int) -> None:
+        """
+        Saves the model in the checkpoints folder.
+
+        Parameters
+        ----------
+        epoch : int
+            Current epoch
+        """
+        # saving
+        checkpoint_path = self.checkpoints_dir / f"checkpoint_{epoch}.ckpt"
+        torch.save(
+            dict(
+                model_state=self.net.state_dict(),
+                optim_state=self.optimizer.state_dict(),
+                epoch=epoch,
+            ),
+            checkpoint_path,
+        )
+
+        # removing old checkpoints
+        self.save_buffer.append(checkpoint_path.name)
+        sb = self.save_buffer
+        checkpoints = self.checkpoints_dir.glob("*.ckpt")
+        targets = filter(lambda x: x.name not in sb, checkpoints)
+        [x.unlink() for x in targets]
+
+    # = = = = = = = = = = = = = = = = = = = = = =
+    #           Optimizer loading
+    # = = = = = = = = = = = = = = = = = = = = = =
     def _setup_optimizer(self) -> torch.optim.Optimizer:
         """
         Sets up the optimizer to the model.
@@ -326,30 +417,54 @@ class ModelTrainer(ABC):
                 optim.load_state_dict(self.optim_state)
         return optim
 
-    def _apply_losses_weights(
-        self,
-        losses: List[Union[Tensor, float]],
-    ) -> List[Union[Tensor, float]]:
+    # = = = = = = = = = = = = = = = = = = = = = =
+    #                Logging
+    # = = = = = = = = = = = = = = = = = = = = = =
+    def get_tensorboard_writer(self) -> SummaryWriter:
         """
-        Weights the losses by losses_weights.
-
-        Parameters
-        ----------
-        losses : List[Union[Tensor, float]]
-            List of losses to weight
+        Getter to the tensorboard log writer
 
         Returns
         -------
-        Tensor
-            Weighted losses
+        SummaryWriter
+            tensorboard log writer
         """
-        return [loss * w for loss, w in zip(losses, self.losses_weight)]
+        return self.log_writer
 
-    def _reset_running_losses(self) -> None:
+    @abc.abstractclassmethod
+    def tensorboard_logs(self, net_ins: List[Tensor], epoch: int, is_training: bool) -> None:
         """
-        Resets the state of the running_losses.
+        Additional tensorboard logging.
+
+        Parameters
+        ----------
+        net_ins : List[Tensor]
+            Network raw inputs (no transforms)
+        epoch : int
+            Current epoch
+        is_training : bool
+            Flag to separate train/valid logging
         """
-        self.running_losses = np.zeros(len(self.losses))
+        pass
+
+    def _get_dummy_input(self, is_training: bool) -> List[Tensor]:
+        """
+        Returns an input from the validation dataset
+
+        Parameters
+        -------
+        is_training : bool
+            Flag to separate train/valid logging
+
+        Returns
+        -------
+        List[Tensor]
+            Validation input selection
+        """
+        ds = self.train_ds if is_training else self.valid_ds
+        x = [x.to(tu.get_device()) for x in ds.dataset[[0, 1]]]
+        x = self.apply_transforms(x)
+        return x
 
     def _log_losses(self, is_training: bool, steps: int, epoch: int) -> None:
         """
@@ -373,6 +488,17 @@ class ModelTrainer(ABC):
             self.log_writer.add_scalar(f"{name}_{tag_suffix}", loss, global_step=epoch)
 
         self._reset_running_losses()
+
+    def _default_losses_names(self) -> List[str]:
+        """
+        Default loss names
+
+        Returns
+        -------
+        List[str]
+            ["loss0", "loss1", ...]
+        """
+        return [f"loss{i}" for i in range(len(self.losses))]
 
     def _log_gradients(self, epoch: int) -> None:
         """
@@ -431,97 +557,24 @@ class ModelTrainer(ABC):
             warnings.simplefilter("ignore")
             self.log_writer.add_graph(self.net, x)
 
-    @abc.abstractclassmethod
-    def tensorboard_logs(self, net_ins: List[Tensor], epoch: int, is_training: bool) -> None:
+    def _is_loading_batches(self, dl: DataLoader) -> bool:
         """
-        Additional tensorboard logging.
+        Checks if a DataLoader is loading one item at the time (False)
+        or multiple items (True).
 
         Parameters
         ----------
-        net_ins : List[Tensor]
-            Network raw inputs (no transforms)
-        epoch : int
-            Current epoch
-        is_training : bool
-            Flag to separate train/valid logging
-        """
-        pass
-
-    def _update_running_losses(self, losses: List[Tensor]) -> None:
-        """
-        Updates the running losses.
-
-        Parameters
-        ----------
-        losses : List[Tensor]
-            Current losses
-        """
-        losses = [loss.item() for loss in losses]
-        self.running_losses = [l0 + l1 for l0, l1 in zip(self.running_losses, losses)]
-
-    def _default_losses_names(self) -> List[str]:
-        """
-        Default loss names
+        dl : DataLoader
+            Target DataLoader
 
         Returns
         -------
-        List[str]
-            ["loss0", "loss1", ...]
+        bool
+            True if multiple indices are passed to the DataLoader
         """
-        return [f"loss{i}" for i in range(len(self.losses))]
-
-    @abc.abstractmethod
-    def apply_losses(self, net_ins: List[Tensor], net_outs: List[Tensor]) -> List[Tensor]:
-        """
-        Use the new_outputs to calculate the losses and
-        return them.
-
-        Parameters
-        ----------
-        net_ins : List[Tensor]
-            Network inputs
-        net_outs : List[Tensor]
-            Network outputs
-
-        Returns
-        -------
-        List[Tensor]
-            List of computed losses (not weighted)
-        """
-        pass
-
-    @abc.abstractmethod
-    def apply_transforms(self, net_ins: List[Tensor]) -> List[Tensor]:
-        """
-        Apply tranforms to the inputs.
-
-        Parameters
-        ----------
-        net_ins : List[Tensor]
-            Network inputs
-
-        Returns
-        -------
-        List[Tensor]
-            Transformed input
-        """
-        pass
-
-    def _parse_config(self) -> tu.DotDict:
-        """
-        Parse the configuration file
-        to read the training section.
-
-        Returns
-        -------
-        Dict
-            Dictionary of the training section
-        """
-        config = tu.Config(self.config_path)
-        _config = tu.DotDict(
-            learning_rate=config.get("training", "learning_rate", float, 0.001),
-        )
-        return _config
+        samp = dl.sampler
+        idx = iter(samp).__next__()
+        return isinstance(idx, list)
 
     def from_config(self, param: str, _type: Type, default: Any = None) -> Any:
         """
@@ -542,30 +595,3 @@ class ModelTrainer(ABC):
             Value of the parameter
         """
         return self.config.get("training", param, _type, default)
-
-    def save_model(self, epoch: int) -> None:
-        """
-        Saves the model in the checkpoints folder.
-
-        Parameters
-        ----------
-        epoch : int
-            Current epoch
-        """
-        # saving
-        checkpoint_path = self.checkpoints_dir / f"checkpoint_{epoch}.ckpt"
-        torch.save(
-            dict(
-                model_state=self.net.state_dict(),
-                optim_state=self.optimizer.state_dict(),
-                epoch=epoch,
-            ),
-            checkpoint_path,
-        )
-
-        # removing old checkpoints
-        self.save_buffer.append(checkpoint_path.name)
-        sb = self.save_buffer
-        checkpoints = self.checkpoints_dir.glob("*.ckpt")
-        targets = filter(lambda x: x.name not in sb, checkpoints)
-        [x.unlink() for x in targets]
