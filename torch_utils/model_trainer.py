@@ -92,10 +92,10 @@ class ModelTrainer(ABC):
         # configuration attributes
         self.config_path = self.model_path / "config.yml"
         self.config = tu.Config(self.config_path)
-        self.learning_rate = self.from_config("learning_rate", float, 0.001)
-        self.log_every = self.from_config("log_every", int, 100)
-        self.max_epochs = self.from_config("max_epochs", int, 100)
-        self.losses_weight = self.from_config("losses_weights", np.array, np.ones(len(self.losses)))
+        self.learning_rate = self._from_config("learning_rate", float, 0.001)
+        self.log_every = self._from_config("log_every", int, 100)
+        self.max_epochs = self._from_config("max_epochs", int, 100)
+        self.losses_weight = self._from_config("losses_weights", np.array, np.ones(len(self.losses)))
 
         # other dirs
         self.checkpoints_dir = model_path / "checkpoints"
@@ -390,9 +390,20 @@ class ModelTrainer(ABC):
             ),
             checkpoint_path,
         )
+        self._push_new_checkpoint(checkpoint_path.name)
+
+    def _push_new_checkpoint(self, checkpoint_name: str) -> None:
+        """
+        Pushes a new checkpoint into the save_buffer.
+
+        Parameters
+        ----------
+        checkpoint_name : str
+            Name of the checkpoint
+        """
 
         # removing old checkpoints
-        self.save_buffer.append(checkpoint_path.name)
+        self.save_buffer.append(checkpoint_name)
         sb = self.save_buffer
         checkpoints = self.checkpoints_dir.glob("*.ckpt")
         targets = filter(lambda x: x.name not in sb, checkpoints)
@@ -557,6 +568,10 @@ class ModelTrainer(ABC):
             warnings.simplefilter("ignore")
             self.log_writer.add_graph(self.net, x)
 
+    # = = = = = = = = = = = = = = = = = = = = = =
+    #                Utilities
+    # = = = = = = = = = = = = = = = = = = = = = =
+
     def _is_loading_batches(self, dl: DataLoader) -> bool:
         """
         Checks if a DataLoader is loading one item at the time (False)
@@ -576,7 +591,7 @@ class ModelTrainer(ABC):
         idx = iter(samp).__next__()
         return isinstance(idx, list)
 
-    def from_config(self, param: str, _type: Type, default: Any = None) -> Any:
+    def _from_config(self, param: str, _type: Type, default: Any = None) -> Any:
         """
         gets a parameter from the training configuration.
 
