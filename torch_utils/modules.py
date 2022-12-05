@@ -204,10 +204,7 @@ class GroupedLinear(nn.Module):
             _description_
         """
         # x: [..., I]
-        (
-            b,
-            t,
-        ) = x.shape[:2]
+        b, t = x.shape[:2]
         # new_shape = list(x.shape)[:-1] + [self.groups, self.ws]
         new_shape = (b, t, self.groups, self.ws)
         x = x.view(new_shape)
