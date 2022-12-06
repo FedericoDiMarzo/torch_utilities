@@ -1,8 +1,10 @@
+from torchaudio.functional import melscale_fbanks
 from pathimport import set_module_root
+from typing import Optional, Union
 import torch.nn.functional as F
 from random import randrange
-from typing import Union
 from torch import Tensor
+from fnnls import fnnls
 import numpy as np
 import torch
 
@@ -14,6 +16,8 @@ from torch_utils.common import get_device, get_np_or_torch, to_numpy
 __all__ = [
     "stft",
     "istft",
+    "MelFilterbank",
+    "MelInverseFilterbank",
     "db",
     "invert_db",
     "power",
@@ -217,6 +221,152 @@ def _stft_istft_core(
         y = to_numpy(y)
 
     return y
+
+
+class MelFilterbank:
+    def __init__(
+        self,
+        sample_rate: int,
+        n_freqs: int,
+        n_mels: int,
+        device: Optional[torch.device] = None,
+    ) -> None:
+        """
+        Apply Mel filterbank to the input batch.
+
+        Parameters
+        ----------
+        sample_rate : int
+            Sample rate of the signal
+        n_freqs : int
+            Stft frequencies
+        n_mels : int
+            Number of mel frequencies
+        device : Optional[torch.device], optional
+            Device for the filterbank matrix, by default None
+        """
+        self.sample_rate = sample_rate
+        self.n_freqs = n_freqs
+        self.n_mels = n_mels
+        self.device = device or get_device()
+        self.filterbank = self._get_filterbank()
+
+    def _get_filterbank(self) -> Tensor:
+        """
+        Gets the mel filterbank
+
+        Returns
+        -------
+        Tensor
+            Mel filterbank matrix
+        """
+        filterbank = melscale_fbanks(
+            n_freqs=self.n_freqs,
+            n_mels=self.n_mels,
+            f_min=30,
+            f_max=self.sample_rate // 2,
+            sample_rate=self.sample_rate,
+        )
+        filterbank = filterbank.to(self.device)
+
+        return filterbank
+
+    def __call__(self, x: Union[np.ndarray, Tensor]) -> Tensor:
+        """
+        Parameters
+        ----------
+        x : Union[np.ndarray, Tensor]
+            Signal of shape (B, C, T, n_freq)
+
+        Returns
+        -------
+        Tensor
+            STFT of shape (B, C, T, n_mel)
+        """
+        is_np = get_np_or_torch(x) == np
+        if is_np:
+            x = Tensor(x, device=self.device)
+
+        y = x @ self.filterbank
+
+        if is_np:
+            y = to_numpy(y)
+        return y
+
+
+class MelInverseFilterbank:
+    def __init__(
+        self,
+        sample_rate: int,
+        n_freqs: int,
+        n_mels: int,
+        device: Optional[torch.device] = None,
+    ) -> None:
+        """
+        Apply inverse Mel filterbank to the input batch,
+        to get back a spectrogram.
+
+        Parameters
+        ----------
+        sample_rate : int
+            Sample rate of the signal
+        n_freqs : int
+            Stft frequencies
+        n_mels : int
+            Number of mel frequencies
+        device : Optional[torch.device], optional
+            Device for the filterbank matrix, by default None
+        """
+        self.sample_rate = sample_rate
+        self.n_freqs = n_freqs
+        self.n_mels = n_mels
+        self.device = device or get_device()
+        self.filterbank = self._get_filterbank()
+
+    def _get_filterbank(self) -> Tensor:
+        """
+        Gets the mel filterbank
+
+        Returns
+        -------
+        Tensor
+            Mel filterbank matrix
+        """
+        filterbank = melscale_fbanks(
+            n_freqs=self.n_freqs,
+            n_mels=self.n_mels,
+            f_min=30,
+            f_max=self.sample_rate // 2,
+            sample_rate=self.sample_rate,
+        )
+        # pseudo-inverse is used to approximate
+        # the inverse transform
+        filterbank = torch.linalg.pinv(filterbank)
+        filterbank = filterbank.to(self.device)
+
+        return filterbank
+
+    def __call__(self, x: Union[np.ndarray, Tensor]) -> Union[np.ndarray, Tensor]:
+        """
+        Parameters
+        ----------
+        x : Union[np.ndarray, Tensor]
+            Signal of shape (B, C, T, n_freq)
+
+        Returns
+        -------
+        Union[np.ndarray, Tensor]
+            STFT of shape (B, C, T, n_mel)
+        """
+        is_np = get_np_or_torch(x) == np
+        if is_np:
+            x = Tensor(x, device=self.device)
+
+        y = x @ self.filterbank
+
+        if is_np:
+            y = to_numpy(y)
+        return y
 
 
 def db(x: Union[np.ndarray, Tensor]) -> Union[np.ndarray, Tensor]:
