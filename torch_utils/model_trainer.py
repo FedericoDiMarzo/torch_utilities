@@ -587,7 +587,7 @@ class ModelTrainer(ABC):
         """
         with open(self.config_path) as f:
             txt = f.read()
-        self.log_writer.add_text("config.yaml", txt)
+        self.log_writer.add_text("config.yaml", txt, 0)
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #                Utilities
