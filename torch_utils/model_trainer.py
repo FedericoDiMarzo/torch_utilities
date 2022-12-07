@@ -95,7 +95,9 @@ class ModelTrainer(ABC):
         self.learning_rate = self._from_config("learning_rate", float, 0.001)
         self.log_every = self._from_config("log_every", int, 100)
         self.max_epochs = self._from_config("max_epochs", int, 100)
-        self.losses_weight = self._from_config("losses_weights", np.array, np.ones(len(self.losses)))
+        self.losses_weight = self._from_config(
+            "losses_weights", np.array, np.ones(len(self.losses))
+        )
 
         # other dirs
         self.checkpoints_dir = model_path / "checkpoints"
@@ -122,8 +124,16 @@ class ModelTrainer(ABC):
         """
         Trains a model.
         """
+
+        # logging
+        logger.info("saving the model graph")
         self._log_graph()
+        logger.info("saving the text of the config.yaml")
+        self._log_yaml()
+
+        self.on_train_begin()
         for epoch in range(self.start_epoch, self.max_epochs):
+            # TODO: on_epoch_begin()
             logger.info(f"epoch [{epoch}/{self.max_epochs}]")
 
             # training
@@ -161,6 +171,8 @@ class ModelTrainer(ABC):
                     self._reset_running_losses()
                     self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
 
+        self.on_train_end()
+
     def train_step(self, data: List[Tensor]) -> None:
         """
         Single step of a training loop.
@@ -170,6 +182,7 @@ class ModelTrainer(ABC):
         data : List[Tensor]
             Inputs to the model
         """
+        self.on_train_step_begin()
         data = [x.to(tu.get_device()) for x in data]
         self.optimizer.zero_grad()
         net_outputs = self.net(*data)
@@ -180,6 +193,7 @@ class ModelTrainer(ABC):
         self.optimizer.step()
         # for logging
         self._update_running_losses(_losses)
+        self.on_train_step_end()
 
     def valid_step(self, data: List[Tensor]) -> None:
         """
@@ -190,11 +204,13 @@ class ModelTrainer(ABC):
         data : List[Tensor]
             Inputs to the model
         """
+        self.on_valid_step_begin()
         data = [x.to(tu.get_device()) for x in data]
         net_outputs = self.net(*data)
         _losses = self.apply_losses(data, net_outputs)
         _losses = self._apply_losses_weights(_losses)
         self._update_running_losses(_losses)
+        self.on_valid_step_end()
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #            Handling Losses
@@ -492,10 +508,12 @@ class ModelTrainer(ABC):
         """
         tag_suffix = "train" if is_training else "valid"
         losses_names = self.losses_names + ["total"]
-        total_loss = sum([loss * w for loss, w in zip(self.running_losses, self.losses_weight)])
+        losses = self._apply_losses_weights(self.running_losses)
+        total_loss = sum(losses)
         losses = self.running_losses + [total_loss]
         for loss, name in zip(losses, losses_names):
-            logger.info(f"{name}: {loss / steps}")
+            loss /= steps
+            logger.info(f"{name}: {loss}")
             self.log_writer.add_scalar(f"{name}_{tag_suffix}", loss, global_step=epoch)
 
         self._reset_running_losses()
@@ -556,17 +574,20 @@ class ModelTrainer(ABC):
 
     def _log_graph(self) -> None:
         """
-        Saves the model graph
-
-        Parameters
-        ----------
-        epoch : int
-            Current epoch
+        Saves the model graph.
         """
         x = self._get_dummy_input(True)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             self.log_writer.add_graph(self.net, x)
+
+    def _log_yaml(self) -> None:
+        """
+        Saves the yaml text on Tensorboard
+        """
+        with open(self.config_path) as f:
+            txt = f.read()
+        self.log_writer.add_text("config.yaml", txt)
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #                Utilities
