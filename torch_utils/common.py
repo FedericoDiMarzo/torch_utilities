@@ -280,7 +280,6 @@ def auto_device(dtype: str = "Float") -> Callable:
 auto_device = partial(auto_device)
 
 
-# TODO: test
 def load_model(
     model_path: Path,
     model_class: nn.Module,
@@ -335,7 +334,6 @@ def get_submodules(model: nn.Module) -> List[nn.Module]:
     return modules
 
 
-# TODO: test
 def get_gradients(model: nn.Module) -> Tensor:
     """
     Gets a model gradients norm through its submodules.
