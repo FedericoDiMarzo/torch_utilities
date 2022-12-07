@@ -26,6 +26,7 @@ __all__ = [
     "load_model",
     "get_submodules",
     "get_gradients",
+    "get_model_parameters",
 ]
 
 
@@ -357,3 +358,20 @@ def get_gradients(model: nn.Module) -> Tensor:
     grad = [w + b for w, b in zip(w_grad, b_grad)]
     grad = torch.FloatTensor(grad)
     return grad
+
+
+def get_model_parameters(model: nn.Module) -> int:
+    """
+    Gets the total number of parameters (trainable and untrainable).
+
+    Parameters
+    ----------
+    model : nn.Module
+        Target model
+
+    Returns
+    -------
+    int
+        Total number of parameters
+    """
+    return sum(p.numel() for p in model.parameters())
