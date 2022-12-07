@@ -124,6 +124,11 @@ class ModelTrainer(ABC):
         """
         Trains a model.
         """
+        logger.info(f"device selected: {tu.get_device()}")
+        logger.info(f"model: {self.model_path.name}")
+        logger.info(f"parameters: {self._get_model_parameters() / 1e3} K")
+        if self.overfit_mode:
+            logger.info("overfit mode on")
 
         # logging
         logger.info("saving the model graph")
@@ -131,6 +136,7 @@ class ModelTrainer(ABC):
         logger.info("saving the text of the config.yaml")
         self._log_yaml()
 
+        logger.info("starting training")  # - = - § >>
         self.on_train_begin()
         for epoch in range(self.start_epoch, self.max_epochs):
             # TODO: on_epoch_begin()
@@ -170,8 +176,9 @@ class ModelTrainer(ABC):
                     self._log_losses(is_training=False, steps=i + 1, epoch=epoch)
                     self._reset_running_losses()
                     self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
-
-        self.on_train_end()
+        
+        logger.info("training complete")  # - = - § >>
+        self.on_train_end() 
 
     def train_step(self, data: List[Tensor]) -> None:
         """
@@ -611,6 +618,18 @@ class ModelTrainer(ABC):
         samp = dl.sampler
         idx = iter(samp).__next__()
         return isinstance(idx, list)
+
+    def _get_model_parameters(self)->int:
+        """
+        Gets the total model parameters.
+
+        Returns
+        -------
+        int
+            Number of net parameters
+        """
+        params = tu.get_model_parameters(self.net)
+        return params
 
     def _from_config(self, param: str, _type: Type, default: Any = None) -> Any:
         """
