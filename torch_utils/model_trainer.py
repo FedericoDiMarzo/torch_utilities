@@ -73,6 +73,8 @@ class ModelTrainer(ABC):
             Max number of epochs, by default 100
         learning_rate : float, optional
             Optimizer learning rate, by default 0.001
+        weight_decay : float, optional
+            Optimizer weight_decay, by default 0
         losses_weights : List[float], optional
             Per-loss gains, by default all ones
         log_every : int, optional
@@ -93,6 +95,7 @@ class ModelTrainer(ABC):
         self.config_path = self.model_path / "config.yml"
         self.config = tu.Config(self.config_path)
         self.learning_rate = self._from_config("learning_rate", float, 0.001)
+        self.weight_decay = self._from_config("weight_decay", float, 0)
         self.log_every = self._from_config("log_every", int, 100)
         self.max_epochs = self._from_config("max_epochs", int, 100)
         self.losses_weight = self._from_config(
@@ -176,9 +179,9 @@ class ModelTrainer(ABC):
                     self._log_losses(is_training=False, steps=i + 1, epoch=epoch)
                     self._reset_running_losses()
                     self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
-        
+
         logger.info("training complete")  # - = - § >>
-        self.on_train_end() 
+        self.on_train_end()
 
     def train_step(self, data: List[Tensor]) -> None:
         """
@@ -444,7 +447,19 @@ class ModelTrainer(ABC):
         torch.optim.Optimizer
             Optimizer instance
         """
-        optim = self.optimizer_class(self.net.parameters(), lr=self.learning_rate)
+        try:
+            optim = self.optimizer_class(
+                self.net.parameters(),
+                lr=self.learning_rate,
+                weight_decay=self.weight_decay,
+            )
+        except TypeError:
+            # no weight decay
+            optim = self.optimizer_class(
+                self.net.parameters(),
+                lr=self.learning_rate,
+            )
+
         if self.optim_state is not None:
             with suppress(RuntimeError):
                 # ignore errors for optimizer mismatches
@@ -619,7 +634,7 @@ class ModelTrainer(ABC):
         idx = iter(samp).__next__()
         return isinstance(idx, list)
 
-    def _get_model_parameters(self)->int:
+    def _get_model_parameters(self) -> int:
         """
         Gets the total model parameters.
 
