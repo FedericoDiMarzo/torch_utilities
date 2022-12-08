@@ -606,7 +606,7 @@ def trim_silence(
     threshold_db : float, optional
         Relative to x.max() to detect the silences, by default -30 dB
     margin : int, optional
-        Samples keeped at both sides after the trimming, by default 0
+        Samples kept at both sides after the trimming, by default 0
 
     Returns
     -------
