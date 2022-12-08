@@ -593,7 +593,7 @@ def random_trim(
 
 def trim_silence(
     x: Union[np.ndarray, Tensor],
-    threshold: float = 0.1,
+    threshold_db: float = -30,
     margin: int = 0,
 ) -> Union[np.ndarray, Tensor]:
     """
@@ -603,8 +603,8 @@ def trim_silence(
     ----------
     x : Union[np.ndarray, Tensor]
         Input sample of shape (T,)
-    threshold : float, optional
-        Relative to x.max() to detect the silences, by default 0.05
+    threshold_db : float, optional
+        Relative to x.max() to detect the silences, by default -30 dB
     margin : int, optional
         Samples keeped at both sides after the trimming, by default 0
 
@@ -616,6 +616,7 @@ def trim_silence(
     module = get_np_or_torch(x)
 
     # finding the start and end points
+    threshold = invert_db(threshold_db)
     threshold *= module.abs(x).max()
     thr = module.zeros_like(x, dtype=int)
     thr[module.abs(x) > threshold] = 1
@@ -626,7 +627,9 @@ def trim_silence(
         end = len(thr) - thr[::-1].index(1)
 
         # trimming the silences
-        y = x[..., start - margin : end + margin]
+        x_start = int(np.clip(start - margin, a_min=0))
+        x_end = end + margin
+        y = x[..., x_start:x_end]
         return y
     except ValueError:
         # no value found
