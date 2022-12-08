@@ -607,8 +607,13 @@ class ModelTrainer(ABC):
         """
         Saves the yaml text on Tensorboard
         """
+        # reading yaml
         with open(self.config_path) as f:
             txt = f.read()
+
+        # adding also the parameters
+        txt += f" parameters: {self._get_model_parameters() * 1e-3} K"
+
         self.log_writer.add_text("config.yaml", txt, 0)
 
     # = = = = = = = = = = = = = = = = = = = = = =
