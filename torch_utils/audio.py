@@ -627,7 +627,7 @@ def trim_silence(
         end = len(thr) - thr[::-1].index(1)
 
         # trimming the silences
-        x_start = int(np.clip(start - margin, a_min=0))
+        x_start = int(np.clip(start - margin, 0, None))
         x_end = end + margin
         y = x[..., x_start:x_end]
         return y
