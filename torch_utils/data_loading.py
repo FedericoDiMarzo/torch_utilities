@@ -279,8 +279,10 @@ class HDF5OnlineDataset(Dataset, ABC):
         """
         # getting start and end points
         ds_len = len(dataset)
-        start = np.random.randint(0, ds_len - self.batch_size)
-        end = start + self.batch_size
+        total_batches = ds_len // self.batch_size
+        r_int = np.random.randint(0, total_batches)
+        start = r_int * self.batch_size
+        end = (r_int + 1) * self.batch_size
         indices = list(range(start, end))
 
         # getting the random selection

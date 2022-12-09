@@ -1,16 +1,19 @@
-import unittest
+from itertools import product
+from pathlib import Path
 from pathimport import set_module_root
+from torch import Tensor
+from typing import List
 import numpy as np
+import unittest
 import torch
 
 set_module_root("../torch_utils", prefix=True)
-import torch_utils as tu
 from tests.generate_test_data import get_test_data_dir
-from torch_utils import set_device, get_device
+import torch_utils as tu
 
 torch.manual_seed(984)
 np.random.seed(901)
-set_device("cpu")
+tu.set_device("cpu")
 
 
 class TestHDF5DataLoader(unittest.TestCase):
@@ -68,6 +71,83 @@ class TestHDF5DataLoader(unittest.TestCase):
         dataloader = tu.get_hdf5_dataloader(self.hdf5_path, self.data_layout, 8)
         data = [x for x in dataloader]
         self.assertEqual(len(data), 20)
+
+
+class HDF5OnlineDatasetTesting(tu.HDF5OnlineDataset):
+    def __init__(
+        self,
+        dataset_paths: List[Path],
+        data_layouts: List[List[str]],
+        batch_size: int,
+        total_items: int,
+    ) -> None:
+        super().__init__(dataset_paths, data_layouts, batch_size, total_items)
+
+    def transform(self, raw_data: List[Tensor]) -> List[Tensor]:
+        return raw_data
+
+
+class TestHDF5OnlineDataset(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        pass
+
+    def setUp(self):
+        self.data_layout = ["x", "y_true"]
+        self.hdf5_path = get_test_data_dir() / "dataset.hdf5"
+
+    def test_assert(self):
+        batch_len = (16, 32)
+        total_items = (77, 171)
+        for b, t in product(batch_len, total_items):
+            with self.subTest(b=b, t=t), self.assertRaises(AssertionError):
+                HDF5OnlineDatasetTesting(
+                    dataset_paths=[self.hdf5_path],
+                    data_layouts=[self.data_layout],
+                    batch_size=b,
+                    total_items=t,
+                )
+
+    def test_len(self):
+        batch_len = (8, 16)
+        total_items = (16, 32)
+        for b, t in product(batch_len, total_items):
+            with self.subTest(b=b, t=t):
+                ds = HDF5OnlineDatasetTesting(
+                    dataset_paths=[self.hdf5_path],
+                    data_layouts=[self.data_layout],
+                    batch_size=b,
+                    total_items=t,
+                )
+                ds_len = len(ds)
+                self.assertEqual(ds_len, t // b)
+
+    def test_get_datasets(self):
+        ds = HDF5OnlineDatasetTesting(
+            dataset_paths=[self.hdf5_path, self.hdf5_path],
+            data_layouts=[self.data_layout, self.data_layout],
+            batch_size=8,
+            total_items=1024,
+        )
+
+        datasets = ds._get_datasets()
+        for d in datasets:
+            self.assertEqual(type(d), tu.HDF5Dataset)
+
+    def test_get_rand_batch(self):
+        batch_size = 8
+        ds = HDF5OnlineDatasetTesting(
+            dataset_paths=[self.hdf5_path],
+            data_layouts=[self.data_layout],
+            batch_size=batch_size,
+            total_items=64,
+        )
+
+        datasets = ds._get_datasets()
+        for d in datasets:
+            raw_data = ds._get_rand_batch(d)
+            for batch in raw_data:
+                self.assertEqual(batch.shape[0], batch_size)
 
 
 if __name__ == "__main__":
