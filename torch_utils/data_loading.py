@@ -1,5 +1,6 @@
 from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler, SequentialSampler
 from pathimport import set_module_root
+from abc import ABC, abstractmethod
 from typing import List
 from pathlib import Path
 from torch import Tensor
@@ -178,7 +179,7 @@ def get_hdf5_dataloader(
         DataLoader arguments, by default {}
     """
     if batch_size is None:
-        batch_size = dataset_path.group_batch_len
+        batch_size = dataset.group_batch_len
 
     if dataloader_kwargs is None:
         dataloader_kwargs = {}
@@ -201,3 +202,64 @@ def get_hdf5_dataloader(
     )
 
     return dataloader
+
+
+# TODO: test
+# TODO: docs
+class HDF5OnlineDataset(Dataset, ABC):
+    def __init__(
+        self,
+        dataset_paths: List[Path],
+        data_layouts: List[List[str]],
+        batch_size: int = 16,
+        total_items: int = 1024,
+    ) -> None:
+        super(HDF5OnlineDataset).__init__()
+        self.datasets_paths = dataset_paths
+        self.data_layouts = data_layouts
+        self.data_layouts = data_layouts
+        self.batch_size = batch_size
+        self.total_items = total_items
+
+        # error handling
+        err_msg = f"total_items ({total_items}) must be divisible by batch_size ({batch_size})"
+        assert self.total_items // self.batch_size, err_msg
+
+        # static datasets
+        self.source_datasets = self._get_datasets()
+
+    def __len__(self) -> int:
+        return self.total_items // self.batch_size
+
+    @abstractmethod
+    def transform(self, raw_data: List[Tensor]) -> List[Tensor]:
+        pass
+
+    def _get_rand_batch(self, dataset: HDF5Dataset) -> List[Tensor]:
+        # getting start and end points
+        ds_len = len(dataset)
+        start = np.random.randint(0, ds_len - self.batch_size)
+        end = start + self.batch_size
+        indices = list(range(start, end))
+
+        # getting the random selection
+        ds_outs = dataset[indices]
+        return ds_outs
+
+    def __getitem__(self, _) -> List[Tensor]:
+        outs = [self._get_rand_batch(ds) for ds in self.source_datasets]
+        outs = sum(outs)
+        outs = self.pipeline(outs)
+        return outs
+
+    def _get_datasets(self) -> List[HDF5Dataset]:
+        """
+        Gets the static datasets.
+
+        Returns
+        -------
+        List[HDF5Dataset]
+            List of static datasets
+        """
+        ds = [HDF5Dataset(p, l) for p, l in zip(self.datasets_paths, self.data_layouts)]
+        return ds
