@@ -34,7 +34,7 @@ def main():
 
     # writing into the HDF5
     groups = len(stdin) // gbl
-    transform = lambda x: fade_sides(trim_silence(random_trim(x, sr, args.len), margin=100))
+    transform = lambda x: fade_sides((random_trim(trim_silence(x), sr, args.len)))
     with h5py.File(dataset_path, "w") as ds:
         for i in tqdm(range(groups)):
             selection = stdin[i * gbl : (i + 1) * gbl]
