@@ -140,9 +140,9 @@ class ModelTrainer(ABC):
         self._log_yaml()
 
         logger.info("starting training")  # - = - § >>
-        self.on_train_begin()
+        self.on_train_begin(epoch)
         for epoch in range(self.start_epoch, self.max_epochs):
-            # TODO: on_epoch_begin()
+            self.on_epoch_begin(epoch)
             logger.info(f"epoch [{epoch}/{self.max_epochs}]")
 
             # training
@@ -152,7 +152,7 @@ class ModelTrainer(ABC):
                     data = data[0]
                 with torch.no_grad():
                     data = self.apply_transforms(data)
-                self.train_step(data)
+                self.train_step(data, epoch)
                 if i % self.log_every == 0 and i != 0:
                     self._log_losses(is_training=True, steps=self.log_every, epoch=epoch)
                     self._reset_running_losses()
@@ -175,15 +175,17 @@ class ModelTrainer(ABC):
                         if self._is_loading_batches(self.valid_ds):
                             data = data[0]
                         data = self.apply_transforms(data)
-                        self.valid_step(data)
+                        self.valid_step(data, epoch)
                     self._log_losses(is_training=False, steps=i + 1, epoch=epoch)
                     self._reset_running_losses()
                     self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
 
-        logger.info("training complete")  # - = - § >>
-        self.on_train_end()
+            self.on_epoch_end(epoch)
 
-    def train_step(self, data: List[Tensor]) -> None:
+        logger.info("training complete")  # - = - § >>
+        self.on_train_end(epoch)
+
+    def train_step(self, data: List[Tensor], epoch: int) -> None:
         """
         Single step of a training loop.
 
@@ -191,8 +193,10 @@ class ModelTrainer(ABC):
         ----------
         data : List[Tensor]
             Inputs to the model
+        epoch : int
+            Current epoch
         """
-        self.on_train_step_begin()
+        self.on_train_step_begin(epoch)
         data = [x.to(tu.get_device()) for x in data]
         self.optimizer.zero_grad()
         net_outputs = self.net(*data)
@@ -203,9 +207,9 @@ class ModelTrainer(ABC):
         self.optimizer.step()
         # for logging
         self._update_running_losses(_losses)
-        self.on_train_step_end()
+        self.on_train_step_end(epoch)
 
-    def valid_step(self, data: List[Tensor]) -> None:
+    def valid_step(self, data: List[Tensor], epoch) -> None:
         """
         Single step of a validation loop.
 
@@ -213,14 +217,16 @@ class ModelTrainer(ABC):
         ----------
         data : List[Tensor]
             Inputs to the model
+        epoch : int
+            Current epoch
         """
-        self.on_valid_step_begin()
+        self.on_valid_step_begin(epoch)
         data = [x.to(tu.get_device()) for x in data]
         net_outputs = self.net(*data)
         _losses = self.apply_losses(data, net_outputs)
         _losses = self._apply_losses_weights(_losses)
         self._update_running_losses(_losses)
-        self.on_valid_step_end()
+        self.on_valid_step_end(epoch)
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #            Handling Losses
@@ -305,22 +311,28 @@ class ModelTrainer(ABC):
     # = = = = = = = = = = = = = = = = = = = = = =
     #               Callbacks
     # = = = = = = = = = = = = = = = = = = = = = =
-    def on_train_begin(self) -> None:
+    def on_train_begin(self, epoch: int) -> None:
         pass
 
-    def on_train_end(self) -> None:
+    def on_train_end(self, epoch: int) -> None:
         pass
 
-    def on_train_step_begin(self) -> None:
+    def on_epoch_begin(self, epoch: int) -> None:
         pass
 
-    def on_train_step_end(self) -> None:
+    def on_epoch_end(self, epoch: int) -> None:
         pass
 
-    def on_valid_step_begin(self) -> None:
+    def on_train_step_begin(self, epoch: int) -> None:
         pass
 
-    def on_valid_step_end(self) -> None:
+    def on_train_step_end(self, epoch: int) -> None:
+        pass
+
+    def on_valid_step_begin(self, epoch: int) -> None:
+        pass
+
+    def on_valid_step_end(self, epoch: int) -> None:
         pass
 
     # = = = = = = = = = = = = = = = = = = = = = =
