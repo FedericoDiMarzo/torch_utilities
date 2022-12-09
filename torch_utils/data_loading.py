@@ -16,6 +16,7 @@ __all__ = [
     "WeakShufflingSampler",
     "HDF5Dataset",
     "get_hdf5_dataloader",
+    "HDF5OnlineDataset",
 ]
 
 
@@ -204,8 +205,6 @@ def get_hdf5_dataloader(
     return dataloader
 
 
-# TODO: test
-# TODO: docs
 class HDF5OnlineDataset(Dataset, ABC):
     def __init__(
         self,
@@ -214,6 +213,22 @@ class HDF5OnlineDataset(Dataset, ABC):
         batch_size: int = 16,
         total_items: int = 1024,
     ) -> None:
+        """
+        Dataset based on online generation.
+        Data can be combined after retrieving it
+        from source HDF5Datasets.
+
+        Parameters
+        ----------
+        dataset_paths : List[Path]
+            List of paths to the HDF5Datasets h5
+        data_layouts : List[List[str]]
+            Data layouts for all the HDF5Datasets
+        batch_size : int, optional
+            Batch size of each raw data, by default 16
+        total_items : int, optional
+            Total item in an epoch, by default 1024
+        """
         super(HDF5OnlineDataset).__init__()
         self.datasets_paths = dataset_paths
         self.data_layouts = data_layouts
@@ -223,7 +238,7 @@ class HDF5OnlineDataset(Dataset, ABC):
 
         # error handling
         err_msg = f"total_items ({total_items}) must be divisible by batch_size ({batch_size})"
-        assert self.total_items // self.batch_size, err_msg
+        assert (self.total_items % self.batch_size) == 0, err_msg
 
         # static datasets
         self.source_datasets = self._get_datasets()
@@ -233,9 +248,35 @@ class HDF5OnlineDataset(Dataset, ABC):
 
     @abstractmethod
     def transform(self, raw_data: List[Tensor]) -> List[Tensor]:
+        """
+        Override this method to process the raw data.
+
+        Parameters
+        ----------
+        raw_data : List[Tensor]
+            Raw data from the HDF5Datasets
+
+        Returns
+        -------
+        List[Tensor]
+            Processed data
+        """
         pass
 
     def _get_rand_batch(self, dataset: HDF5Dataset) -> List[Tensor]:
+        """
+        Get a random batch from an HDF5Dataset
+
+        Parameters
+        ----------
+        dataset : HDF5Dataset
+            Target HDF5Dataset
+
+        Returns
+        -------
+        List[Tensor]
+            Batches from the HDF5Datasets
+        """
         # getting start and end points
         ds_len = len(dataset)
         start = np.random.randint(0, ds_len - self.batch_size)
