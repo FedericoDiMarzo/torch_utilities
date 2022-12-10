@@ -1,6 +1,5 @@
 from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler, SequentialSampler
 from pathimport import set_module_root
-from abc import ABC, abstractmethod
 from typing import List
 from pathlib import Path
 from torch import Tensor
@@ -206,7 +205,7 @@ def get_hdf5_dataloader(
     return dataloader
 
 
-class HDF5OnlineDataset(Dataset, ABC):
+class HDF5OnlineDataset(Dataset):
     def __init__(
         self,
         dataset_paths: List[Path],
@@ -247,7 +246,6 @@ class HDF5OnlineDataset(Dataset, ABC):
     def __len__(self) -> int:
         return self.total_items // self.batch_size
 
-    @abstractmethod
     def transform(self, raw_data: List[Tensor]) -> List[Tensor]:
         """
         Override this method to process the raw data.
