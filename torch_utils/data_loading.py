@@ -5,6 +5,7 @@ from typing import List
 from pathlib import Path
 from torch import Tensor
 import numpy as np
+import itertools
 import torch
 import h5py
 
@@ -261,7 +262,7 @@ class HDF5OnlineDataset(Dataset, ABC):
         List[Tensor]
             Processed data
         """
-        pass
+        return raw_data
 
     def _get_rand_batch(self, dataset: HDF5Dataset) -> List[Tensor]:
         """
@@ -291,8 +292,8 @@ class HDF5OnlineDataset(Dataset, ABC):
 
     def __getitem__(self, _) -> List[Tensor]:
         outs = [self._get_rand_batch(ds) for ds in self.source_datasets]
-        outs = sum(outs)
-        outs = self.pipeline(outs)
+        outs = itertools.chain.from_iterable(outs)
+        outs = self.transform(outs)
         return outs
 
     def _get_datasets(self) -> List[HDF5Dataset]:
