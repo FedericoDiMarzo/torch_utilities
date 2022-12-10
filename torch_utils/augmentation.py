@@ -9,7 +9,7 @@ import torch
 
 set_module_root(".", prefix=True)
 from torch_utils.common import get_device
-from torch_utils.audio import invert_db
+from torch_utils.audio import invert_db, rms
 
 
 # export list
@@ -50,7 +50,9 @@ _1rand_in_range = lambda a, b: np.random.rand(1)[0] * (b - a) + a
 
 _max_over_batch = lambda x: torch.max(x.flatten(1), dim=1)[0]
 
-_normalize = lambda x: x / _max_over_batch(x + 1e-12)
+_normalize = lambda x: x / _max_over_batch(x + 1e-12)[:, None, None]
+
+_expand2 = lambda x: x[:, None]
 
 _expand3 = lambda x: x[:, None, None]
 
@@ -83,14 +85,14 @@ def add_noise(x: Tensor, n: Tensor, snr_range: Tuple[float, float]) -> Tensor:
     x_peaks = _max_over_batch(x)
 
     # scaling the noise
-    _f = lambda z: z[:, None, None]
-    n *= _expand3(x_peaks)
-    n *= _expand3(snr)
+    n /= _expand2(rms(n))
+    n *= _expand2(rms(x))
+    n /= _expand3(snr)
 
     # summing and scaling back
     y = x + n
     y = _normalize(y)
-    y *= x_peaks
+    y *= _expand3(x_peaks)
 
     return y
 
@@ -114,7 +116,7 @@ def scale(x: Tensor, range_db: Tuple[float, float]) -> Tensor:
     a, b = _db_to_lin_range(range_db)
     scale = _rand_in_range(a, b, x.shape[0])
     x = _normalize(x)
-    x *= scale
+    x *= _expand3(scale)
     return x
 
 
