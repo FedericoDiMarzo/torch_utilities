@@ -412,32 +412,31 @@ def power(x: Union[np.ndarray, Tensor]) -> float:
     Parameters
     ----------
     x : Union[np.ndarray, Tensor]
-        Input signal
+        Input signal of shape (..., T)
 
     Returns
     -------
     float
-        Power of the signal
+        Power of the signal of shape (...) (len(x) - 1)
     """
     module = get_np_or_torch(x)
-    _power = module.einsum("...t,...t->...", x, x.conj())
     _power = module.einsum("...t,...t->...", x, x.conj())
     return _power
 
 
 def energy(x: Union[np.ndarray, Tensor]) -> float:
     """
-    Energy of a signal, calculated for each channel.
+    Energy of a signal.
 
     Parameters
     ----------
     x : Union[np.ndarray, Tensor]
-        Input signal
+        Input signal of shape (..., T)
 
     Returns
     -------
     float
-        Energy of the signal
+        Energy of the signal of shape (...) (len(x) - 1)
     """
     samples = x.shape[-1]
     return power(x) / samples
@@ -450,12 +449,12 @@ def rms(x: Union[np.ndarray, Tensor]) -> float:
     Parameters
     ----------
     x : Union[np.ndarray, Tensor]
-        Input signal
+        Input signal of shape (..., T)
 
     Returns
     -------
     float
-        RMS of the signal
+        RMS of the signal of shape (...) (len(x) - 1)
     """
     module = get_np_or_torch(x)
     return module.sqrt(energy(x))
