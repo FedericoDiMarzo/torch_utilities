@@ -291,6 +291,7 @@ class HDF5OnlineDataset(Dataset):
     def __getitem__(self, _) -> List[Tensor]:
         outs = [self._get_rand_batch(ds) for ds in self.source_datasets]
         outs = itertools.chain.from_iterable(outs)
+        outs = list(outs)
         outs = self.transform(outs)
         return outs
 
