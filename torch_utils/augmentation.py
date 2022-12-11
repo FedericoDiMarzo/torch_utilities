@@ -44,7 +44,7 @@ def shuffle(x: Tensor) -> Tensor:
 
 _db_to_lin_range = lambda xs: [invert_db(x) for x in xs]
 
-_rand_in_range = lambda a, b, n: torch.rand(n) * (b - a) + a
+_rand_in_range = lambda a, b, n, dev: torch.rand(n, device=dev) * (b - a) + a
 
 _1rand_in_range = lambda a, b: np.random.rand(1)[0] * (b - a) + a
 
@@ -79,7 +79,7 @@ def add_noise(x: Tensor, n: Tensor, snr_range: Tuple[float, float]) -> Tensor:
         Noisy version of x, same shape of x
     """
     a, b = _db_to_lin_range(snr_range)
-    snr = _rand_in_range(a, b, x.shape[0])
+    snr = _rand_in_range(a, b, x.shape[0], x.device)
 
     # the output will match these peaks
     x_peaks = _max_over_batch(x)
@@ -114,7 +114,7 @@ def scale(x: Tensor, range_db: Tuple[float, float]) -> Tensor:
         Scaled version of x, same shape of x
     """
     a, b = _db_to_lin_range(range_db)
-    scale = _rand_in_range(a, b, x.shape[0])
+    scale = _rand_in_range(a, b, x.shape[0], x.device)
     x = _normalize(x)
     x *= _expand3(scale)
     return x
