@@ -157,8 +157,7 @@ class ModelTrainer(ABC):
             # training
             self.net.train()
             for i, data in enumerate(self.train_ds):
-                if self._is_loading_batches(self.train_ds):
-                    data = data[0]
+                data = self._remove_extra_dim(data)
                 self.train_step(data, epoch)
                 if i % self.log_every == 0 and i != 0:
                     self._log_losses(is_training=True, steps=self.log_every, epoch=epoch)
@@ -179,8 +178,7 @@ class ModelTrainer(ABC):
                     # validation
                     self.net.eval()
                     for i, data in enumerate(self.valid_ds):
-                        if self._is_loading_batches(self.valid_ds):
-                            data = data[0]
+                        data = self._remove_extra_dim(data)
                         self.valid_step(data, epoch)
                     self._log_losses(is_training=False, steps=i + 1, epoch=epoch)
                     self._reset_running_losses()
@@ -621,24 +619,23 @@ class ModelTrainer(ABC):
     #                Utilities
     # = = = = = = = = = = = = = = = = = = = = = =
 
-    def _is_loading_batches(self, dl: DataLoader) -> bool:
+    def _remove_extra_dim(self, data: List[Tensor]) -> List[Tensor]:
         """
-        Checks if a DataLoader is loading one item at the time (False)
-        or multiple items (True).
+        Removes extra starting dimensions from the
+        data loaded.
 
         Parameters
         ----------
-        dl : DataLoader
-            Target DataLoader
+        data : List[Tensor]
+            List of Tensors returned from the Dataloader
 
         Returns
         -------
-        bool
-            True if multiple indices are passed to the DataLoader
+        List[Tensor]
+            data without a possible extra leading dimension
         """
-        samp = dl.sampler
-        idx = iter(samp).__next__()
-        return isinstance(idx, list)
+        data = [x[0] if x.shape[0] == 1 else x for x in data]
+        return data
 
     def _get_model_parameters(self) -> int:
         """
