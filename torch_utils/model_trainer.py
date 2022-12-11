@@ -30,6 +30,7 @@ class ModelTrainer(ABC):
         valid_dl: DataLoader,
         optimizer_class: optim.Optimizer,
         losses: List[Callable],
+        net_ins_indices: Optional[List[int]] = None,
         losses_names: Optional[List[str]] = None,
         overfit_mode: bool = False,
     ) -> None:
@@ -61,6 +62,13 @@ class ModelTrainer(ABC):
             Optimizer class
         losses : List[Callable]
             List of losses to be computed
+        net_ins_indices : Optional[List[int]]
+            Used to filter and reorder the List[Tensor] obtained
+            from the dataloader, by default no filter.
+            E.g.
+                dataloader out = [T0, T1, T2]
+                net_ins_indices = [2, 1]
+                net_ins = [T2, T1]
         losses_names : Optional[List[str]]
             Names of the losses, by default ["loss0", "loss1", ...]
         overfit_mode : bool, optional
@@ -87,6 +95,7 @@ class ModelTrainer(ABC):
         self.train_ds = train_dl
         self.valid_ds = valid_dl
         self.losses = losses
+        self.net_ins_indices = net_ins_indices
         self.losses_names = losses_names or self._default_losses_names()
         self.optimizer_class = optimizer_class
         self.overfit_mode = overfit_mode
@@ -150,8 +159,6 @@ class ModelTrainer(ABC):
             for i, data in enumerate(self.train_ds):
                 if self._is_loading_batches(self.train_ds):
                     data = data[0]
-                with torch.no_grad():
-                    data = self.apply_transforms(data)
                 self.train_step(data, epoch)
                 if i % self.log_every == 0 and i != 0:
                     self._log_losses(is_training=True, steps=self.log_every, epoch=epoch)
@@ -174,7 +181,6 @@ class ModelTrainer(ABC):
                     for i, data in enumerate(self.valid_ds):
                         if self._is_loading_batches(self.valid_ds):
                             data = data[0]
-                        data = self.apply_transforms(data)
                         self.valid_step(data, epoch)
                     self._log_losses(is_training=False, steps=i + 1, epoch=epoch)
                     self._reset_running_losses()
@@ -198,9 +204,10 @@ class ModelTrainer(ABC):
         """
         self.on_train_step_begin(epoch)
         data = [x.to(tu.get_device()) for x in data]
+        net_ins = [data[i] for i in self.net_ins_indices]
         self.optimizer.zero_grad()
-        net_outputs = self.net(*data)
-        _losses = self.apply_losses(data, net_outputs)
+        net_outs = self.net(*net_ins)
+        _losses = self.apply_losses(data, net_outs)
         _losses = self._apply_losses_weights(_losses)
         total_loss = sum(_losses)
         total_loss.backward()
@@ -222,8 +229,9 @@ class ModelTrainer(ABC):
         """
         self.on_valid_step_begin(epoch)
         data = [x.to(tu.get_device()) for x in data]
-        net_outputs = self.net(*data)
-        _losses = self.apply_losses(data, net_outputs)
+        net_ins = [data[i] for i in self.net_ins_indices]
+        net_outs = self.net(*net_ins)
+        _losses = self.apply_losses(data, net_outs)
         _losses = self._apply_losses_weights(_losses)
         self._update_running_losses(_losses)
         self.on_valid_step_end(epoch)
@@ -232,15 +240,15 @@ class ModelTrainer(ABC):
     #            Handling Losses
     # = = = = = = = = = = = = = = = = = = = = = =
     @abc.abstractmethod
-    def apply_losses(self, net_ins: List[Tensor], net_outs: List[Tensor]) -> List[Tensor]:
+    def apply_losses(self, data: List[Tensor], net_outs: List[Tensor]) -> List[Tensor]:
         """
         Use the new_outputs to calculate the losses and
         return them.
 
         Parameters
         ----------
-        net_ins : List[Tensor]
-            Network inputs
+        data : List[Tensor]
+            List of Tensors loaded by the dataloader
         net_outs : List[Tensor]
             Network outputs
 
@@ -287,26 +295,6 @@ class ModelTrainer(ABC):
         Resets the state of the running_losses.
         """
         self.running_losses = np.zeros(len(self.losses))
-
-    # = = = = = = = = = = = = = = = = = = = = = =
-    #             Input Features
-    # = = = = = = = = = = = = = = = = = = = = = =
-    @abc.abstractmethod
-    def apply_transforms(self, net_ins: List[Tensor]) -> List[Tensor]:
-        """
-        Apply tranforms to the inputs.
-
-        Parameters
-        ----------
-        net_ins : List[Tensor]
-            Network inputs
-
-        Returns
-        -------
-        List[Tensor]
-            Transformed input
-        """
-        pass
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #               Callbacks
@@ -524,7 +512,6 @@ class ModelTrainer(ABC):
         """
         ds = self.train_ds if is_training else self.valid_ds
         x = [x.to(tu.get_device()) for x in ds.dataset[[0, 1]]]
-        x = self.apply_transforms(x)
         return x
 
     def _log_losses(self, is_training: bool, steps: int, epoch: int) -> None:
