@@ -149,7 +149,7 @@ class ModelTrainer(ABC):
         self._log_yaml()
 
         logger.info("starting training")  # - = - § >>
-        self.on_train_begin(epoch)
+        self.on_train_begin()
         for epoch in range(self.start_epoch, self.max_epochs):
             self.on_epoch_begin(epoch)
             logger.info(f"epoch [{epoch}/{self.max_epochs}]")
@@ -189,7 +189,7 @@ class ModelTrainer(ABC):
             self.on_epoch_end(epoch)
 
         logger.info("training complete")  # - = - § >>
-        self.on_train_end(epoch)
+        self.on_train_end()
 
     def train_step(self, data: List[Tensor], epoch: int) -> None:
         """
@@ -204,7 +204,7 @@ class ModelTrainer(ABC):
         """
         self.on_train_step_begin(epoch)
         data = [x.to(tu.get_device()) for x in data]
-        net_ins = [data[i] for i in self.net_ins_indices]
+        net_ins = self._get_filtered_input(data)
         self.optimizer.zero_grad()
         net_outs = self.net(*net_ins)
         _losses = self.apply_losses(data, net_outs)
@@ -299,10 +299,10 @@ class ModelTrainer(ABC):
     # = = = = = = = = = = = = = = = = = = = = = =
     #               Callbacks
     # = = = = = = = = = = = = = = = = = = = = = =
-    def on_train_begin(self, epoch: int) -> None:
+    def on_train_begin(self: int) -> None:
         pass
 
-    def on_train_end(self, epoch: int) -> None:
+    def on_train_end(self: int) -> None:
         pass
 
     def on_epoch_begin(self, epoch: int) -> None:
@@ -511,8 +511,10 @@ class ModelTrainer(ABC):
             Validation input selection
         """
         ds = self.train_ds if is_training else self.valid_ds
-        x = [x.to(tu.get_device()) for x in ds.dataset[[0, 1]]]
-        return x
+        data = [x.to(tu.get_device()) for x in ds.dataset[[0, 1]]]
+        net_ins = self._get_filtered_input(data)
+
+        return net_ins
 
     def _log_losses(self, is_training: bool, steps: int, epoch: int) -> None:
         """
@@ -649,6 +651,22 @@ class ModelTrainer(ABC):
         """
         params = tu.get_model_parameters(self.net)
         return params
+
+    def _get_filtered_input(self, data: List[Tensor]) -> List[Tensor]:
+        """
+        Filters the Dataloader output based on net_ins_indices.
+
+        Parameters
+        ----------
+        data : List[Tensor]
+            Dataloader output
+
+        Returns
+        -------
+        List[Tensor]
+            Filtered inputs for the network
+        """
+        return [data[i] for i in self.net_ins_indices]
 
     def _from_config(self, param: str, _type: Type, default: Any = None) -> Any:
         """
