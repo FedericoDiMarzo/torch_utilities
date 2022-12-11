@@ -185,9 +185,8 @@ def _stft_istft_core(
     win_len = _ms_to_samples(win_len_ms)
     hopsize = _ms_to_samples(hopsize_ms)
     n_fft = int(win_len * win_oversamp)
-    _window = torch.zeros(n_fft)
-    _window[:win_len] = win_fun(win_len)
-    _window = _window.to(x.device)
+    _window = torch.zeros(n_fft, device=x.device)
+    _window[:win_len] = win_fun(win_len, device=x.device)
 
     # STFT/ISTFT dependent code
     _transpose = lambda x: x.transpose(-1, -2)
