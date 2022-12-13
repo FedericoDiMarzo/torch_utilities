@@ -5,7 +5,6 @@ from pathimport import set_module_root
 from torch import optim, nn, Tensor
 import matplotlib.pyplot as plt
 from contextlib import suppress
-from collections import deque
 from loguru import logger
 import torch_utils as tu
 from pathlib import Path
@@ -125,10 +124,13 @@ class ModelTrainer(ABC):
         self._reset_running_losses()
 
         # extra stuff
-        self.save_buffer = deque([], maxlen=5)  # TODO: best saving mechanism
+        self.save_buffer = []
+        self.save_buffer_maxlen = 1 # TODO: support maxlen > 1
         self.log_writer = SummaryWriter(self.logs_dir)
         self.figsize = (8, 6)
-        self.dummy_input = self._get_dummy_input()
+        self.dummy_input_train = self._get_dummy_input(True)
+        self.dummy_input_valid = self._get_dummy_input(False)
+        self.last_total_loss = 1e10  # used to select the best checkpoints
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Training loop
@@ -164,14 +166,13 @@ class ModelTrainer(ABC):
                     self._log_losses(is_training=True, steps=self.log_every, epoch=epoch)
                     self._reset_running_losses()
                 #
-            self.save_model(epoch)
             self._log_gradients(epoch)
             self._log_losses(is_training=True, steps=(i % self.log_every) + 1, epoch=epoch)
             self._reset_running_losses()
+            self.save_model(epoch)
 
             with torch.no_grad():
-                _dl = lambda t: self.train_ds if t else self.valid_ds
-                _log_data = lambda t: [x.to(tu.get_device()) for x in _dl(t).dataset[[0, 1]]]
+                _log_data = lambda t: self.dummy_input_train if t else self.dummy_input_valid
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
                 self._log_outs(epoch)
 
@@ -426,10 +427,19 @@ class ModelTrainer(ABC):
         checkpoint_name : str
             Name of the checkpoint
         """
+        # sorting by the lower loss
+        _order = lambda t: t[1]
+        self.save_buffer.append((checkpoint_name, float(self.last_total_loss)))
+        self.save_buffer = sorted(self.save_buffer, key=_order)
+        self.save_buffer = self.save_buffer[: self.save_buffer_maxlen]
 
-        # removing old checkpoints
-        self.save_buffer.append(checkpoint_name)
-        sb = self.save_buffer
+        self._delete_worse_checkpoints()
+
+    def _delete_worse_checkpoints(self) -> None:
+        """
+        Deletes the checkpoints that are not in the save_buffer.
+        """
+        sb = [t[0] for t in self.save_buffer]
         checkpoints = self.checkpoints_dir.glob("*.ckpt")
         targets = filter(lambda x: x.name not in sb, checkpoints)
         [x.unlink() for x in targets]
@@ -509,12 +519,10 @@ class ModelTrainer(ABC):
         List[Tensor]
             Validation input selection
         """
-        
         ds = self.train_ds if is_training else self.valid_ds
         data = [x.to(tu.get_device()) for x in ds.dataset[[0, 1]]]
-        net_ins = self._get_filtered_input(data)
-
-        return net_ins
+        # net_ins = self._get_filtered_input(data)
+        return data
 
     def _log_losses(self, is_training: bool, steps: int, epoch: int) -> None:
         """
@@ -538,8 +546,9 @@ class ModelTrainer(ABC):
             loss /= steps
             logger.info(f"{name}: {loss}")
             self.log_writer.add_scalar(f"{name}_{tag_suffix}", loss, global_step=epoch)
-
         self._reset_running_losses()
+
+        self.last_total_loss = total_loss / steps
 
     def _default_losses_names(self) -> List[str]:
         """
@@ -581,7 +590,7 @@ class ModelTrainer(ABC):
         epoch : int
             Current epoch
         """
-        net_ins = self.dummy_input
+        net_ins = self._get_filtered_input(self.dummy_input_train)
         net_outs = self.net(*net_ins)
         norm = [torch.linalg.norm(x[0]).item() for x in net_outs]
         norm = Tensor(norm).cpu()
@@ -599,7 +608,7 @@ class ModelTrainer(ABC):
         """
         Saves the model graph.
         """
-        x = self.dummy_input
+        x = self._get_filtered_input(self.dummy_input_train)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             self.log_writer.add_graph(self.net, x)
