@@ -56,6 +56,8 @@ _expand2 = lambda x: x[:, None]
 
 _expand3 = lambda x: x[:, None, None]
 
+_safe_div = lambda n, d, eps : n / (d+eps)
+
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
@@ -85,9 +87,10 @@ def add_noise(x: Tensor, n: Tensor, snr_range: Tuple[float, float]) -> Tensor:
     x_peaks = _max_over_batch(x)
 
     # scaling the noise
-    n /= _expand2(rms(n))
+    eps = 1e-8
+    n = _safe_div(n, _expand2(rms(n)), eps)
     n *= _expand2(rms(x))
-    n /= _expand3(snr)
+    n = _safe_div(n, _expand3(snr), eps)
 
     # summing and scaling back
     y = x + n
