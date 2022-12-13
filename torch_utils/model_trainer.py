@@ -128,6 +128,7 @@ class ModelTrainer(ABC):
         self.save_buffer = deque([], maxlen=5)  # TODO: best saving mechanism
         self.log_writer = SummaryWriter(self.logs_dir)
         self.figsize = (8, 6)
+        self.dummy_input = self._get_dummy_input()
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Training loop
@@ -508,6 +509,7 @@ class ModelTrainer(ABC):
         List[Tensor]
             Validation input selection
         """
+        
         ds = self.train_ds if is_training else self.valid_ds
         data = [x.to(tu.get_device()) for x in ds.dataset[[0, 1]]]
         net_ins = self._get_filtered_input(data)
@@ -579,7 +581,7 @@ class ModelTrainer(ABC):
         epoch : int
             Current epoch
         """
-        net_ins = self._get_dummy_input(is_training=True)
+        net_ins = self.dummy_input
         net_outs = self.net(*net_ins)
         norm = [torch.linalg.norm(x[0]).item() for x in net_outs]
         norm = Tensor(norm).cpu()
@@ -597,7 +599,7 @@ class ModelTrainer(ABC):
         """
         Saves the model graph.
         """
-        x = self._get_dummy_input(True)
+        x = self.dummy_input
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
             self.log_writer.add_graph(self.net, x)
