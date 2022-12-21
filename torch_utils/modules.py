@@ -8,11 +8,13 @@ import torch
 set_module_root(".", prefix=True)
 
 __all__ = [
+    "LambdaLayer",
     "Lookahead",
     "Reparameterize",
     "ScaleChannels2d",
     "GroupedLinear",
     "CausalConv2d",
+    "GruNormAct",
     "CausalConv2dNormAct",
     "CausalConvNeuralUpsampler",
     "DownMerge",
@@ -39,6 +41,23 @@ def get_time_value(param):
         return param[0]
     else:
         return param
+
+
+class LambdaLayer(nn.Module):
+    def __init__(self, f: Callable):
+        """
+        Inspired to TF lambda layer
+
+        Parameters
+        ----------
+        f : Callable
+            Callable function
+        """
+        super(LambdaLayer, self).__init__()
+        self.f = f
+
+    def forward(self, x):
+        return self.f(x)
 
 
 class Lookahead(nn.Module):
@@ -475,6 +494,84 @@ class CausalConvNeuralUpsampler(nn.Module):
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y
+
+
+# TODO: test
+class GruNormAct(nn.Module):
+    def __init__(
+        self,
+        input_size: int,
+        hidden_size: int,
+        num_layers: int,
+        gru_bias: bool = False,
+        batch_first: bool = True,
+        dropout: float = 0,
+        bidirectional: bool = False,
+        eps: float = 1e-05,
+        momentum: float = 0.1,
+        affine: bool = True,
+        track_running_stats: bool = True,
+        activation: nn.Module = nn.ReLU(),
+        residual_merge: Optional[Callable] = None,
+        disable_batchnorm: bool = False,
+        dtype=None,
+    ) -> None:
+        """
+        GRU + BatchNorm1d + Activation.
+
+        Parameters
+        ----------
+        Combination of the modules parameters
+
+        activation: nn.Module, optional
+            Activation module, by default nn.Relu()
+        residual_merge: Optional[Callable], optional
+            If different da None, it indicates the merge operation after
+            the activation, by default None
+        disable_batchnorm: bool, optional
+            Disable the BatchNorm2d layer, by default False
+        """
+        super().__init__()
+        self.activation = activation
+        self.residual_merge = residual_merge
+        self.disable_batchnorm = disable_batchnorm
+
+        # inner modules
+        self.gru = nn.GRU(
+            input_size=input_size,
+            hidden_size=hidden_size,
+            num_layers=num_layers,
+            bias=gru_bias,
+            batch_first=batch_first,
+            dropout=dropout,
+            bidirectional=bidirectional,
+            dtype=dtype,
+        )
+
+        if self.disable_batchnorm:
+            self.batchnorm = nn.Identity()
+        else:
+            self.batchnorm = nn.BatchNorm1d(
+                num_features=hidden_size,
+                eps=eps,
+                momentum=momentum,
+                affine=affine,
+                track_running_stats=track_running_stats,
+                dtype=dtype,
+            )
+
+        self.activation = activation or nn.Identity()
+        self.residual_merge = residual_merge
+
+    def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
+        y, h = self.gru(x)
+        y = y.transpose(1,2)
+        y = self.batchnorm(y)
+        y = y.transpose(1,2)
+        y = self.activation(y)
+        if self.residual_merge is not None:
+            y = self.residual_merge(x, y)
+        return y, h
 
 
 class DownMerge(nn.Module):
