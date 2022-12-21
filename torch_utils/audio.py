@@ -4,7 +4,6 @@ from typing import Optional, Union
 import torch.nn.functional as F
 from random import randrange
 from torch import Tensor
-from fnnls import fnnls
 import numpy as np
 import torch
 
