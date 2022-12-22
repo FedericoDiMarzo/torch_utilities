@@ -565,9 +565,9 @@ class GruNormAct(nn.Module):
 
     def forward(self, x: Tensor) -> Tuple[Tensor, Tensor]:
         y, h = self.gru(x)
-        y = y.transpose(1,2)
+        y = y.transpose(1, 2)
         y = self.batchnorm(y)
-        y = y.transpose(1,2)
+        y = y.transpose(1, 2)
         y = self.activation(y)
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)

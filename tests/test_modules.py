@@ -1,13 +1,15 @@
 from pathimport import set_module_root
+from itertools import product
+from typing import Tuple
+from torch import Tensor
 from torch import nn
 import numpy as np
-import itertools
 import unittest
 import torch
 
 set_module_root("../torch_utils", prefix=True)
-import torch_utils as tu
 from torch_utils import repeat_test, set_device, get_device
+import torch_utils as tu
 
 torch.manual_seed(984)
 np.random.seed(876)
@@ -260,8 +262,6 @@ class TestGroupedLinear(unittest.TestCase):
         lin.weight.data = torch.ones_like(lin.weight.data)
         self.assertTrue(torch.allclose(gl(x), lin(x)))
 
-        pass
-
 
 class TestMergeLayers(unittest.TestCase):
     @classmethod
@@ -302,6 +302,31 @@ class TestMergeLayers(unittest.TestCase):
                 y = torch.ones(1, o, 10, 4 * s)
                 z = merge(x, y)
                 self.assertEqual(y.shape, z.shape)
+
+
+class TestGruNormAct(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        pass
+
+    def setUp(self):
+        self.in_size = (16, 32)
+        self.h_size = (8, 64)
+        self.merge = (None, (lambda x, y: x + y))
+        self.activation = (None, nn.ReLU())
+        self.params = product(
+            self.in_size,
+            self.h_size,
+            self.merge,
+            self.activation,
+        )
+
+    def get_input(self, p: Tuple) -> Tensor:
+        in_size = p[0]
+        x = torch.randn((1, 100, in_size))
+        
+
+    def test_
 
 
 if __name__ == "__main__":
