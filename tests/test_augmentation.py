@@ -23,10 +23,10 @@ class TestAugmentation(unittest.TestCase):
     @torch.no_grad()
     def test_shuffle(self):
         torch.manual_seed(0)
-        x = torch.arange(100)
+        x = torch.arange(1000)
         y = tu.shuffle(x)
         self.assertEqual(x.shape, y.shape)
-        self.assertTrue(torch.all(x.not_equal(y)))
+        self.assertTrue(torch.any(x.not_equal(y)))
 
     @torch.no_grad()
     def test_add_noise(self):
