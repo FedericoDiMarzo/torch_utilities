@@ -283,7 +283,11 @@ class MelFilterbank:
         """
         is_np = get_np_or_torch(x) == np
         if is_np:
-            x = Tensor(x, device=self.device)
+            x = torch.from_numpy(x).to(self.device)
+
+        # handling dtypes
+        x = x.abs()
+        self.filterbank = self.filterbank.to(x.dtype)
 
         y = x @ self.filterbank
 
@@ -358,7 +362,11 @@ class MelInverseFilterbank:
         """
         is_np = get_np_or_torch(x) == np
         if is_np:
-            x = Tensor(x, device=self.device)
+            x = torch.from_numpy(x).to(self.device)
+
+        # handling dtypes
+        x = x.abs()
+        self.filterbank = self.filterbank.to(x.dtype)
 
         y = x @ self.filterbank
 
@@ -618,7 +626,7 @@ def trim_silence(
     thr = module.zeros_like(x, dtype=int)
     thr[module.abs(x) > threshold] = 1
     thr = thr if module == np else thr.cpu().detach().numpy()
-    thr = thr.tolist()[0]
+    thr = thr.tolist()
 
     try:
         start = thr.index(1)
