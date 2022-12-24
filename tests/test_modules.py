@@ -326,8 +326,6 @@ class TestGruNormAct(unittest.TestCase):
         x = torch.randn((1, 100, in_size))
         
 
-    def test_
-
 
 if __name__ == "__main__":
     unittest.main()
