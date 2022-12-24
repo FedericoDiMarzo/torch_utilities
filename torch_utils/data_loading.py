@@ -1,4 +1,4 @@
-from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler, SequentialSampler
+from torch.utils.data import Sampler, Dataset, DataLoader, BatchSampler
 from pathimport import set_module_root
 from typing import List
 from pathlib import Path
