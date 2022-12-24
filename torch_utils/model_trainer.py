@@ -2,9 +2,10 @@ from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from torch.utils.tensorboard import SummaryWriter
 from torch.utils.data import DataLoader
 from pathimport import set_module_root
-from torch import optim, nn, Tensor
 import matplotlib.pyplot as plt
 from contextlib import suppress
+from torch.optim import Optimizer
+from torch import nn, Tensor
 from loguru import logger
 import torch_utils as tu
 from pathlib import Path
@@ -27,11 +28,10 @@ class ModelTrainer(ABC):
         model: nn.Module,
         train_dl: DataLoader,
         valid_dl: DataLoader,
-        optimizer_class: optim.Optimizer,
+        optimizer_class: Type[Optimizer],
         losses: List[Callable],
         net_ins_indices: Optional[List[int]] = None,
         losses_names: Optional[List[str]] = None,
-        overfit_mode: bool = False,
     ) -> None:
         """
         Abstract class to structure a model training.
@@ -57,7 +57,7 @@ class ModelTrainer(ABC):
             Training DataLoader
         train_dl : DataLoader
             Validation DataLoader
-        optimizer_class : optim.Optimizer
+        optimizer_class : Type[Optimizer]
             Optimizer class
         losses : List[Callable]
             List of losses to be computed
@@ -70,8 +70,6 @@ class ModelTrainer(ABC):
                 net_ins = [T2, T1]
         losses_names : Optional[List[str]]
             Names of the losses, by default ["loss0", "loss1", ...]
-        overfit_mode : bool, optional
-            Enables overfit mode, by default False
 
 
         config.yml [training] parameters
@@ -80,6 +78,8 @@ class ModelTrainer(ABC):
             Max number of epochs, by default 100
         learning_rate : float, optional
             Optimizer learning rate, by default 0.001
+        overfit_mode : bool, optional
+            Enables overfit mode, by default False
         weight_decay : float, optional
             Optimizer weight_decay, by default 0
         losses_weights : List[float], optional
@@ -97,7 +97,6 @@ class ModelTrainer(ABC):
         self.net_ins_indices = net_ins_indices
         self.losses_names = losses_names or self._default_losses_names()
         self.optimizer_class = optimizer_class
-        self.overfit_mode = overfit_mode
 
         # configuration attributes
         self.config_path = self.model_path / "config.yml"
@@ -106,7 +105,8 @@ class ModelTrainer(ABC):
         self.weight_decay = self._from_config("weight_decay", float, 0)
         self.log_every = self._from_config("log_every", int, 100)
         self.max_epochs = self._from_config("max_epochs", int, 100)
-        self.losses_weight = self._from_config(
+        self.overfit_mode = self._from_config("overfit_mode", bool, False)
+        self.losses_weights = self._from_config(
             "losses_weights", np.array, np.ones(len(self.losses))
         )
 
@@ -125,7 +125,7 @@ class ModelTrainer(ABC):
 
         # extra stuff
         self.save_buffer = []
-        self.save_buffer_maxlen = 1 # TODO: support maxlen > 1
+        self.save_buffer_maxlen = 1  # TODO: support maxlen > 1
         self.log_writer = SummaryWriter(self.logs_dir)
         self.figsize = (8, 6)
         self.dummy_input_train = self._get_dummy_input(True)
@@ -166,7 +166,7 @@ class ModelTrainer(ABC):
                     self._log_losses(is_training=True, steps=self.log_every, epoch=epoch)
                     self._reset_running_losses()
                 #
-            self._log_gradients(epoch)
+            # self._log_gradients(epoch) TODO: debug
             self._log_losses(is_training=True, steps=(i % self.log_every) + 1, epoch=epoch)
             self._reset_running_losses()
             self.save_model(epoch)
@@ -174,7 +174,7 @@ class ModelTrainer(ABC):
             with torch.no_grad():
                 _log_data = lambda t: self.dummy_input_train if t else self.dummy_input_valid
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
-                self._log_outs(epoch)
+                # self._log_outs(epoch) # TODO: debug
 
                 if not self.overfit_mode:
                     # validation
@@ -276,7 +276,7 @@ class ModelTrainer(ABC):
         Tensor
             Weighted losses
         """
-        return [loss * w for loss, w in zip(losses, self.losses_weight)]
+        return [loss * w for loss, w in zip(losses, self.losses_weights)]
 
     def _update_running_losses(self, losses: List[Tensor]) -> None:
         """
@@ -447,13 +447,13 @@ class ModelTrainer(ABC):
     # = = = = = = = = = = = = = = = = = = = = = =
     #           Optimizer loading
     # = = = = = = = = = = = = = = = = = = = = = =
-    def _setup_optimizer(self) -> torch.optim.Optimizer:
+    def _setup_optimizer(self) -> Optimizer:
         """
         Sets up the optimizer to the model.
 
         Returns
         -------
-        torch.optim.Optimizer
+        Optimizer
             Optimizer instance
         """
         try:
