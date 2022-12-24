@@ -8,11 +8,11 @@ import torch
 
 set_module_root("../torch_utils", prefix=True)
 import torch_utils as tu
-from torch_utils import set_device
 
 torch.manual_seed(984)
 np.random.seed(901)
-set_device("auto")
+tu.set_device("auto")
+torch.set_grad_enabled(False)
 
 
 class TestSTFT(unittest.TestCase):
@@ -107,7 +107,7 @@ class TestMelFilterbank(unittest.TestCase):
             ):
                 filterbank = tu.MelFilterbank(sample_rate, n_freq, n_mel)
                 x = np.ones((1, channels, int(sample_rate * 0.1), n_freq), dtype=complex)
-                x = x if module == np else Tensor(x)
+                x = x if module == np else torch.from_numpy(x)
                 y = filterbank(x)
                 self.assertEqual(y.shape, (1, channels, int(sample_rate * 0.1), n_mel))
                 self.assertEqual(type(y), np.ndarray if module == np else Tensor)
@@ -124,7 +124,7 @@ class TestMelFilterbank(unittest.TestCase):
             ):
                 filterbank = tu.MelInverseFilterbank(sample_rate, n_freq, n_mel)
                 x = np.ones((1, channels, int(sample_rate * 0.1), n_mel), dtype=complex)
-                x = x if module == np else Tensor(x)
+                x = x if module == np else torch.from_numpy(x)
                 y = filterbank(x)
                 self.assertEqual(y.shape, (1, channels, int(sample_rate * 0.1), n_freq))
                 self.assertEqual(type(y), np.ndarray if module == np else Tensor)

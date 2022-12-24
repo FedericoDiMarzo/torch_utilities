@@ -1,5 +1,4 @@
 from pathimport import set_module_root
-from torch import Tensor
 import numpy as np
 import itertools
 import unittest
@@ -8,11 +7,11 @@ import torch
 set_module_root("../torch_utils", prefix=True)
 import torch_utils as tu
 from tests.generate_test_data import get_test_data_dir
-from torch_utils import repeat_test, set_device, get_device
 
 torch.manual_seed(984)
 np.random.seed(901)
-set_device("auto")
+tu.set_device("auto")
+torch.set_grad_enabled(False)
 
 
 class TestConfig(unittest.TestCase):

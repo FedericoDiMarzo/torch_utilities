@@ -14,6 +14,7 @@ import torch_utils as tu
 torch.manual_seed(984)
 np.random.seed(876)
 set_device("auto")
+torch.set_grad_enabled(False)
 
 
 class TestLookahead(unittest.TestCase):
@@ -104,7 +105,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             (32, 33),  # freq_bins
             (False, True),  # separable
         )
-        params = itertools.product(*params)
+        params = product(*params)
         for p in params:
             with self.subTest(p=p):
                 conv = tu.CausalConv2dNormAct(
@@ -210,7 +211,7 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
             (False, True),  # separable
             (False, True),  # with sum?
         )
-        params = itertools.product(*params)
+        params = product(*params)
         for p in params:
             # residual_merge
             if p[4] and p[1] == 1:
@@ -275,7 +276,7 @@ class TestMergeLayers(unittest.TestCase):
 
     @torch.no_grad()
     def test_down_merge(self):
-        params = itertools.product(
+        params = product(
             self.in_ch,
             self.out_ch,
             self.strides,
@@ -290,7 +291,7 @@ class TestMergeLayers(unittest.TestCase):
 
     @torch.no_grad()
     def test_up_merge(self):
-        params = itertools.product(
+        params = product(
             self.out_ch,
             self.in_ch,
             self.strides,

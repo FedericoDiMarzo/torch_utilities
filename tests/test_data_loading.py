@@ -14,6 +14,7 @@ import torch_utils as tu
 torch.manual_seed(984)
 np.random.seed(901)
 tu.set_device("cpu")
+torch.set_grad_enabled(False)
 
 
 class TestHDF5DataLoader(unittest.TestCase):

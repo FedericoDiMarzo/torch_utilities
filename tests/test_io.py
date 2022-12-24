@@ -5,13 +5,13 @@ import numpy as np
 import torch
 
 set_module_root("../torch_utils", prefix=True)
-import torch_utils as tu
 from tests.generate_test_data import get_test_data_dir
-from torch_utils import set_device, get_device
+import torch_utils as tu
 
 torch.manual_seed(984)
 np.random.seed(901)
-set_device("auto")
+tu.set_device("auto")
+torch.set_grad_enabled(False)
 
 
 class TestIO(unittest.TestCase):
