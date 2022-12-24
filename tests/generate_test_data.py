@@ -1,4 +1,5 @@
 from pathimport import set_module_root
+from loguru import logger
 from pathlib import Path
 import numpy as np
 import yaml
@@ -6,7 +7,6 @@ import h5py
 
 set_module_root(".", prefix=True)
 from torch_utils import save_audio
-
 
 def create_data_dir():
     data_dir = Path(__file__).parent / "test_data"
@@ -69,11 +69,43 @@ def generate_yaml():
         yaml.dump(data, f)
 
 
+def generate_test_model_config(name: str, overfit_mode: bool):
+    txt = f"""
+---
+general:
+  test_param: 1234
+  
+training:
+  learning_rate: 0.001
+  weight_decay: 0.002
+  overfit_mode: {overfit_mode}
+  max_epochs: 1
+  batch_size: 16
+  log_every: 1
+  num_workeres: 1
+  losses_weights:
+    - 1 
+    - 2 
+    - 3 
+    - 4 
+    """
+    tag = "_overfit" if overfit_mode else ""
+    model_dir = get_test_data_dir() / f"test_model{tag}"
+    model_dir.mkdir(exist_ok=True)
+    config_path = model_dir / "config.yml"
+    with open(config_path, "wt") as f:
+        f.write(txt)
+
+
 def main():
+    logger.info("generating test data")
     create_data_dir()
     generate_wavs()
     generate_hdf5()
     generate_yaml()
+    generate_test_model_config("test_model", False)
+    generate_test_model_config("test_model", True)
+    logger.info("generation complete")
 
 
 if __name__ == "__main__":
