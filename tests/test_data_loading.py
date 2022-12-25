@@ -75,6 +75,15 @@ class TestHDF5DataLoader(unittest.TestCase):
         data = [x for x in dataloader]
         self.assertEqual(len(data), 20)
 
+    def test_get_dataset_statistics(self):
+        hist_bins = 10
+        dataloader = tu.get_hdf5_dataloader(self.hdf5_path, self.data_layout, 16)
+        iterations = len(dataloader)
+        stats = tu.get_dataset_statistics(dataloader, iterations, hist_bins)
+        hist_vals, hist_bins, min, max, mean, var = stats[0]
+        self.assertEqual(len(stats), 2)
+        self.assertAlmostEqual(np.sum(hist_vals), 1)
+
 
 class HDF5OnlineDatasetTesting(tu.HDF5OnlineDataset):
     def __init__(
@@ -151,6 +160,15 @@ class TestHDF5OnlineDataset(unittest.TestCase):
             raw_data = ds._get_rand_batch(d)
             for batch in raw_data:
                 self.assertEqual(batch.shape[0], batch_size)
+
+    def test_get_dataset_statistics(self):
+        hist_bins = 10
+        dataloader = tu.get_hdf5_dataloader(self.hdf5_path, self.data_layout, 16)
+        iterations = len(dataloader)
+        stats = tu.get_dataset_statistics(dataloader, iterations, hist_bins)
+        hist_vals, hist_bins, min, max, mean, var = stats[0]
+        self.assertEqual(len(stats), 2)
+        self.assertAlmostEqual(np.sum(hist_vals), 1)
 
 
 if __name__ == "__main__":
