@@ -166,7 +166,7 @@ class ModelTrainer(ABC):
                     self._log_losses(is_training=True, steps=self.log_every, epoch=epoch)
                     self._reset_running_losses()
                 #
-            # self._log_gradients(epoch) TODO: debug
+            self._log_gradients(epoch)
             self._log_losses(is_training=True, steps=(i % self.log_every) + 1, epoch=epoch)
             self._reset_running_losses()
             self.save_model(epoch)
@@ -174,7 +174,7 @@ class ModelTrainer(ABC):
             with torch.no_grad():
                 _log_data = lambda t: self.dummy_input_train if t else self.dummy_input_valid
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
-                # self._log_outs(epoch) # TODO: debug
+                self._log_outs(epoch)
 
                 if not self.overfit_mode:
                     # validation
