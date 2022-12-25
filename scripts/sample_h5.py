@@ -1,11 +1,12 @@
-import random
-from typing import Dict
 from pathimport import set_module_root
 from argparse import ArgumentParser
 from loguru import logger
 from pathlib import Path
+from typing import Dict
 from tqdm import tqdm
 import numpy as np
+import random
+import torch
 import h5py
 
 set_module_root("..", prefix=False)
@@ -18,8 +19,8 @@ def main():
     sr = args.sample_rate
 
     # seed
-    if args.seed != 0:
-        np.random.seed(args.seed)
+    np.random.seed(args.seed)
+    torch.manual_seed(args.seed)
 
     # paths
     cwd = Path.cwd()
