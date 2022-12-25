@@ -5,6 +5,7 @@ import torch
 
 set_module_root("../torch_utils")
 import torch_utils as tu
+import torch_utils.augmentation as aug
 
 
 def _setup() -> None:
@@ -26,7 +27,7 @@ class TestAugmentation(unittest.TestCase):
     def test_shuffle(self):
         torch.manual_seed(0)
         x = torch.arange(1000)
-        y = tu.shuffle(x)
+        y = aug.shuffle(x)
         self.assertEqual(x.shape, y.shape)
         self.assertTrue(torch.any(x.not_equal(y)))
 
@@ -37,7 +38,7 @@ class TestAugmentation(unittest.TestCase):
             with self.subTest(snr=snr):
                 x = torch.ones((1, 1, 100))
                 n = torch.ones_like(x)
-                y = tu.add_noise(x, n, (snr, snr))
+                y = aug.add_noise(x, n, (snr, snr))
                 self.assertTrue(x.max().equal(y.max()))
 
     @torch.no_grad()
@@ -45,15 +46,15 @@ class TestAugmentation(unittest.TestCase):
         scale_set = (-12, 0, 12)
         for scale in scale_set:
             with self.subTest(snr=scale):
-                lin_scale = tu.invert_db(scale)
+                lin_scale = aug.invert_db(scale)
                 x = torch.ones((1, 1, 100))
-                y = tu.scale(x, (scale, scale))
+                y = aug.scale(x, (scale, scale))
                 self.assertAlmostEqual(y.max().item(), lin_scale)
 
     @torch.no_grad()
     def test_overdrive(self):
         x = torch.ones((1, 1, 100))
-        y = tu.overdrive(x)
+        y = aug.overdrive(x)
         self.assertAlmostEqual(y.max().item(), 1)
 
 
