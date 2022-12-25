@@ -7,9 +7,10 @@ import numpy as np
 import torch
 
 
-set_module_root("..")
+set_module_root("..", prefix=False)
 from torch_utils import HDF5OnlineDataset
 import torch_utils as tu
+
 
 def main():
     # argparse

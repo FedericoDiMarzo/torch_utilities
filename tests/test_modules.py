@@ -7,7 +7,7 @@ import numpy as np
 import unittest
 import torch
 
-set_module_root("../torch_utils", prefix=True)
+set_module_root("../torch_utils", )
 from torch_utils import repeat_test, set_device, get_device
 import torch_utils as tu
 

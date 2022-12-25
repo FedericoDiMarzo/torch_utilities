@@ -8,7 +8,7 @@ import numpy as np
 import h5py
 import sys
 
-set_module_root("..")
+set_module_root("..", prefix=False)
 from torch_utils import load_audio, random_trim, fade_sides, trim_silence
 
 
@@ -57,7 +57,7 @@ def parse_args() -> Dict:
     Dict
         Parsed arguments
     """
-    desc = "converts a list of absolute wav paths passed through stdin to an HDF5 dataset."
+    desc = "Converts a list of absolute wav paths passed through stdin to an HDF5 dataset."
     argparser = ArgumentParser(description=desc)
     argparser.add_argument(
         "dataset_name",

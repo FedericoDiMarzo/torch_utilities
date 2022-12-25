@@ -7,7 +7,7 @@ import soundfile as sf
 import numpy as np
 import torchaudio
 
-set_module_root(".", prefix=True)
+set_module_root(".", )
 from torch_utils.common import get_device, to_numpy
 
 # export list

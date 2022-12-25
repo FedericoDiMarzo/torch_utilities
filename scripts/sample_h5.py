@@ -8,7 +8,7 @@ from tqdm import tqdm
 import numpy as np
 import h5py
 
-set_module_root("..")
+set_module_root("..", prefix=False)
 from torch_utils import save_audio
 
 
@@ -48,7 +48,7 @@ def parse_args() -> Dict:
     Dict
         Parsed arguments
     """
-    desc = "extracts random sequences from an HDF5 for debugging purposes."
+    desc = "Extracts random sequences from an HDF5 for debugging purposes."
     argparser = ArgumentParser(description=desc)
     argparser.add_argument(
         "dataset",

@@ -8,7 +8,7 @@ import itertools
 import torch
 import h5py
 
-set_module_root(".", prefix=True)
+set_module_root(".", )
 from torch_utils.common import get_device
 
 # export list

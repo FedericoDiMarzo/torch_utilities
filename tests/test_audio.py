@@ -6,7 +6,7 @@ import itertools
 import unittest
 import torch
 
-set_module_root("../torch_utils", prefix=True)
+set_module_root("../torch_utils", )
 import torch_utils as tu
 
 torch.manual_seed(984)
