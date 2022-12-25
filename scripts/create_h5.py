@@ -57,7 +57,9 @@ def parse_args() -> Dict:
     Dict
         Parsed arguments
     """
-    desc = "Converts a list of absolute wav paths passed through stdin to an HDF5 dataset."
+    desc = (
+        "Converts a list of absolute wav paths passed through stdin to an HDF5 dataset."
+    )
     argparser = ArgumentParser(description=desc)
     argparser.add_argument(
         "dataset_name",

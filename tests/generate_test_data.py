@@ -37,7 +37,9 @@ def generate_wavs(sample_rate: int = 16000, duration: float = 1):
     files = [f"{x}.wav" for x in ("mono", "stereo")]
     channels = [1, 2]
     for n, c in zip(files, channels):
-        x = np.stack([np.random.uniform(-1, 1, duration * sample_rate) for _ in range(c)])
+        x = np.stack(
+            [np.random.uniform(-1, 1, duration * sample_rate) for _ in range(c)]
+        )
         save_audio(data_dir / n, x, sample_rate)
 
 

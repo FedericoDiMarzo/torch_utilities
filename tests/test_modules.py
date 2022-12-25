@@ -11,16 +11,18 @@ set_module_root("../torch_utils")
 from torch_utils import repeat_test, set_device
 import torch_utils as tu
 
-torch.manual_seed(984)
-np.random.seed(876)
-set_device("auto")
-torch.set_grad_enabled(False)
+
+def _setup() -> None:
+    torch.manual_seed(984)
+    np.random.seed(876)
+    set_device("auto")
+    torch.set_grad_enabled(False)
 
 
 class TestLookahead(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         self.x = torch.zeros(1, 2, 10, 16)
@@ -41,7 +43,7 @@ class TestLookahead(unittest.TestCase):
 class TestCausalConv2d(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         pass
@@ -59,7 +61,9 @@ class TestCausalConv2d(unittest.TestCase):
 
     @torch.no_grad()
     def test_conv_padding(self):
-        conv = tu.CausalConv2d(in_channels=1, out_channels=1, kernel_size=(5, 3), padding_f=1)
+        conv = tu.CausalConv2d(
+            in_channels=1, out_channels=1, kernel_size=(5, 3), padding_f=1
+        )
         x = torch.ones((1, 100, 3))
         y = conv(x)
         self.assertEqual(y.shape, x.shape)
@@ -92,7 +96,7 @@ class TestCausalConv2d(unittest.TestCase):
 class TestCausalConv2dNormAct(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         pass
@@ -146,7 +150,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
 class TestReparameterize(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         self.reparam = tu.Reparameterize()
@@ -174,7 +178,7 @@ class TestReparameterize(unittest.TestCase):
 class TestScaleChannels2d(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         self.scale = tu.ScaleChannels2d(2)
@@ -197,7 +201,7 @@ class TestScaleChannels2d(unittest.TestCase):
 class TestCausalConvNeuralUpsampler(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         pass
@@ -238,7 +242,7 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
 class TestGroupedLinear(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         pass
@@ -267,7 +271,7 @@ class TestGroupedLinear(unittest.TestCase):
 class TestMergeLayers(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         self.in_ch = (1, 2, 3)
@@ -308,7 +312,7 @@ class TestMergeLayers(unittest.TestCase):
 class TestGruNormAct(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         self.in_size = (16, 32)
@@ -325,8 +329,7 @@ class TestGruNormAct(unittest.TestCase):
     def get_input(self, p: Tuple) -> Tensor:
         in_size = p[0]
         x = torch.randn((1, 100, in_size))
-        
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

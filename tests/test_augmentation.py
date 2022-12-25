@@ -6,16 +6,18 @@ import torch
 set_module_root("../torch_utils")
 import torch_utils as tu
 
-torch.manual_seed(984)
-np.random.seed(901)
-tu.set_device("auto")
-torch.set_grad_enabled(False)
+
+def _setup() -> None:
+    torch.manual_seed(984)
+    np.random.seed(901)
+    tu.set_device("auto")
+    torch.set_grad_enabled(False)
 
 
 class TestAugmentation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         pass
@@ -56,4 +58,4 @@ class TestAugmentation(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

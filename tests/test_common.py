@@ -8,16 +8,18 @@ set_module_root("../torch_utils")
 import torch_utils as tu
 from tests.generate_test_data import get_test_data_dir
 
-torch.manual_seed(984)
-np.random.seed(901)
-tu.set_device("auto")
-torch.set_grad_enabled(False)
+
+def _setup() -> None:
+    torch.manual_seed(984)
+    np.random.seed(901)
+    tu.set_device("auto")
+    torch.set_grad_enabled(False)
 
 
 class TestConfig(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         self.config_path = get_test_data_dir() / "test.yml"
@@ -57,7 +59,7 @@ class TestConfig(unittest.TestCase):
 class TestGeneric(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         pass
@@ -95,4 +97,4 @@ class TestGeneric(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

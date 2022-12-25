@@ -87,7 +87,9 @@ class HDF5Dataset(Dataset):
         self.data_layout = data_layout
         self.dataset_file = h5py.File(self.dataset_path, "r")
         self.groups = list(self.dataset_file.keys())
-        self.group_batch_len = self.dataset_file[self.groups[0]][self.data_layout[0]].shape[0]
+        self.group_batch_len = self.dataset_file[self.groups[0]][
+            self.data_layout[0]
+        ].shape[0]
         self.data_layout = data_layout
         self._cache = None
         self._cache_idx = None
@@ -101,9 +103,13 @@ class HDF5Dataset(Dataset):
         if not isinstance(idx, list):
             err_msg = "HDF5Dataset must be sampled by a BatchLoader"
         elif len(idx) > self.group_batch_len:
-            err_msg = "Reduce the batch size to be less than the batch size of the groups"
+            err_msg = (
+                "Reduce the batch size to be less than the batch size of the groups"
+            )
         elif self.group_batch_len % len(idx) != 0:
-            err_msg = "Modify the batch size to be a divider of the HDF5 group batch size"
+            err_msg = (
+                "Modify the batch size to be a divider of the HDF5 group batch size"
+            )
         if err_msg is not None:
             raise RuntimeError(err_msg)
 
@@ -153,7 +159,9 @@ class HDF5Dataset(Dataset):
             True if the element is inside the cache
         """
         c_idx = self._cache_idx
-        flag = (c_idx is not None) and (idx >= c_idx and idx < (c_idx + self.group_batch_len))
+        flag = (c_idx is not None) and (
+            idx >= c_idx and idx < (c_idx + self.group_batch_len)
+        )
         return flag
 
 

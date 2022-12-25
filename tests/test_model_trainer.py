@@ -14,13 +14,18 @@ set_module_root("../torch_utils")
 from tests.generate_test_data import get_test_data_dir
 import torch_utils as tu
 
-torch.manual_seed(984)
-np.random.seed(901)
-tu.set_device("auto", "Double")
-
 # = = SETUP = = = = = = = = = = = = = = = = = = = = = = =
 
 
+def _setup() -> None:
+    np.random.seed(901)
+    tu.set_device("auto")
+    torch.manual_seed(984)
+    torch.set_grad_enabled(True)
+    logger.disable("torch_utils.model_trainer")
+
+
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 class ModelDummy(nn.Module):
     def __init__(self, config_path: Path) -> None:
         """
@@ -66,6 +71,7 @@ class ModelTrainerDummy(tu.ModelTrainer):
             net_ins_indices,
             losses_names,
         )
+        self.net = self.net.to(float)
 
         # callbacks flags
         self.on_train_begin_flag = False
@@ -81,7 +87,9 @@ class ModelTrainerDummy(tu.ModelTrainer):
         loss_values = [loss(y_hat, y_true) for loss in self.losses]
         return loss_values
 
-    def tensorboard_logs(self, net_ins: List[Tensor], epoch: int, is_training: bool) -> None:
+    def tensorboard_logs(
+        self, net_ins: List[Tensor], epoch: int, is_training: bool
+    ) -> None:
         pass
 
     def on_train_begin(self) -> None:
@@ -109,10 +117,12 @@ class ModelTrainerDummy(tu.ModelTrainer):
 class TestModelTrainer(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        logger.disable("torch_utils.model_trainer")
+        _setup()
 
     def setUp(self):
-        self.model_path = (get_test_data_dir() / n for n in ("test_model", "test_model_overfit"))
+        self.model_path = (
+            get_test_data_dir() / n for n in ("test_model", "test_model_overfit")
+        )
         self.loader_type = (tu.HDF5Dataset, tu.HDF5OnlineDataset)
         self.optimizer = (Adam, Rprop)  # with and without weight decay setting
         self.n_losses = (4,)
@@ -122,6 +132,7 @@ class TestModelTrainer(unittest.TestCase):
             self.optimizer,
             self.n_losses,
         )
+        self.params = list(self.params)
         self.clear_model_folders()
 
     def clear_model_folders(self):
@@ -207,24 +218,24 @@ class TestModelTrainer(unittest.TestCase):
                 self.get_model_trainer(p)
 
     def test_model_config(self):
-        p = self.params.__next__()
+        p = self.params[0]
         trainer = self.get_model_trainer(p)
         self.assertEqual(trainer.net.test_param, 1234)
 
     def test_learning_rate(self):
-        p = self.params.__next__()
+        p = self.params[0]
         trainer = self.get_model_trainer(p)
         optim = trainer.optimizer
         self.assertAlmostEqual(optim.param_groups[-1]["lr"], 0.001)
 
     def test_weight_decay(self):
-        p = self.params.__next__()
+        p = self.params[0]
         trainer = self.get_model_trainer(p)
         optim = trainer.optimizer
         self.assertAlmostEqual(optim.param_groups[-1]["weight_decay"], 0.002)
 
     def test_log_every(self):
-        p = self.params.__next__()
+        p = self.params[0]
         trainer = self.get_model_trainer(p)
         self.assertAlmostEqual(trainer.log_every, 1)
 
@@ -237,7 +248,8 @@ class TestModelTrainer(unittest.TestCase):
                 self.assertListEqual(losses_w, target)
 
     def test_callbacks(self):
-        for p in self.params:
+        params = self.params[0], self.params[-1]
+        for p in params:
             with self.subTest(p=p):
                 trainer = self.get_model_trainer(p)
                 trainer.start_training()
@@ -251,9 +263,9 @@ class TestModelTrainer(unittest.TestCase):
                         trainer.on_valid_step_begin_flag,
                         trainer.on_valid_step_end_flag,
                     ],
-                    [True] * 6 if overfit else [True] * 4 + [False] * 2,
+                    [True] * 4 + [False] * 2 if overfit else [True] * 6,
                 )
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

@@ -163,16 +163,22 @@ class ModelTrainer(ABC):
                 data = self._remove_extra_dim(data)
                 self.train_step(data, epoch)
                 if i % self.log_every == 0 and i != 0:
-                    self._log_losses(is_training=True, steps=self.log_every, epoch=epoch)
+                    self._log_losses(
+                        is_training=True, steps=self.log_every, epoch=epoch
+                    )
                     self._reset_running_losses()
                 #
             self._log_gradients(epoch)
-            self._log_losses(is_training=True, steps=(i % self.log_every) + 1, epoch=epoch)
+            self._log_losses(
+                is_training=True, steps=(i % self.log_every) + 1, epoch=epoch
+            )
             self._reset_running_losses()
             self.save_model(epoch)
 
             with torch.no_grad():
-                _log_data = lambda t: self.dummy_input_train if t else self.dummy_input_valid
+                _log_data = (
+                    lambda t: self.dummy_input_train if t else self.dummy_input_valid
+                )
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
                 self._log_outs(epoch)
 
@@ -184,7 +190,9 @@ class ModelTrainer(ABC):
                         self.valid_step(data, epoch)
                     self._log_losses(is_training=False, steps=i + 1, epoch=epoch)
                     self._reset_running_losses()
-                    self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
+                    self.tensorboard_logs(
+                        _log_data(False), epoch=epoch, is_training=False
+                    )
 
             self.on_epoch_end(epoch)
 
@@ -490,7 +498,9 @@ class ModelTrainer(ABC):
         return self.log_writer
 
     @abc.abstractclassmethod
-    def tensorboard_logs(self, net_ins: List[Tensor], epoch: int, is_training: bool) -> None:
+    def tensorboard_logs(
+        self, net_ins: List[Tensor], epoch: int, is_training: bool
+    ) -> None:
         """
         Additional tensorboard logging.
 

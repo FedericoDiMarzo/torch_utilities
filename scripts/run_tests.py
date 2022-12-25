@@ -1,17 +1,20 @@
 from pathimport import set_module_root
 from argparse import ArgumentParser
+from loguru import logger
 from typing import Dict
-import subprocess
-import sys
+import unittest
 
 set_module_root("../tests")
-sys.path = [sys.path[-1]] + sys.path
 from tests import generate_test_data, test_dir
 
 
 def main():
     generate_test_data()
-    subprocess.call([sys.executable, "-m", "unittest", "discover"])
+    logger.info(f"running tests from {test_dir}")
+    test_loader = unittest.TestLoader()
+    tests = test_loader.discover(test_dir, "test_*.py")
+    test_runner = unittest.TextTestRunner(verbosity=2)
+    test_runner.run(tests)
 
 
 def parse_args() -> Dict:

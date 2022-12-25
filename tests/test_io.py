@@ -8,16 +8,18 @@ set_module_root("../torch_utils")
 from tests.generate_test_data import get_test_data_dir
 import torch_utils as tu
 
-torch.manual_seed(984)
-np.random.seed(901)
-tu.set_device("auto")
-torch.set_grad_enabled(False)
+
+def _setup() -> None:
+    torch.manual_seed(984)
+    np.random.seed(901)
+    tu.set_device("auto")
+    torch.set_grad_enabled(False)
 
 
 class TestIO(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         self.mono_file = get_test_data_dir() / "mono.wav"
@@ -76,4 +78,4 @@ class TestIO(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

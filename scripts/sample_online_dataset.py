@@ -72,7 +72,9 @@ def parse_args() -> Dict:
     Dict
         Parsed arguments
     """
-    desc = "extracts random sequences from a HDF5OnlineTestDataset for debugging purposes."
+    desc = (
+        "extracts random sequences from a HDF5OnlineTestDataset for debugging purposes."
+    )
     argparser = ArgumentParser(description=desc)
     argparser.add_argument(
         "speech_dataset",

@@ -9,16 +9,18 @@ import torch
 set_module_root("../torch_utils")
 import torch_utils as tu
 
-torch.manual_seed(984)
-np.random.seed(901)
-tu.set_device("auto")
-torch.set_grad_enabled(False)
+
+def _setup() -> None:
+    torch.manual_seed(984)
+    np.random.seed(901)
+    tu.set_device("auto")
+    torch.set_grad_enabled(False)
 
 
 class TestSTFT(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         module = (np, torch)  # 0
@@ -75,7 +77,7 @@ class TestSTFT(unittest.TestCase):
 class TestMelFilterbank(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         module = (np, torch)
@@ -102,7 +104,9 @@ class TestMelFilterbank(unittest.TestCase):
                 n_mel=n_mel,
             ):
                 filterbank = tu.MelFilterbank(sample_rate, n_freq, n_mel)
-                x = np.ones((1, channels, int(sample_rate * 0.1), n_freq), dtype=complex)
+                x = np.ones(
+                    (1, channels, int(sample_rate * 0.1), n_freq), dtype=complex
+                )
                 x = x if module == np else torch.from_numpy(x).to(tu.get_device())
                 y = filterbank(x)
                 self.assertEqual(y.shape, (1, channels, int(sample_rate * 0.1), n_mel))
@@ -128,7 +132,7 @@ class TestMelFilterbank(unittest.TestCase):
 class TestAudio(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        pass
+        _setup()
 
     def setUp(self):
         self.modules = (np, torch)
@@ -274,4 +278,4 @@ class TestAudio(unittest.TestCase):
 
 
 if __name__ == "__main__":
-    unittest.main()
+    unittest.main(verbosity=2)

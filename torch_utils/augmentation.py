@@ -56,7 +56,7 @@ _expand2 = lambda x: x[:, None]
 
 _expand3 = lambda x: x[:, None, None]
 
-_safe_div = lambda n, d, eps : n / (d+eps)
+_safe_div = lambda n, d, eps: n / (d + eps)
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
