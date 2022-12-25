@@ -27,13 +27,11 @@ class TestLookahead(unittest.TestCase):
     def setUp(self):
         self.x = torch.zeros(1, 2, 10, 16)
 
-    @torch.no_grad()
     def test_no_maintain_shape(self):
         lookahead = tu.Lookahead(4)
         y = lookahead(self.x)
         self.assertEqual(y.shape, (1, 2, 6, 16))
 
-    @torch.no_grad()
     def test_maintain_shape(self):
         lookahead = tu.Lookahead(4, maintain_shape=True)
         y = lookahead(self.x)
@@ -48,7 +46,6 @@ class TestCausalConv2d(unittest.TestCase):
     def setUp(self):
         pass
 
-    @torch.no_grad()
     def test_conv(self):
         conv = tu.CausalConv2d(
             in_channels=1,
@@ -59,16 +56,12 @@ class TestCausalConv2d(unittest.TestCase):
         y = conv(x)
         self.assertEqual(y.shape, x.shape)
 
-    @torch.no_grad()
     def test_conv_padding(self):
-        conv = tu.CausalConv2d(
-            in_channels=1, out_channels=1, kernel_size=(5, 3), padding_f=1
-        )
+        conv = tu.CausalConv2d(in_channels=1, out_channels=1, kernel_size=(5, 3), padding_f=1)
         x = torch.ones((1, 100, 3))
         y = conv(x)
         self.assertEqual(y.shape, x.shape)
 
-    @torch.no_grad()
     def test_conv_separable(self):
         conv = tu.CausalConv2d(
             in_channels=1,
@@ -80,7 +73,6 @@ class TestCausalConv2d(unittest.TestCase):
         y = conv(x)
         self.assertEqual(y.shape, x.shape)
 
-    @torch.no_grad()
     def test_conv_dilation(self):
         conv = tu.CausalConv2d(
             in_channels=1,
@@ -101,7 +93,6 @@ class TestCausalConv2dNormAct(unittest.TestCase):
     def setUp(self):
         pass
 
-    @torch.no_grad()
     def test_conv(self):
         params = (
             (1, 4, 5),  # kernel_f
@@ -122,7 +113,6 @@ class TestCausalConv2dNormAct(unittest.TestCase):
                 y = conv(x)
                 self.assertEqual(y.shape, x.shape)
 
-    @torch.no_grad()
     def test_conv_sum(self):
         conv = tu.CausalConv2dNormAct(
             in_channels=1,
@@ -134,7 +124,6 @@ class TestCausalConv2dNormAct(unittest.TestCase):
         y = conv(x)
         self.assertEqual(y.shape, x.shape)
 
-    @torch.no_grad()
     def test_conv_concat(self):
         conv = tu.CausalConv2dNormAct(
             in_channels=1,
@@ -157,7 +146,6 @@ class TestReparameterize(unittest.TestCase):
         self.eps = 1e-1
 
     @repeat_test(5)
-    @torch.no_grad()
     def test_zero_mean(self):
         mu = torch.zeros(100000)
         logvar = torch.ones(100000)
@@ -166,7 +154,6 @@ class TestReparameterize(unittest.TestCase):
         self.assertLess(y.item(), self.eps)
 
     @repeat_test(5)
-    @torch.no_grad()
     def test_nonzero_mean(self):
         mu = torch.ones(100000)
         logvar = torch.ones(100000)
@@ -189,7 +176,6 @@ class TestScaleChannels2d(unittest.TestCase):
         for i, w in enumerate(weights):
             self.scale.scale.weight.data[i] = w
 
-    @torch.no_grad()
     def test_scaling(self):
         self.set_weights([1, 2])
         x = torch.ones((1, 2, 10, 32))
@@ -206,7 +192,6 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
     def setUp(self):
         pass
 
-    @torch.no_grad()
     def test_forward1(self):
         params = (
             (1, 3, 4, 21),  # tconv_kernelf_size
@@ -247,7 +232,6 @@ class TestGroupedLinear(unittest.TestCase):
     def setUp(self):
         pass
 
-    @torch.no_grad()
     def test_assert(self):
         params = (
             (65, 32),
@@ -258,7 +242,6 @@ class TestGroupedLinear(unittest.TestCase):
                 with self.assertRaises(AssertionError):
                     tu.GroupedLinear(p[0], p[1], groups=8)
 
-    @torch.no_grad()
     def test_no_groups(self):
         x = torch.rand((1, 10, 32))
         gl = tu.GroupedLinear(32, 64, 1)
@@ -278,7 +261,6 @@ class TestMergeLayers(unittest.TestCase):
         self.out_ch = (6, 12)
         self.strides = (1, 2, 4)
 
-    @torch.no_grad()
     def test_down_merge(self):
         params = product(
             self.in_ch,
@@ -293,7 +275,6 @@ class TestMergeLayers(unittest.TestCase):
                 z = merge(x, y)
                 self.assertEqual(y.shape, z.shape)
 
-    @torch.no_grad()
     def test_up_merge(self):
         params = product(
             self.out_ch,
@@ -317,18 +298,53 @@ class TestGruNormAct(unittest.TestCase):
     def setUp(self):
         self.in_size = (16, 32)
         self.h_size = (8, 64)
-        self.merge = (None, (lambda x, y: x + y))
-        self.activation = (None, nn.ReLU())
+        self.merge = (None, (lambda x, y: y))
+        self.activation = (None, nn.Sigmoid())
+        self.batchnorm = (True, False)
         self.params = product(
             self.in_size,
             self.h_size,
             self.merge,
             self.activation,
+            self.batchnorm,
         )
 
-    def get_input(self, p: Tuple) -> Tensor:
-        in_size = p[0]
-        x = torch.randn((1, 100, in_size))
+    def get_input(self, in_size: int) -> Tensor:
+        x = torch.randn((1, 10, in_size))
+        return x
+
+    def test_submodules(self):
+        for p in self.params:
+            in_size, h_size, merge, act, batchnorm = p
+            with self.subTest(p=p):
+                gru = tu.GruNormAct(
+                    input_size=in_size,
+                    hidden_size=h_size,
+                    residual_merge=merge,
+                    activation=act,
+                    disable_batchnorm=not batchnorm,
+                )
+                submodules = set(type(m) for m in tu.get_submodules(gru))
+                batchnorm_type = nn.BatchNorm1d if batchnorm else nn.Identity
+                act_type = nn.Identity if act is None else type(act)
+                expected = set((nn.GRU, batchnorm_type, act_type))
+                self.assertEqual(expected, submodules)
+
+    def test_forward(self):
+        for p in self.params:
+            in_size, h_size, merge, act, batchnorm = p
+            with self.subTest(p=p):
+                x = self.get_input(in_size)
+                gru = tu.GruNormAct(
+                    input_size=in_size,
+                    hidden_size=h_size,
+                    residual_merge=merge,
+                    activation=act,
+                    disable_batchnorm=not batchnorm,
+                )
+                y, h = gru(x)
+                self.assertEqual(y.shape, (*x.shape[:-1], h_size))
+                self.assertEqual(h.shape, (x.shape[0], 1, h_size))
 
 
 if __name__ == "__main__":

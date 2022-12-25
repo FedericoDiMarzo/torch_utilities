@@ -85,9 +85,7 @@ class Lookahead(nn.Module):
         self.maintain_shape = maintain_shape
 
         if self.maintain_shape:
-            self.lookahead_pad = nn.ConstantPad2d(
-                (0, 0, -self.lookahead, self.lookahead), 0
-            )
+            self.lookahead_pad = nn.ConstantPad2d((0, 0, -self.lookahead, self.lookahead), 0)
         else:
             self.lookahead_pad = nn.ConstantPad2d((0, 0, -self.lookahead, 0), 0)
 
@@ -190,12 +188,8 @@ class GroupedLinear(nn.Module):
         self.groups = groups
 
         # error handling
-        assert (
-            input_dim % groups == 0
-        ), f"Input size {input_dim} not divisible by {groups}"
-        assert (
-            output_dim % groups == 0
-        ), f"Hidden size {output_dim} not divisible by {groups}"
+        assert input_dim % groups == 0, f"Input size {input_dim} not divisible by {groups}"
+        assert output_dim % groups == 0, f"Hidden size {output_dim} not divisible by {groups}"
 
         # weights
         self.register_parameter(
@@ -502,13 +496,12 @@ class CausalConvNeuralUpsampler(nn.Module):
         return y
 
 
-# TODO: test
 class GruNormAct(nn.Module):
     def __init__(
         self,
         input_size: int,
         hidden_size: int,
-        num_layers: int,
+        num_layers: int = 1,
         gru_bias: bool = False,
         batch_first: bool = True,
         dropout: float = 0,
