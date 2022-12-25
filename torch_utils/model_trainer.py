@@ -32,6 +32,7 @@ class ModelTrainer(ABC):
         losses: List[Callable],
         net_ins_indices: Optional[List[int]] = None,
         losses_names: Optional[List[str]] = None,
+        save_buffer_maxlen: int = 5,
     ) -> None:
         """
         Abstract class to structure a model training.
@@ -70,6 +71,9 @@ class ModelTrainer(ABC):
                 net_ins = [T2, T1]
         losses_names : Optional[List[str]]
             Names of the losses, by default ["loss0", "loss1", ...]
+        save_buffer_maxlen : int, optional
+            N best checkpoints saved (based on a lower total loss),
+            by default 5
 
 
         config.yml [training] parameters
@@ -125,7 +129,7 @@ class ModelTrainer(ABC):
 
         # extra stuff
         self.save_buffer = []
-        self.save_buffer_maxlen = 1  # TODO: support maxlen > 1
+        self.save_buffer_maxlen = save_buffer_maxlen
         self.log_writer = SummaryWriter(self.logs_dir)
         self.figsize = (8, 6)
         self.dummy_input_train = self._get_dummy_input(True)
@@ -163,22 +167,16 @@ class ModelTrainer(ABC):
                 data = self._remove_extra_dim(data)
                 self.train_step(data, epoch)
                 if i % self.log_every == 0 and i != 0:
-                    self._log_losses(
-                        is_training=True, steps=self.log_every, epoch=epoch
-                    )
+                    self._log_losses(is_training=True, steps=self.log_every, epoch=epoch)
                     self._reset_running_losses()
                 #
             self._log_gradients(epoch)
-            self._log_losses(
-                is_training=True, steps=(i % self.log_every) + 1, epoch=epoch
-            )
+            self._log_losses(is_training=True, steps=(i % self.log_every) + 1, epoch=epoch)
             self._reset_running_losses()
             self.save_model(epoch)
 
             with torch.no_grad():
-                _log_data = (
-                    lambda t: self.dummy_input_train if t else self.dummy_input_valid
-                )
+                _log_data = lambda t: self.dummy_input_train if t else self.dummy_input_valid
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
                 self._log_outs(epoch)
 
@@ -190,9 +188,7 @@ class ModelTrainer(ABC):
                         self.valid_step(data, epoch)
                     self._log_losses(is_training=False, steps=i + 1, epoch=epoch)
                     self._reset_running_losses()
-                    self.tensorboard_logs(
-                        _log_data(False), epoch=epoch, is_training=False
-                    )
+                    self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
 
             self.on_epoch_end(epoch)
 
@@ -439,7 +435,7 @@ class ModelTrainer(ABC):
         _order = lambda t: t[1]
         self.save_buffer.append((checkpoint_name, float(self.last_total_loss)))
         self.save_buffer = sorted(self.save_buffer, key=_order)
-        self.save_buffer = self.save_buffer[: self.save_buffer_maxlen]
+        self.save_buffer = self.save_buffer[: self.save_buffer_maxlen + 1]
 
         self._delete_worse_checkpoints()
 
@@ -498,9 +494,7 @@ class ModelTrainer(ABC):
         return self.log_writer
 
     @abc.abstractclassmethod
-    def tensorboard_logs(
-        self, net_ins: List[Tensor], epoch: int, is_training: bool
-    ) -> None:
+    def tensorboard_logs(self, net_ins: List[Tensor], epoch: int, is_training: bool) -> None:
         """
         Additional tensorboard logging.
 
