@@ -9,7 +9,6 @@ import torch
 import h5py
 
 set_module_root(".")
-from torch_utils.common import get_device
 
 # export list
 __all__ = [
