@@ -1,4 +1,5 @@
 from pathimport import set_module_root
+from torch import nn
 import numpy as np
 import itertools
 import unittest
@@ -54,6 +55,22 @@ class TestConfig(unittest.TestCase):
         y_true = "default"
         y_test = self.config.get("section1", "param10", default="default", _type=int)
         self.assertEqual(y_true, y_test)
+
+    def test_get_submodules(self):
+        model = nn.Sequential(
+            nn.Identity(),
+            nn.ReLU(),
+            nn.Tanh(),
+            nn.Sequential(
+                nn.SELU(),
+                nn.Sigmoid(),
+            ),
+        )
+        modules = tu.get_submodules(model)
+        modules_types = [type(m) for m in modules]
+        expected = [nn.Identity, nn.ReLU, nn.Tanh, nn.SELU, nn.Sigmoid]
+        self.assertListEqual(modules_types, expected)
+        
 
 
 class TestGeneric(unittest.TestCase):

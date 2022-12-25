@@ -316,7 +316,6 @@ def load_model(
     return model
 
 
-# TODO: test
 def get_submodules(model: nn.Module) -> List[nn.Module]:
     """
     Gets all the submodules without children from a model.
