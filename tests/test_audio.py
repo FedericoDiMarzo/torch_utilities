@@ -104,9 +104,7 @@ class TestMelFilterbank(unittest.TestCase):
                 n_mel=n_mel,
             ):
                 filterbank = tu.MelFilterbank(sample_rate, n_freq, n_mel)
-                x = np.ones(
-                    (1, channels, int(sample_rate * 0.1), n_freq), dtype=complex
-                )
+                x = np.ones((1, channels, int(sample_rate * 0.1), n_freq), dtype=complex)
                 x = x if module == np else torch.from_numpy(x).to(tu.get_device())
                 y = filterbank(x)
                 self.assertEqual(y.shape, (1, channels, int(sample_rate * 0.1), n_mel))
@@ -138,10 +136,13 @@ class TestAudio(unittest.TestCase):
         self.modules = (np, torch)
 
     def test_db(self):
-        x = np.random.uniform(0, 1, 100)
-        y = tu.db(x)
-        x_hat = tu.invert_db(y)
-        self.assertTrue(np.allclose(x, x_hat))
+        eps_list = (1e-12, 1e-3, 10)
+        for eps in eps_list:
+            with self.subTest(eps=eps):
+                x = np.random.uniform(0, 1, 100)
+                y = tu.db(x, eps)
+                x_hat = tu.invert_db(y, eps)
+                self.assertTrue(np.allclose(x, x_hat))
 
     def test_db_tensor(self):
         x = torch.rand(100)

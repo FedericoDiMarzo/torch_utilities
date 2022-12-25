@@ -175,9 +175,7 @@ def _stft_istft_core(
         window += "_window"
         win_fun = getattr(torch, window)
     except AttributeError:
-        allowed_win = [
-            w + "_window" for w in ["hann", "hamming", "bartlett", "blackman", "kaiser"]
-        ]
+        allowed_win = [w + "_window" for w in ["hann", "hamming", "bartlett", "blackman", "kaiser"]]
         err_msg = "choose a window between:\n" + ", ".join(allowed_win)
         raise AttributeError(err_msg)
 
@@ -377,7 +375,7 @@ class MelInverseFilterbank:
         return y
 
 
-def db(x: Union[np.ndarray, Tensor]) -> Union[np.ndarray, Tensor]:
+def db(x: Union[np.ndarray, Tensor], eps: float = 1e-12) -> Union[np.ndarray, Tensor]:
     """
     Converts linear to dB
 
@@ -385,18 +383,20 @@ def db(x: Union[np.ndarray, Tensor]) -> Union[np.ndarray, Tensor]:
     ----------
     x : Union[np.ndarray, Tensor]
         Input signal amplitude
+    eps : float
+        Number summed to x before applying the logarithm,
+        by default 1e-12
 
     Returns
     -------
     float
         Input in dB
     """
-    eps = 1e-12
     module = get_np_or_torch(x)
     return 20 * module.log10(x + eps)
 
 
-def invert_db(x: Union[np.ndarray, Tensor]) -> Union[np.ndarray, Tensor]:
+def invert_db(x: Union[np.ndarray, Tensor], eps: float = 1e-12) -> Union[np.ndarray, Tensor]:
     """
     Converts dB to linear
 
@@ -410,7 +410,7 @@ def invert_db(x: Union[np.ndarray, Tensor]) -> Union[np.ndarray, Tensor]:
     float
         Input inverting dB
     """
-    return 10 ** (x / 20)
+    return 10 ** (x / 20) - eps
 
 
 def power(x: Union[np.ndarray, Tensor]) -> float:
@@ -527,9 +527,7 @@ def _win_to_sides(
     return x
 
 
-def fade_sides(
-    x: Union[np.ndarray, Tensor], fade_len: int = 100
-) -> Union[np.ndarray, Tensor]:
+def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 100) -> Union[np.ndarray, Tensor]:
     """
     Apply an half of an Hanning window to both
     sides of the input, in order to obtain a fade in/out.
