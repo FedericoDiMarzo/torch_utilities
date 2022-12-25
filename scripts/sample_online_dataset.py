@@ -1,10 +1,8 @@
-from torch import Tensor
-from typing import Dict, List
 from pathimport import set_module_root
 from argparse import ArgumentParser
-from loguru import logger
+from typing import Dict, List
+from torch import Tensor
 from pathlib import Path
-from tqdm import tqdm
 import numpy as np
 import torch
 
@@ -13,12 +11,12 @@ set_module_root("..")
 from torch_utils import HDF5OnlineDataset
 import torch_utils as tu
 
-
 def main():
     # argparse
     args = parse_args()
 
     sr = args.sample_rate
+    snr = args.snr
 
     # seed
     if args.seed != 0:
@@ -32,9 +30,9 @@ def main():
     # dataset
     dataset = HDF5OnlineTestDataset(
         dataset_paths=[speech_path, noise_path],
-        data_layouts=["x", "x"],
         batch_size=args.count,
         total_items=args.count,
+        snr=snr,
     )
 
     # sampling
@@ -50,16 +48,16 @@ class HDF5OnlineTestDataset(HDF5OnlineDataset):
     def __init__(
         self,
         dataset_paths: List[Path],
-        data_layouts: List[List[str]],
         batch_size: int,
         total_items: int,
+        snr: float,
     ) -> None:
-        super().__init__(dataset_paths, data_layouts, batch_size, total_items)
+        super().__init__(dataset_paths, [["x"], ["x"]], batch_size, total_items)
+        self.snr = snr
 
     def transform(self, raw_data: List[Tensor]) -> List[Tensor]:
         s, n = raw_data
-        snr = 15
-        x = tu.add_noise(s, n, (snr, snr))
+        x = tu.add_noise(s, n, (self.snr, self.snr))
         x = tu.scale(x, (0, 0))
         return [x]
 
@@ -73,7 +71,7 @@ def parse_args() -> Dict:
     Dict
         Parsed arguments
     """
-    desc = "extracts random sequences from an HDF5OnlineDataset for debugging purposes."
+    desc = "extracts random sequences from a HDF5OnlineTestDataset for debugging purposes."
     argparser = ArgumentParser(description=desc)
     argparser.add_argument(
         "speech_dataset",
@@ -94,7 +92,13 @@ def parse_args() -> Dict:
         dest="mono",
         default=True,
         action="store_false",
-        help="Loads first channel only",
+        help="loads first channel only",
+    )
+    argparser.add_argument(
+        "--snr",
+        type=float,
+        default=15,
+        help="Signal to Noise Ratio",
     )
     argparser.add_argument(
         "--count",
