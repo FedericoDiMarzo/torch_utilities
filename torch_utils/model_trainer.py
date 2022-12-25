@@ -15,7 +15,7 @@ import warnings
 import torch
 import abc
 
-set_module_root(".", )
+set_module_root(".")
 from torch_utils.common import DotDict
 
 __all__ = ["ModelTrainer"]

@@ -4,7 +4,7 @@ from typing import Dict
 import subprocess
 import sys
 
-set_module_root("../tests", )
+set_module_root("../tests")
 sys.path = [sys.path[-1]] + sys.path
 from tests import generate_test_data, test_dir
 

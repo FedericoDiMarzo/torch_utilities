@@ -5,7 +5,7 @@ from torch import nn, Tensor
 import numpy as np
 import torch
 
-set_module_root(".", )
+set_module_root(".")
 
 __all__ = [
     "LambdaLayer",

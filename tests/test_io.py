@@ -4,7 +4,7 @@ from torch import Tensor
 import numpy as np
 import torch
 
-set_module_root("../torch_utils", )
+set_module_root("../torch_utils")
 from tests.generate_test_data import get_test_data_dir
 import torch_utils as tu
 
