@@ -20,7 +20,6 @@ from torch_utils.common import DotDict
 
 __all__ = ["ModelTrainer"]
 
-# TODO: save checkpoints based on validation loss
 
 class ModelTrainer(ABC):
     def __init__(
@@ -174,7 +173,6 @@ class ModelTrainer(ABC):
             self._log_gradients(epoch)
             self._log_losses(is_training=True, steps=(i % self.log_every) + 1, epoch=epoch)
             self._reset_running_losses()
-            self.save_model(epoch)
 
             with torch.no_grad():
                 _log_data = lambda t: self.dummy_input_train if t else self.dummy_input_valid
@@ -191,6 +189,7 @@ class ModelTrainer(ABC):
                     self._reset_running_losses()
                     self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
 
+            self.save_model(epoch)
             self.on_epoch_end(epoch)
 
         logger.info("training complete")  # - = - § >>
