@@ -23,7 +23,6 @@ class TestAugmentation(unittest.TestCase):
     def setUp(self):
         pass
 
-    @torch.no_grad()
     def test_shuffle(self):
         torch.manual_seed(0)
         x = torch.arange(1000)
@@ -31,7 +30,6 @@ class TestAugmentation(unittest.TestCase):
         self.assertEqual(x.shape, y.shape)
         self.assertTrue(torch.any(x.not_equal(y)))
 
-    @torch.no_grad()
     def test_add_noise(self):
         snr_set = (-12, 0, 12)
         for snr in snr_set:
@@ -41,7 +39,6 @@ class TestAugmentation(unittest.TestCase):
                 y = aug.add_noise(x, n, (snr, snr))
                 self.assertTrue(x.max().equal(y.max()))
 
-    @torch.no_grad()
     def test_scale(self):
         scale_set = (-12, 0, 12)
         for scale in scale_set:
@@ -51,7 +48,6 @@ class TestAugmentation(unittest.TestCase):
                 y = aug.scale(x, (scale, scale))
                 self.assertAlmostEqual(y.max().item(), lin_scale)
 
-    @torch.no_grad()
     def test_overdrive(self):
         x = torch.ones((1, 1, 100))
         y = aug.overdrive(x)
