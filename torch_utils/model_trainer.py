@@ -20,6 +20,7 @@ from torch_utils.common import DotDict
 
 __all__ = ["ModelTrainer"]
 
+# TODO: save checkpoints based on validation loss
 
 class ModelTrainer(ABC):
     def __init__(
