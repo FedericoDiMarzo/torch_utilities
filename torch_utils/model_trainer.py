@@ -116,7 +116,7 @@ class ModelTrainer(ABC):
 
         # other dirs
         self.checkpoints_dir = model_path / "checkpoints"
-        self.logs_dir = model_path / "logs_dir"
+        self.logs_dir = model_path / "logs"
         [d.mkdir(exist_ok=True) for d in (self.checkpoints_dir, self.logs_dir)]
 
         # model and running_losses setup
