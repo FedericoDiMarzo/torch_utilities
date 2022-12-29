@@ -1,6 +1,7 @@
 from pathimport import set_module_root
 from argparse import ArgumentParser
 from typing import Dict, List
+from loguru import logger
 from torch import Tensor
 from pathlib import Path
 import numpy as np
@@ -9,6 +10,7 @@ import torch
 
 set_module_root("..", prefix=False)
 from torch_utils import HDF5OnlineDataset
+import torch_utils.augmentation as aug
 import torch_utils as tu
 
 
@@ -43,6 +45,7 @@ def main():
     # saving
     _name = lambda i: f"sample_{i}.wav"
     [tu.save_audio(cwd / _name(i), x[i], sr) for i in range(x.shape[0])]
+    logger.info(f"{args.count} samples saved")
 
 
 class HDF5OnlineTestDataset(HDF5OnlineDataset):
@@ -58,8 +61,8 @@ class HDF5OnlineTestDataset(HDF5OnlineDataset):
 
     def transform(self, raw_data: List[Tensor]) -> List[Tensor]:
         s, n = raw_data
-        x = tu.add_noise(s, n, (self.snr, self.snr))
-        x = tu.scale(x, (0, 0))
+        x = aug.add_noise(s, n, (self.snr, self.snr))
+        x = aug.scale(x, (0, 0))
         return [x]
 
 
