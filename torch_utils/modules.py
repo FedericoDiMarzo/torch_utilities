@@ -405,7 +405,7 @@ class CausalConvNeuralUpsampler(nn.Module):
         in_channels: int,
         out_channels: int,
         conv_kernel_size: Tuple[int, int],
-        tconv_kernel_f_size: int = 4,
+        tconv_kernel_f_size: Optional[int] = None,
         tconv_stride_f: int = 2,
         tconv_padding_f: int = 0,
         dilation: Tuple[int, int] = 1,
@@ -439,6 +439,11 @@ class CausalConvNeuralUpsampler(nn.Module):
         super().__init__()
         self.separable = separable
         self.disable_batchnorm = disable_batchnorm
+
+        # tconv_kernel_f_size is set to twice tconv_stride_f
+        # to reduce the reconstruction artifacts
+        if tconv_kernel_f_size is None:
+            tconv_kernel_f_size = 2 * tconv_stride_f
 
         # inner modules
         self.tconv = nn.ConvTranspose2d(
