@@ -33,6 +33,8 @@ def _get_input(in_channels: int, in_freqs: int, dtype: Type) -> Tuple:
 
 _get_f = lambda x: x if isinstance(x, int) else x[1]
 
+sum_merge = tu.LambdaLayer(lambda x, y: x + y)
+
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 
@@ -72,7 +74,7 @@ class TestCausalConv2d(unittest.TestCase):
         self.separable = (False, True)
         self.enable_weight_norm = (False, True)
         self.dtype = (torch.float, torch.double)
-        self.input_freqs = (32, 33)
+        self.in_freqs = (32, 33)
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
         self.params = product(
             self.in_channels,
@@ -85,7 +87,7 @@ class TestCausalConv2d(unittest.TestCase):
             self.separable,
             self.enable_weight_norm,
             self.dtype,
-            self.input_freqs,
+            self.in_freqs,
         )
 
     def get_instance(self, p: Tuple) -> tu.CausalConv2d:
@@ -100,7 +102,7 @@ class TestCausalConv2d(unittest.TestCase):
             separable,
             enable_weight_norm,
             dtype,
-            input_freqs,
+            in_freqs,
         ) = p
         instance = tu.CausalConv2d(
             in_channels=in_channels,
@@ -128,9 +130,9 @@ class TestCausalConv2d(unittest.TestCase):
             separable,
             enable_weight_norm,
             dtype,
-            input_freqs,
+            in_freqs,
         ) = p
-        x = _get_input(in_channels, input_freqs, dtype)
+        x = _get_input(in_channels, in_freqs, dtype)
         return x
 
     def test_inner_modules(self):
@@ -146,7 +148,7 @@ class TestCausalConv2d(unittest.TestCase):
                 separable,
                 enable_weight_norm,
                 dtype,
-                input_freqs,
+                in_freqs,
             ) = p
             with self.subTest(p=p):
                 conv = self.get_instance(p)
@@ -173,7 +175,7 @@ class TestCausalConv2d(unittest.TestCase):
                 separable,
                 enable_weight_norm,
                 dtype,
-                input_freqs,
+                in_freqs,
             ) = p
             with self.subTest(p=p):
                 conv = self.get_instance(p)
@@ -182,7 +184,7 @@ class TestCausalConv2d(unittest.TestCase):
                 batch_size, _, frames = x.shape[:3]
                 dilation_f = _get_f(dilation)
                 kernel_f = _get_f(kernel_size)
-                out_freqs = input_freqs + 2 * padding_f - dilation_f * (kernel_f - 1) - 1
+                out_freqs = in_freqs + 2 * padding_f - dilation_f * (kernel_f - 1) - 1
                 out_freqs = int(out_freqs / stride_f + 1)
                 expected_shape = (batch_size, out_channels, frames, out_freqs)
                 self.assertEqual(y.shape, expected_shape)
@@ -204,11 +206,11 @@ class TestCausalConv2dNormAct(unittest.TestCase):
         self.dilation = (1, 4, (3, 2))
         self.separable = (False, True)
         self.activation = (None, nn.ReLU())
-        self.residual_merge = (None, nn.Identity())
+        self.residual_merge = (None, sum_merge)  # TODO: for some reason sum_merge is never tested
         self.disable_batchnorm = (False, True)
         self.enable_weight_norm = (False, True)
         self.dtype = (torch.float, torch.double)
-        self.input_freqs = (32, 33, 64)
+        self.in_freqs = (32, 33, 64)
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
         self.params = product(
             self.in_channels,
@@ -222,7 +224,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             self.disable_batchnorm,
             self.enable_weight_norm,
             self.dtype,
-            self.input_freqs,
+            self.in_freqs,
         )
 
     def get_instance(self, p: Tuple) -> tu.CausalConv2dNormAct:
@@ -238,7 +240,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             disable_batchnorm,
             enable_weight_norm,
             dtype,
-            input_freqs,
+            in_freqs,
         ) = p
         if stride_f != 1:
             residual_merge = None
@@ -271,9 +273,9 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             disable_batchnorm,
             enable_weight_norm,
             dtype,
-            input_freqs,
+            in_freqs,
         ) = p
-        x = _get_input(in_channels, input_freqs, dtype)
+        x = _get_input(in_channels, in_freqs, dtype)
         return x
 
     def test_inner_modules(self):
@@ -290,7 +292,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
                 disable_batchnorm,
                 enable_weight_norm,
                 dtype,
-                input_freqs,
+                in_freqs,
             ) = p
             with self.subTest(p=p):
                 conv = self.get_instance(p)
@@ -322,7 +324,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
                 disable_batchnorm,
                 enable_weight_norm,
                 dtype,
-                input_freqs,
+                in_freqs,
             ) = p
             with self.subTest(p=p):
                 conv = self.get_instance(p)
@@ -331,8 +333,8 @@ class TestCausalConv2dNormAct(unittest.TestCase):
                 batch_size, _, frames = x.shape[:3]
                 dilation_f = _get_f(dilation)
                 kernel_f = _get_f(kernel_size)
-                out_freqs = input_freqs // stride_f
-                flag = ((dilation_f * (kernel_f - 1) + 1) % 2 == 0) or (input_freqs % 2 == 1)
+                out_freqs = in_freqs // stride_f
+                flag = ((dilation_f * (kernel_f - 1) + 1) % 2 == 0) or (in_freqs % 2 == 1)
                 out_freqs = (out_freqs + 1) if flag else out_freqs
                 expected_shape = (batch_size, out_channels, frames, out_freqs)
                 self.assertEqual(y.shape, expected_shape)
@@ -397,38 +399,171 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
         _setup()
 
     def setUp(self):
-        pass
-
-    def test_forward1(self):
-        params = (
-            (1, 3, 4, 21),  # tconv_kernelf_size
-            (1, 2, 4),  # stride
-            (1, 3),  # conv_kernel_size
-            (False, True),  # separable
-            (False, True),  # with sum?
+        self.in_channels = (1, 2)
+        self.out_channels = (1, 3)
+        self.post_conv_kernel_size = (1, 2, (5, 7))
+        self.post_conv_count = (1, 2)
+        self.post_conv_dilation = (1, 3)
+        self.tconv_stride_f = (1, 2)
+        self.separable = (False, True)
+        self.disable_batchnorm = (False, True)
+        self.enable_weight_norm = (False, True)
+        self.activation = (None, nn.ReLU())
+        self.residual_merge = (None, sum_merge)
+        self.dtype = (torch.float, torch.double)
+        self.in_freqs = (32, 33,)
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+        self.params = product(
+            self.in_channels,
+            self.out_channels,
+            self.post_conv_kernel_size,
+            self.post_conv_count,
+            self.post_conv_dilation,
+            self.tconv_stride_f,
+            self.separable,
+            self.disable_batchnorm,
+            self.enable_weight_norm,
+            self.activation,
+            self.residual_merge,
+            self.dtype,
+            self.in_freqs,
         )
-        params = product(*params)
-        for p in params:
-            # residual_merge
-            if p[4] and p[1] == 1:
-                merge = lambda x, y: x + y
-            else:
-                merge = None
 
+    def get_instance(self, p: Tuple) -> tu.CausalConvNeuralUpsampler:
+        (
+            in_channels,
+            out_channels,
+            post_conv_kernel_size,
+            post_conv_count,
+            post_conv_dilation,
+            tconv_stride_f,
+            separable,
+            disable_batchnorm,
+            enable_weight_norm,
+            activation,
+            residual_merge,
+            dtype,
+            in_freqs,
+        ) = p
+        if tconv_stride_f != 1:
+            residual_merge = None
+
+        if in_channels != out_channels:
+            residual_merge = None
+
+        if post_conv_count > 1:
+            post_conv_kernel_size, post_conv_dilation = [
+                [x] * post_conv_count for x in (post_conv_kernel_size, post_conv_dilation)
+            ]
+
+        instance = tu.CausalConvNeuralUpsampler(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            post_conv_kernel_size=post_conv_kernel_size,
+            post_conv_count=post_conv_count,
+            post_conv_dilation=post_conv_dilation,
+            tconv_stride_f=tconv_stride_f,
+            separable=separable,
+            disable_batchnorm=disable_batchnorm,
+            enable_weight_norm=enable_weight_norm,
+            activation=activation,
+            residual_merge=residual_merge,
+            dtype=dtype,
+        )
+        return instance
+
+    def get_input(self, p: Tuple) -> Tensor:
+        (
+            in_channels,
+            out_channels,
+            post_conv_kernel_size,
+            post_conv_count,
+            post_conv_dilation,
+            tconv_stride_f,
+            separable,
+            disable_batchnorm,
+            enable_weight_norm,
+            activation,
+            residual_merge,
+            dtype,
+            in_freqs,
+        ) = p
+        x = _get_input(in_channels, in_freqs, dtype)
+        return x
+
+    def test_inner_modules(self):
+        for p in self.params:
+            (
+                in_channels,
+                out_channels,
+                post_conv_kernel_size,
+                post_conv_count,
+                post_conv_dilation,
+                tconv_stride_f,
+                separable,
+                disable_batchnorm,
+                enable_weight_norm,
+                activation,
+                residual_merge,
+                dtype,
+                in_freqs,
+            ) = p
             with self.subTest(p=p):
-                upsam = tu.CausalConvNeuralUpsampler(
-                    in_channels=1,
-                    out_channels=1,
-                    tconv_kernel_f_size=p[0],
-                    tconv_padding_f=0,
-                    post_conv_kernel_size=(1, p[2]),
-                    tconv_stride_f=p[1],
-                    separable=p[3],
-                    residual_merge=merge,
-                )
-                x = torch.ones((1, 1, 100, 32))
-                y = upsam(x)
-                self.assertEqual(list(y.shape), [*x.shape[:-1], 32 * p[1]])
+                upsamp = self.get_instance(p)
+
+                # tconv
+                tconv = upsamp.tconv
+                self.assertEqual(tconv.in_channels, in_channels)
+                self.assertEqual(tconv.out_channels, out_channels)
+                self.assertEqual(tconv.kernel_size, (1, 2 * tconv_stride_f))
+
+                # post conv
+                pconv = upsamp.conv
+                self.assertEqual(type(pconv), nn.Sequential)
+                self.assertEqual(len(pconv), post_conv_count * 2)
+                for c in pconv:
+                    if isinstance(c, tu.CausalConv2d) and not separable:
+                        self.assertEqual(c.conv.in_channels, out_channels)
+                        self.assertEqual(c.conv.out_channels, out_channels)
+                        self.assertEqual(c.separable, separable)
+                        self.assertEqual(c.enable_weight_norm, enable_weight_norm)
+
+                # batchnorm
+                if enable_weight_norm:
+                    self.assertTrue(upsamp.disable_batchnorm)
+
+                # activation
+                act = upsamp.activation
+                if activation is None:
+                    self.assertEqual(type(act), nn.Identity)
+                else:
+                    self.assertEqual(type(act), type(activation))
+
+    def test_forward(self):
+        for p in self.params:
+            (
+                in_channels,
+                out_channels,
+                post_conv_kernel_size,
+                post_conv_count,
+                post_conv_dilation,
+                tconv_stride_f,
+                separable,
+                disable_batchnorm,
+                enable_weight_norm,
+                activation,
+                residual_merge,
+                dtype,
+                in_freqs,
+            ) = p
+            with self.subTest(p=p):
+                upsamp = self.get_instance(p)
+                x = self.get_input(p)
+                y = upsamp(x)
+                batch_size, _, frames = x.shape[:3]
+                out_freqs = tconv_stride_f * in_freqs
+                expected_shape = (batch_size, out_channels, frames, out_freqs)
+                self.assertEqual(y.shape, expected_shape)
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =

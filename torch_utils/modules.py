@@ -8,6 +8,8 @@ import torch
 
 set_module_root(".")
 
+# TODO: refactor saving all __init__ parameters as attributes
+
 __all__ = [
     "LambdaLayer",
     "Lookahead",
@@ -91,8 +93,8 @@ class LambdaLayer(nn.Module):
         super(LambdaLayer, self).__init__()
         self.f = f
 
-    def forward(self, x):
-        return self.f(x)
+    def forward(self, *x):
+        return self.f(*x)
 
 
 class Lookahead(nn.Module):
@@ -515,11 +517,10 @@ class CausalConvNeuralUpsampler(nn.Module):
         in_channels: int,
         out_channels: int,
         post_conv_kernel_size: Tuple[int, int],
-        post_conv_count: int = 1,  # TODO: implement it
         post_conv_dilation: Tuple[int, int] = 1,
-        tconv_kernel_f_size: Optional[int] = None,
+        post_conv_count: int = 1,
+        tconv_kernel_f: Optional[int] = None,
         tconv_stride_f: int = 2,
-        tconv_padding_f: int = 0,
         separable: bool = False,
         batchnorm_eps: float = 1e-05,
         batchnorm_momentum: float = 0.1,
@@ -543,9 +544,12 @@ class CausalConvNeuralUpsampler(nn.Module):
         post_conv_kernel_size : Tuple[int, int]
             Kernel size of the post convolutions. Can be also an int, or a list
             of ints/Tuple[int, int] of length post_conv_count
+        post_conv_dilation : Tuple[int,int], optional
+            Dilation of the post convolutions. Can be also an int, or a list
+            of ints/Tuple[int, int] of length post_conv_count
         post_conv_count : int, optional
             Number of post convolutions, by default 1
-        tconv_kernel_f_size : Optional[int], optional
+        tconv_kernel_f : Optional[int], optional
             Frequncy kernel size of the transposed convolution,
             by default twice tconv_stride_f
         tconv_stride_f : int, optional
@@ -578,6 +582,7 @@ class CausalConvNeuralUpsampler(nn.Module):
         self.separable = separable
         self.disable_batchnorm = disable_batchnorm
         self.enable_weight_norm = enable_weight_norm
+        self.post_conv_count = post_conv_count
 
         # optional weight normalization
         self._normalize = weight_norm if self.enable_weight_norm else (lambda x: x)
@@ -588,35 +593,32 @@ class CausalConvNeuralUpsampler(nn.Module):
 
         # tconv_kernel_f_size is set to twice tconv_stride_f
         # to reduce the reconstruction artifacts
-        if tconv_kernel_f_size is None:
-            tconv_kernel_f_size = 2 * tconv_stride_f
+        if tconv_kernel_f is None:
+            tconv_kernel_f = 2 * tconv_stride_f
 
         # inner modules
         self.tconv = self._normalize(
             nn.ConvTranspose2d(
                 in_channels=in_channels,
-                out_channels=in_channels,
-                kernel_size=(1, tconv_kernel_f_size),
+                out_channels=out_channels,
+                kernel_size=(1, tconv_kernel_f),
                 stride=(1, tconv_stride_f),
-                padding=(0, tconv_padding_f),
-                output_padding=(0, tconv_stride_f - 1),
+                # output_padding=(0, tconv_stride_f - 1),
                 bias=False,
                 dtype=dtype,
             )
         )
 
-        pad_f = tconv_kernel_f_size // 2
-        if tconv_kernel_f_size % 2 == 0:
-            # even tconv kernel
-            self.padding_f = nn.ConstantPad2d((-pad_f, -pad_f + 1, 0, 0), 0)
+        pad_f = tconv_stride_f - tconv_kernel_f
+        half_pad_f = pad_f // 2
+        if pad_f % 2 == 0:
+            self.padding_f = nn.ConstantPad2d((half_pad_f, half_pad_f, 0, 0), 0)
         else:
-            self.padding_f = nn.ConstantPad2d((-pad_f, -pad_f, 0, 0), 0)
+            self.padding_f = nn.ConstantPad2d((half_pad_f, half_pad_f + 1, 0, 0), 0)
 
-        self.conv = CausalConv2d(
-            in_channels=in_channels,
+        self.conv = self._get_conv_layers(
             out_channels=out_channels,
             kernel_size=post_conv_kernel_size,
-            padding_f=post_conv_kernel_size[1] // 2,
             dilation=post_conv_dilation,
             bias=False,
             separable=separable,
@@ -648,6 +650,91 @@ class CausalConvNeuralUpsampler(nn.Module):
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y
+
+    def _get_conv_layers(
+        self,
+        out_channels: int,
+        kernel_size: Tuple[int, int],
+        dilation: Tuple[int, int],
+        bias: bool,
+        separable: bool,
+        enable_weight_norm: bool,
+        dtype,
+    ) -> nn.Sequential:
+        """
+        Gets the convolutional layers.
+
+        Returns
+        -------
+        nn.Sequential
+            Sequence of one or more CausalConv2d layers
+        """
+        # error handling
+        err_msg = f"post_conv_count == {self.post_conv_count} is not enforced"
+        for p in kernel_size, dilation:
+            if self.post_conv_count == 1:
+                assert (type(p) == tuple and len(p) == 2) or (type(p) == int), err_msg
+            else:
+                assert type(p) != int and len(p) == self.post_conv_count, err_msg
+
+        paddings = self._get_conv_layer_paddings_f(kernel_size, dilation)
+
+        # to solve an unique case
+        if self.post_conv_count == 1:
+            dilation, kernel_size = [[dilation], [kernel_size]]
+
+        conv = []
+        for k, p, d in zip(kernel_size, paddings, dilation):
+            conv.append(
+                CausalConv2d(
+                    in_channels=out_channels,
+                    out_channels=out_channels,
+                    kernel_size=k,
+                    dilation=d,
+                    bias=bias,
+                    separable=separable,
+                    enable_weight_norm=enable_weight_norm,
+                    dtype=dtype,
+                )
+            )
+            conv.append(p)
+
+        conv = nn.Sequential(*conv)
+        return conv
+
+    def _get_conv_layer_paddings_f(
+        self,
+        kernel_size: Tuple[int, int],
+        dilation: Tuple[int, int],
+    ) -> List[int]:
+        """
+        Gets the paddings of the CausalConv2d layers
+
+        Returns
+        -------
+        int
+            Padding of CausalConv2d layers
+        """
+        paddings = []
+        _get_pad = lambda d, k: (d * (k - 1) + 1) // 2
+
+        # to solve an unique case
+        if self.post_conv_count == 1:
+            dilation, kernel_size = [[dilation], [kernel_size]]
+
+        f = get_freq_value
+        for d, k in zip(dilation, kernel_size):
+            d_f, k_f = [f(x) for x in (d, k)]
+            pad_f = d_f * (k_f - 1) + 1
+            half_pad_f = pad_f // 2
+            if pad_f % 2 == 0:
+                pad = nn.ConstantPad2d((half_pad_f, half_pad_f - 1, 0, 0), 0)
+            else:
+                pad = nn.ConstantPad2d((half_pad_f, half_pad_f, 0, 0), 0)
+
+            paddings.append(pad)
+
+        return paddings
 
 
 class GruNormAct(nn.Module):
