@@ -1,4 +1,5 @@
 from typing import Callable, List, Optional, Tuple
+from torch.nn.utils import weight_norm
 from pathimport import set_module_root
 import torch.nn.functional as F
 from torch import nn, Tensor
@@ -41,6 +42,40 @@ def get_time_value(param):
         return param[0]
     else:
         return param
+
+
+def get_freq_value(param):
+    """
+    Extracts the parameter referring to the
+    frequency axis.
+
+    Parameters
+    ----------
+    param : tuple or scalar
+        Module parameter
+
+    Returns
+    -------
+    scalar
+        Temporal parameter
+    """
+    if isinstance(param, tuple):
+        return param[1]
+    else:
+        return param
+
+
+def get_causal_conv_padding(kernel_size: int, dilation: int) -> int:
+    """
+    Calculates the causal convolutional padding.
+
+    Returns
+    -------
+    int
+       Total causal padding
+    """
+    causal_pad = (kernel_size - 1) * dilation
+    return causal_pad
 
 
 class LambdaLayer(nn.Module):
@@ -249,6 +284,7 @@ class CausalConv2d(nn.Module):
         dilation: Tuple[int, int] = 1,
         bias: bool = True,
         separable: bool = False,
+        enable_weight_norm: bool = False,
         dtype=None,
     ) -> None:
         """
@@ -260,46 +296,58 @@ class CausalConv2d(nn.Module):
 
         separable: bool, optional
             Enable separable convolution (depthwise + pointwise), by default False
+        enable_weight_norm : bool, optional
+            Enables weight normalization, by default False
         """
         super().__init__()
         self.causal_pad_amount = self._get_causal_pad_amount(kernel_size, dilation)
+        self.enable_weight_norm = enable_weight_norm
         self.separable = separable
+
+        # optional weight normalization
+        self._normalize = weight_norm if self.enable_weight_norm else (lambda x: x)
 
         # inner modules
         self.causal_pad = nn.ConstantPad2d((0, 0, self.causal_pad_amount, 0), 0)
         groups = np.gcd(in_channels, out_channels)
 
         if not self.separable:
-            self.conv = nn.Conv2d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=kernel_size,
-                stride=(1, stride_f),
-                padding=(0, padding_f),
-                dilation=dilation,
-                bias=bias,
-                dtype=dtype,
+            self.conv = self._normalize(
+                nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=kernel_size,
+                    stride=(1, stride_f),
+                    padding=(0, padding_f),
+                    dilation=dilation,
+                    bias=bias,
+                    dtype=dtype,
+                )
             )
         else:
             # separable convolution
             # depthwise + pointwise
-            depthwise = nn.Conv2d(
-                in_channels=in_channels,
-                out_channels=out_channels,
-                kernel_size=kernel_size,
-                stride=(1, stride_f),
-                padding=(0, padding_f),
-                dilation=dilation,
-                bias=bias,
-                groups=groups,
-                dtype=dtype,
+            depthwise = self._normalize(
+                nn.Conv2d(
+                    in_channels=in_channels,
+                    out_channels=out_channels,
+                    kernel_size=kernel_size,
+                    stride=(1, stride_f),
+                    padding=(0, padding_f),
+                    dilation=dilation,
+                    bias=bias,
+                    groups=groups,
+                    dtype=dtype,
+                )
             )
-            pointwise = nn.Conv2d(
-                in_channels=out_channels,
-                out_channels=out_channels,
-                kernel_size=1,
-                bias=False,
-                dtype=dtype,
+            pointwise = self._normalize(
+                nn.Conv2d(
+                    in_channels=out_channels,
+                    out_channels=out_channels,
+                    kernel_size=1,
+                    bias=False,
+                    dtype=dtype,
+                )
             )
             self.conv = nn.Sequential(depthwise, pointwise)
 
@@ -308,12 +356,12 @@ class CausalConv2d(nn.Module):
         x = self.conv(x)
         return x
 
-    def _get_causal_pad_amount(self, kernel_size, dilation) -> int:
+    def _get_causal_pad_amount(self, kernel_size: int, dilation: int) -> int:
         """
         Calculates the causal padding.
         """
         kernel_size, dilation = map(get_time_value, (kernel_size, dilation))
-        causal_pad = (kernel_size - 1) * dilation
+        causal_pad = get_causal_conv_padding(kernel_size, dilation)
         return causal_pad
 
 
@@ -326,63 +374,98 @@ class CausalConv2dNormAct(nn.Module):
         stride_f: int = 1,
         dilation: Tuple[int, int] = 1,
         separable: bool = False,
-        eps: float = 1e-05,
-        momentum: float = 0.1,
-        affine: bool = True,
-        track_running_stats: bool = True,
+        batchnorm_eps: float = 1e-05,
+        batchnorm_momentum: float = 0.1,
+        batchnorm_affine: bool = True,
+        batchnorm_track_running_stats: bool = True,
         activation: nn.Module = nn.ReLU(),
         residual_merge: Optional[Callable] = None,
         disable_batchnorm: bool = False,
+        enable_weight_norm: bool = False,
         dtype=None,
     ) -> None:
         """
         CausalConv2d + BatchNorm2d + Activation.
 
+        This layer ensures f_in = f_out // stride_f only if
+        f_in is even, stride_f divides f_in and
+        [dilation_f * (kernel_f - 1) + 1] is odd.
+
+        Otherwise f_in = f_out // stride_f + 1.
+
+
         Parameters
         ----------
-        Combination of the modules parameters
-
-        separable: bool, optional
+        in_channels : int
+            Number of input channels
+        out_channels : int
+            Number of output channels
+        kernel_size : Tuple[int, int]
+            Convolution kernel size
+        stride_f : int, optional
+            Frequency stride, by default 1
+        dilation : Tuple[int, int], optional
+            Convolution dilation, by default 1
+        separable : bool, optional
             Enable separable convolution (depthwise + pointwise), by default False
-        activation: nn.Module, optional
+        batchnorm_eps : float, optional
+            Eps parameter of the BatchNorm2d , by default 1e-05
+        batchnorm_momentum : float, optional
+            Momentum parameter of the BatchNorm2d, by default 0.1
+        batchnorm_affine : bool, optional
+            Affine parameter of the BatchNorm2d, by default True
+        batchnorm_track_running_stats : bool, optional
+            Track running stats parameter of the BatchNorm2d, by default True
+        activation : nn.Module, optional
             Activation module, by default nn.Relu()
-        residual_merge: Optional[Callable], optional
+        residual_merge : Optional[Callable], optional
             If different da None, it indicates the merge operation after
             the activation, by default None
-        disable_batchnorm: bool, optional
+        disable_batchnorm : bool, optional
             Disable the BatchNorm2d layer, by default False
+        enable_weight_norm : bool, optional
+            Uses the weight normalization instead of the batch normalization,
+            by default False
+        dtype : _type_, optional
+            Module dtype, by default None
         """
+
         super().__init__()
         self.separable = separable
         self.disable_batchnorm = disable_batchnorm
+        self.enable_weight_norm = enable_weight_norm
+
+        # weight normalization disables batch normalization
+        if self.enable_weight_norm:
+            self.disable_batchnorm = True
 
         # inner modules
+        kernel_f = get_freq_value(kernel_size)
+        dilation_f = get_freq_value(dilation)
+        half_padding_f = self._get_freq_padding(kernel_f, dilation_f)
+
         self.conv = CausalConv2d(
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
-            padding_f=kernel_size[1] // 2,
+            padding_f=half_padding_f,
             stride_f=stride_f,
             dilation=dilation,
             bias=False,
             separable=separable,
+            enable_weight_norm=self.enable_weight_norm,
             dtype=dtype,
         )
-
-        if kernel_size[1] % 2 == 0:
-            self.freq_trim = nn.ConstantPad2d((0, -1, 0, 0), 0)
-        else:
-            self.freq_trim = nn.Identity()
 
         if self.disable_batchnorm:
             self.batchnorm = nn.Identity()
         else:
             self.batchnorm = nn.BatchNorm2d(
                 num_features=out_channels,
-                eps=eps,
-                momentum=momentum,
-                affine=affine,
-                track_running_stats=track_running_stats,
+                eps=batchnorm_eps,
+                momentum=batchnorm_momentum,
+                affine=batchnorm_affine,
+                track_running_stats=batchnorm_track_running_stats,
                 dtype=dtype,
             )
 
@@ -391,12 +474,39 @@ class CausalConv2dNormAct(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         y = self.conv(x)
-        y = self.freq_trim(y)
         y = self.batchnorm(y)
         y = self.activation(y)
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y
+
+    def _get_freq_padding(self, kernel_f: int, dilation_f: int) -> int:
+        """
+        Gets the padding needed to keep the frequency output dimension
+        equal to f_out = int(f_in / stride_f + 1).
+
+        The previous formula it's valid only when
+        [dilation_f * (kernel_f - 1) + 1 / 2] is an integer.
+        (more information here https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html).
+
+        Parameters
+        ----------
+        kernel_f : int
+            Kernel size over frequency dimension
+        dilation_f : int
+            Dilation over frequency dimension
+        stride_f : int
+            Stride value over frequency dimension
+
+        Returns
+        -------
+        int
+            Padding needed to approximate f_out = int(f_in / stride_f + 1)
+        """
+
+        padding = get_causal_conv_padding(kernel_f, dilation_f) + 1
+        padding = padding // 2  # the approximation occours here
+        return padding
 
 
 class CausalConvNeuralUpsampler(nn.Module):
@@ -404,41 +514,77 @@ class CausalConvNeuralUpsampler(nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        conv_kernel_size: Tuple[int, int],
+        post_conv_kernel_size: Tuple[int, int],
+        post_conv_count: int = 1,  # TODO: implement it
+        post_conv_dilation: Tuple[int, int] = 1,
         tconv_kernel_f_size: Optional[int] = None,
         tconv_stride_f: int = 2,
         tconv_padding_f: int = 0,
-        dilation: Tuple[int, int] = 1,
         separable: bool = False,
-        eps: float = 1e-05,
-        momentum: float = 0.1,
-        affine: bool = True,
-        track_running_stats: bool = True,
+        batchnorm_eps: float = 1e-05,
+        batchnorm_momentum: float = 0.1,
+        batchnorm_affine: bool = True,
+        batchnorm_track_running_stats: bool = True,
+        disable_batchnorm: bool = False,
+        enable_weight_norm: bool = False,
         activation: nn.Module = nn.LeakyReLU(),
         residual_merge: Optional[Callable] = None,
-        disable_batchnorm: bool = False,
         dtype=None,
     ) -> None:
         """
-        ConvTranspose2d + CausalConv2d + BatchNorm2d + Activation.
+        Frequency upsampling module.
 
         Parameters
         ----------
-        Combination of the modules parameters
-
-        separable: bool, optional
-            Enable separable convolution (depthwise + pointwise), by default False
-        activation: nn.Module, optional
-            Activation module, by default nn.Relu()
-        residual_merge: Optional[Callable], optional
-            If different da None, it indicates the merge operation after
-            the activation, by default None
-        disable_batchnorm: bool, optional
-            Disable the BatchNorm2d layer, by default False
+        in_channels : int
+            Number of input channels
+        out_channels : int
+            Number of output channels
+        post_conv_kernel_size : Tuple[int, int]
+            Kernel size of the post convolutions. Can be also an int, or a list
+            of ints/Tuple[int, int] of length post_conv_count
+        post_conv_count : int, optional
+            Number of post convolutions, by default 1
+        tconv_kernel_f_size : Optional[int], optional
+            Frequncy kernel size of the transposed convolution,
+            by default twice tconv_stride_f
+        tconv_stride_f : int, optional
+            Stride of the transposed convolution, by default 2
+        tconv_padding_f : int, optional
+            Frequency padding of the transposed convolution , by default 0
+        separable : bool, optional
+            Enable separable convolutions, by default False
+        batchnorm_eps : float, optional
+            Eps parameter of the BatchNorm2d , by default 1e-05
+        batchnorm_momentum : float, optional
+            Momentum parameter of the BatchNorm2d, by default 0.1
+        batchnorm_affine : bool, optional
+            Affine parameter of the BatchNorm2d, by default True
+        batchnorm_track_running_stats : bool, optional
+            Track running stats parameter of the BatchNorm2d, by default True
+        disable_batchnorm : bool, optional
+            Disables the batch normalization, by default False
+        enable_weight_norm : bool, optional
+            Uses the weight normalization instead of the batch normalization,
+            by default False
+        activation : nn.Module, optional
+            Activation to use, by default nn.LeakyReLU()
+        residual_merge : Optional[Callable], optional
+            Residual skip connection, by default None
+        dtype : optional
+            Module dtype, by default None
         """
         super().__init__()
         self.separable = separable
         self.disable_batchnorm = disable_batchnorm
+        self.enable_weight_norm = enable_weight_norm
+
+        # optional weight normalization
+        self._normalize = weight_norm if self.enable_weight_norm else (lambda x: x)
+
+        # weight normalization disables batch normalization
+        if self.enable_weight_norm:
+            self.disable_batchnorm = True
 
         # tconv_kernel_f_size is set to twice tconv_stride_f
         # to reduce the reconstruction artifacts
@@ -446,15 +592,17 @@ class CausalConvNeuralUpsampler(nn.Module):
             tconv_kernel_f_size = 2 * tconv_stride_f
 
         # inner modules
-        self.tconv = nn.ConvTranspose2d(
-            in_channels=in_channels,
-            out_channels=in_channels,
-            kernel_size=(1, tconv_kernel_f_size),
-            stride=(1, tconv_stride_f),
-            padding=(0, tconv_padding_f),
-            output_padding=(0, tconv_stride_f - 1),
-            bias=False,
-            dtype=dtype,
+        self.tconv = self._normalize(
+            nn.ConvTranspose2d(
+                in_channels=in_channels,
+                out_channels=in_channels,
+                kernel_size=(1, tconv_kernel_f_size),
+                stride=(1, tconv_stride_f),
+                padding=(0, tconv_padding_f),
+                output_padding=(0, tconv_stride_f - 1),
+                bias=False,
+                dtype=dtype,
+            )
         )
 
         pad_f = tconv_kernel_f_size // 2
@@ -467,11 +615,12 @@ class CausalConvNeuralUpsampler(nn.Module):
         self.conv = CausalConv2d(
             in_channels=in_channels,
             out_channels=out_channels,
-            kernel_size=conv_kernel_size,
-            padding_f=conv_kernel_size[1] // 2,
-            dilation=dilation,
+            kernel_size=post_conv_kernel_size,
+            padding_f=post_conv_kernel_size[1] // 2,
+            dilation=post_conv_dilation,
             bias=False,
             separable=separable,
+            enable_weight_norm=self.enable_weight_norm,
             dtype=dtype,
         )
 
@@ -480,10 +629,10 @@ class CausalConvNeuralUpsampler(nn.Module):
         else:
             self.batchnorm = nn.BatchNorm2d(
                 num_features=out_channels,
-                eps=eps,
-                momentum=momentum,
-                affine=affine,
-                track_running_stats=track_running_stats,
+                eps=batchnorm_eps,
+                momentum=batchnorm_momentum,
+                affine=batchnorm_affine,
+                track_running_stats=batchnorm_track_running_stats,
                 dtype=dtype,
             )
 
