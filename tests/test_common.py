@@ -70,7 +70,6 @@ class TestConfig(unittest.TestCase):
         modules_types = [type(m) for m in modules]
         expected = [nn.Identity, nn.ReLU, nn.Tanh, nn.SELU, nn.Sigmoid]
         self.assertListEqual(modules_types, expected)
-        
 
 
 class TestGeneric(unittest.TestCase):
@@ -111,6 +110,19 @@ class TestGeneric(unittest.TestCase):
             with self.subTest(x=x):
                 y = tu.pack_complex(x)
                 self.assertEqual(y.shape[1], x.shape[1] // 2)
+
+    def test_one_hot_quantization(self):
+        min_max = ((-1, 1), (0, 65535), (11.1, 23.9))
+        steps = (8, 256, 1024)
+        params = itertools.product(min_max, steps)
+        for p in params:
+            (min_, max_), s = p
+            with self.subTest(p=p):
+                C, T, F = 2, 10, 32
+                x = torch.rand(1, C, T, F) * (max_ - min_) + min_
+                y = tu.one_hot_quantization(x, s, min_, max_)
+                self.assertEqual(y.shape, (1, s, C, T, F))
+                self.assertEqual(y.sum().item(), C * T * F)
 
 
 if __name__ == "__main__":

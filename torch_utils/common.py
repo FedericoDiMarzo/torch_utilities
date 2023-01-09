@@ -27,6 +27,7 @@ __all__ = [
     "get_submodules",
     "get_gradients",
     "get_model_parameters",
+    "one_hot_quantization",
 ]
 
 
@@ -374,3 +375,38 @@ def get_model_parameters(model: nn.Module) -> int:
         Total number of parameters
     """
     return sum(p.numel() for p in model.parameters())
+
+
+def one_hot_quantization(x: Tensor, steps: int, min: float = -1, max: float = 1) -> Tensor:
+    """
+    Quantize a real signal and applies a one-hot vector transform.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor of shape (B, ...)
+    steps : int
+        Number of quantization steps
+    min : float, optional
+        Minimum value of the input (mapped to 0), by default -1
+    max : float, optional
+        Maximum value of the input (mapped to steps-1), by default 1
+
+    Returns
+    -------
+    Tensor
+        One-hot-quantized tensor of shape (B, steps, ...)
+    """
+    n = len(x.shape)
+    dims = list(range(n))
+    dims.insert(1, n)
+
+    # quantization
+    x = (x - min) / (max - min) * steps
+    x = x.to(int)
+
+    # one-hot vector
+    x = F.one_hot(x, steps)
+    x = x.permute(dims)
+
+    return x
