@@ -674,16 +674,17 @@ class CausalConvNeuralUpsampler(nn.Module):
         """
 
         # error handling ~ ~ ~ ~ ~ ~ ~ ~
-        err_msg = f"kernel size should be an int or Tuple[int] when post_conv_dilation is None"
         if dilation is None:
+            err_msg = f"kernel size should be an int or Tuple[int] when post_conv_dilation is None"
             assert type(kernel_size) in (int, tuple), err_msg
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-        err_msg = f"post_conv_count == {self.post_conv_count} is not enforced"
-        for p in kernel_size, dilation:
-            if self.post_conv_count == 1:
-                assert (type(p) == tuple and len(p) == 2) or (type(p) == int), err_msg
-            else:
-                assert type(p) != int and len(p) == self.post_conv_count, err_msg
+        else:
+            err_msg = f"post_conv_count == {self.post_conv_count} is not enforced"
+            for p in kernel_size, dilation:
+                if self.post_conv_count == 1:
+                    assert (type(p) == tuple and len(p) == 2) or (type(p) == int), err_msg
+                else:
+                    assert type(p) != int and len(p) == self.post_conv_count, err_msg
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
         # default case
@@ -691,7 +692,7 @@ class CausalConvNeuralUpsampler(nn.Module):
         # e.g: d_t_conv2 = k_t**2
         if dilation is None:
             k_t, k_f = [f(kernel_size) for f in (get_time_value, get_freq_value)]
-            dilation = map(lambda x: (k_t**x, k_f**x), range(self.post_conv_count))
+            dilation = list[map(lambda x: (k_t**x, k_f**x), range(self.post_conv_count))]
 
         paddings = self._get_conv_layer_paddings_f(kernel_size, dilation)
 

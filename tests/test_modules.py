@@ -10,6 +10,7 @@ import torch
 
 set_module_root("../torch_utils")
 from torch_utils import repeat_test, set_device
+from torch_utils.modules import get_time_value, get_freq_value
 import torch_utils as tu
 
 # TODO: rewrite modules tests
@@ -403,7 +404,7 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
         self.out_channels = (1, 3)
         self.post_conv_kernel_size = (1, 2, (5, 7))
         self.post_conv_count = (1, 2)
-        self.post_conv_dilation = (1, 3)
+        self.post_conv_dilation = (None, 1, 3)
         self.tconv_stride_f = (1, 2)
         self.separable = (False, True)
         self.disable_batchnorm = (False, True)
@@ -411,7 +412,10 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
         self.activation = (None, nn.ReLU())
         self.residual_merge = (None, sum_merge)
         self.dtype = (torch.float, torch.double)
-        self.in_freqs = (32, 33,)
+        self.in_freqs = (
+            32,
+            33,
+        )
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
         self.params = product(
             self.in_channels,
@@ -521,12 +525,16 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
                 pconv = upsamp.conv
                 self.assertEqual(type(pconv), nn.Sequential)
                 self.assertEqual(len(pconv), post_conv_count * 2)
-                for c in pconv:
+                for i, c in enumerate(pconv):
                     if isinstance(c, tu.CausalConv2d) and not separable:
                         self.assertEqual(c.conv.in_channels, out_channels)
                         self.assertEqual(c.conv.out_channels, out_channels)
                         self.assertEqual(c.separable, separable)
                         self.assertEqual(c.enable_weight_norm, enable_weight_norm)
+                        if post_conv_dilation is None:
+                            k_t = get_time_value(c.conv.kernel_size)
+                            k_f = get_freq_value(c.conv.kernel_size)
+                            self.assertEqual(c.conv.dilation, (k_t**i, k_f**i))
 
                 # batchnorm
                 if enable_weight_norm:
