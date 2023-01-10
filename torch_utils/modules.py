@@ -517,7 +517,7 @@ class CausalConvNeuralUpsampler(nn.Module):
         in_channels: int,
         out_channels: int,
         post_conv_kernel_size: Tuple[int, int],
-        post_conv_dilation: Tuple[int, int] = 1,
+        post_conv_dilation: Optional[Tuple[int, int]] = None,
         post_conv_count: int = 1,
         tconv_kernel_f: Optional[int] = None,
         tconv_stride_f: int = 2,
@@ -544,9 +544,11 @@ class CausalConvNeuralUpsampler(nn.Module):
         post_conv_kernel_size : Tuple[int, int]
             Kernel size of the post convolutions. Can be also an int, or a list
             of ints/Tuple[int, int] of length post_conv_count
-        post_conv_dilation : Tuple[int,int], optional
+        post_conv_dilation : Optional[Tuple[int,int]]
             Dilation of the post convolutions. Can be also an int, or a list
-            of ints/Tuple[int, int] of length post_conv_count
+            of ints/Tuple[int, int] of length post_conv_count;
+            by default the dilation is equal to the kernel to the power of
+            the post_conv layer index
         post_conv_count : int, optional
             Number of post convolutions, by default 1
         tconv_kernel_f : Optional[int], optional
@@ -651,11 +653,12 @@ class CausalConvNeuralUpsampler(nn.Module):
             y = self.residual_merge(x, y)
         return y
 
+    # TODO: better tests
     def _get_conv_layers(
         self,
         out_channels: int,
         kernel_size: Tuple[int, int],
-        dilation: Tuple[int, int],
+        dilation: Optional[Tuple[int, int]],
         bias: bool,
         separable: bool,
         enable_weight_norm: bool,
@@ -669,13 +672,26 @@ class CausalConvNeuralUpsampler(nn.Module):
         nn.Sequential
             Sequence of one or more CausalConv2d layers
         """
-        # error handling
+
+        # error handling ~ ~ ~ ~ ~ ~ ~ ~
+        err_msg = f"kernel size should be an int or Tuple[int] when post_conv_dilation is None"
+        if dilation is None:
+            assert type(kernel_size) in (int, tuple), err_msg
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
         err_msg = f"post_conv_count == {self.post_conv_count} is not enforced"
         for p in kernel_size, dilation:
             if self.post_conv_count == 1:
                 assert (type(p) == tuple and len(p) == 2) or (type(p) == int), err_msg
             else:
                 assert type(p) != int and len(p) == self.post_conv_count, err_msg
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
+        # default case
+        # the dilation is an increasing power of the kernel
+        # e.g: d_t_conv2 = k_t**2
+        if dilation is None:
+            k_t, k_f = [f(kernel_size) for f in (get_time_value, get_freq_value)]
+            dilation = map(lambda x: (k_t**x, k_f**x), range(self.post_conv_count))
 
         paddings = self._get_conv_layer_paddings_f(kernel_size, dilation)
 
