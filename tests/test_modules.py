@@ -13,8 +13,6 @@ from torch_utils import repeat_test, set_device
 from torch_utils.modules import get_time_value, get_freq_value
 import torch_utils as tu
 
-# TODO: rewrite modules tests
-
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 
@@ -159,6 +157,10 @@ class TestCausalConv2d(unittest.TestCase):
                     self.assertEqual(type(conv.conv[1]), nn.Conv2d)
                 else:
                     self.assertEqual(type(conv.conv), nn.Conv2d)
+                    self.assertTrue(
+                        conv.conv.kernel_size == kernel_size
+                        or conv.conv.kernel_size == (kernel_size, kernel_size)
+                    )
 
                 if enable_weight_norm:
                     self.assertEqual(conv._normalize, weight_norm)
@@ -207,7 +209,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
         self.dilation = (1, 4, (3, 2))
         self.separable = (False, True)
         self.activation = (None, nn.ReLU())
-        self.residual_merge = (None, sum_merge)  # TODO: for some reason sum_merge is never tested
+        self.residual_merge = (None, sum_merge)
         self.disable_batchnorm = (False, True)
         self.enable_weight_norm = (False, True)
         self.dtype = (torch.float, torch.double)
@@ -243,8 +245,6 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             dtype,
             in_freqs,
         ) = p
-        if stride_f != 1:
-            residual_merge = None
 
         instance = tu.CausalConv2dNormAct(
             in_channels=in_channels,
@@ -401,8 +401,8 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
 
     def setUp(self):
         self.in_channels = (1, 2)
-        self.out_channels = (1, 3)
-        self.post_conv_kernel_size = (1, 2, (5, 7))
+        self.out_channels = (3,)
+        self.post_conv_kernel_size = (1, 2, (1, 3))
         self.post_conv_count = (1, 2)
         self.post_conv_dilation = (None, 1, 3)
         self.tconv_stride_f = (1, 2)
@@ -412,10 +412,7 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
         self.activation = (None, nn.ReLU())
         self.residual_merge = (None, sum_merge)
         self.dtype = (torch.float, torch.double)
-        self.in_freqs = (
-            32,
-            33,
-        )
+        self.in_freqs = (50, 51)
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
         self.params = product(
             self.in_channels,
@@ -449,15 +446,10 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
             dtype,
             in_freqs,
         ) = p
-        if tconv_stride_f != 1:
-            residual_merge = None
 
-        if in_channels != out_channels:
-            residual_merge = None
-
-        if post_conv_count > 1:
+        if post_conv_count > 1 and post_conv_dilation is not None:
             post_conv_kernel_size, post_conv_dilation = [
-                [x] * post_conv_count for x in (post_conv_kernel_size, post_conv_dilation)
+                [y] * post_conv_count for y in (post_conv_kernel_size, post_conv_dilation)
             ]
 
         instance = tu.CausalConvNeuralUpsampler(
@@ -526,15 +518,21 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
                 self.assertEqual(type(pconv), nn.Sequential)
                 self.assertEqual(len(pconv), post_conv_count * 2)
                 for i, c in enumerate(pconv):
+                    i = i // 2
                     if isinstance(c, tu.CausalConv2d) and not separable:
                         self.assertEqual(c.conv.in_channels, out_channels)
                         self.assertEqual(c.conv.out_channels, out_channels)
                         self.assertEqual(c.separable, separable)
                         self.assertEqual(c.enable_weight_norm, enable_weight_norm)
+                        self.assertTrue(
+                            c.conv.kernel_size == post_conv_kernel_size
+                            or c.conv.kernel_size == (post_conv_kernel_size, post_conv_kernel_size)
+                        )
                         if post_conv_dilation is None:
                             k_t = get_time_value(c.conv.kernel_size)
                             k_f = get_freq_value(c.conv.kernel_size)
-                            self.assertEqual(c.conv.dilation, (k_t**i, k_f**i))
+                            expected_dilation = (k_t**i, k_f**i)
+                            self.assertEqual(c.conv.dilation, expected_dilation)
 
                 # batchnorm
                 if enable_weight_norm:
@@ -600,46 +598,6 @@ class TestGroupedLinear(unittest.TestCase):
         gl.weight.data = torch.ones_like(gl.weight.data)
         lin.weight.data = torch.ones_like(lin.weight.data)
         self.assertTrue(torch.allclose(gl(x), lin(x)))
-
-
-# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-class TestMergeLayers(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        _setup()
-
-    def setUp(self):
-        self.in_ch = (1, 2, 3)
-        self.out_ch = (6, 12)
-        self.strides = (1, 2, 4)
-
-    def test_down_merge(self):
-        params = product(
-            self.in_ch,
-            self.out_ch,
-            self.strides,
-        )
-        for i, o, s in params:
-            with self.subTest(i=i, o=o, s=s):
-                merge = tu.DownMerge(o, s)
-                x = torch.ones(1, i, 10, 4 * s)
-                y = torch.ones(1, o, 10, 4)
-                z = merge(x, y)
-                self.assertEqual(y.shape, z.shape)
-
-    def test_up_merge(self):
-        params = product(
-            self.out_ch,
-            self.in_ch,
-            self.strides,
-        )
-        for i, o, s in params:
-            with self.subTest(i=i, o=o, s=s):
-                merge = tu.UpMerge(o, s)
-                x = torch.ones(1, i, 10, 4)
-                y = torch.ones(1, o, 10, 4 * s)
-                z = merge(x, y)
-                self.assertEqual(y.shape, z.shape)
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
