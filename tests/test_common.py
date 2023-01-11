@@ -13,7 +13,7 @@ from tests.generate_test_data import get_test_data_dir
 def _setup() -> None:
     torch.manual_seed(984)
     np.random.seed(901)
-    tu.set_device("auto")
+    tu.set_device("cpu")
     torch.set_grad_enabled(False)
 
 
@@ -125,16 +125,16 @@ class TestGeneric(unittest.TestCase):
                 self.assertEqual(y.sum().item(), C * T * F)
 
     def test_invert_one_hot(self):
-        dims = (2, 3, 4)
+        n_dims = (2, 3, 4)
         steps = (3, 10, 256)
-        params = itertools.product(dims, steps)
+        params = itertools.product(n_dims, steps)
         for d, s in params:
             with self.subTest(d=d, s=s):
-                x = torch.rand([1] * d) * s
-                x = x.to(int)
-                y = tu.one_hot_quantization(x, s, 0, d)
+                x = torch.rand([3] * d) * s
+                x = torch.floor(x)
+                y = tu.one_hot_quantization(x, s, 0, s)
                 x_hat = tu.invert_one_hot(y)
-                self.assertTrue(x.equals(x_hat))
+                self.assertTrue(x.equal(x_hat))
 
 
 if __name__ == "__main__":

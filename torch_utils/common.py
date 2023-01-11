@@ -403,8 +403,8 @@ def one_hot_quantization(x: Tensor, steps: int, min: float = -1, max: float = 1)
     dims.insert(1, n)
 
     # quantization
-    x = (x - min) / (max - min) * steps
-    x = x.to(int)
+    x = (x + min) / (max - min) * steps
+    x = x.floor().clip(0, steps - 1).to(int)
 
     # one-hot vector
     x = F.one_hot(x, steps)
