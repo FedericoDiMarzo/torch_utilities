@@ -124,6 +124,18 @@ class TestGeneric(unittest.TestCase):
                 self.assertEqual(y.shape, (1, s, C, T, F))
                 self.assertEqual(y.sum().item(), C * T * F)
 
+    def test_invert_one_hot(self):
+        dims = (2, 3, 4)
+        steps = (3, 10, 256)
+        params = itertools.product(dims, steps)
+        for d, s in params:
+            with self.subTest(d=d, s=s):
+                x = torch.rand([1] * d) * s
+                x = x.to(int)
+                y = tu.one_hot_quantization(x, s, 0, d)
+                x_hat = tu.invert_one_hot(y)
+                self.assertTrue(x.equals(x_hat))
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

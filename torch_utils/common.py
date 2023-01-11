@@ -28,6 +28,7 @@ __all__ = [
     "get_gradients",
     "get_model_parameters",
     "one_hot_quantization",
+    "invert_one_hot",
 ]
 
 
@@ -409,4 +410,22 @@ def one_hot_quantization(x: Tensor, steps: int, min: float = -1, max: float = 1)
     x = F.one_hot(x, steps)
     x = x.permute(dims)
 
+    return x
+
+
+def invert_one_hot(x: Tensor) -> Tensor:
+    """
+    Transforms a one-hot tensor to a integer label representation.
+
+    Parameters
+    ----------
+    x : Tensor
+        On-hot tensor of shape (B, steps, ...)
+
+    Returns
+    -------
+    Tensor
+        Label representation of shape (B, ...)
+    """
+    x = torch.argmax(x, dim=1)
     return x
