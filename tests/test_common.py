@@ -13,7 +13,7 @@ from tests.generate_test_data import get_test_data_dir
 def _setup() -> None:
     torch.manual_seed(984)
     np.random.seed(901)
-    tu.set_device("cpu")
+    tu.set_device("auto")
     torch.set_grad_enabled(False)
 
 
@@ -131,7 +131,7 @@ class TestGeneric(unittest.TestCase):
         for d, s in params:
             with self.subTest(d=d, s=s):
                 x = torch.rand([3] * d) * s
-                x = torch.floor(x)
+                x = torch.floor(x).clip(0, s-1)
                 y = tu.one_hot_quantization(x, s, 0, s)
                 x_hat = tu.invert_one_hot(y)
                 self.assertTrue(x.equal(x_hat))

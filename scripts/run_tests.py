@@ -9,7 +9,7 @@ from tests import generate_test_data, test_dir
 
 
 def main():
-    args = parse_args
+    args = parse_args()
 
     generate_test_data()
     logger.info(f"running tests from {test_dir}")
