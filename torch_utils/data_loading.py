@@ -86,7 +86,7 @@ class HDF5Dataset(Dataset):
             dataset the list would be ["input", "label1", "label2"]
         """
         super().__init__()
-        self.dataset_path = dataset_path
+        self.dataset_path = dataset_path.absolute()
         self.data_layout = data_layout
         self.dataset_file = h5py.File(self.dataset_path, "r")
         self.groups = list(self.dataset_file.keys())
@@ -349,6 +349,7 @@ def get_dataset_statistics(
     for i in range(n_items):
         x = torch.stack([o[i] for o in outs])
         x = x.flatten()
+        x = x.float()
         x = split_complex(x) if torch.is_complex(x) else x
         hist_vals, hist_bins = [to_numpy(y) for y in x.histogram(n_hist_bins, density=True)]
         hist_vals /= n_hist_bins
