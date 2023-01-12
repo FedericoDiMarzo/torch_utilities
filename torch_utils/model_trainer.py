@@ -152,7 +152,7 @@ class ModelTrainer(ABC):
         # logging
         logger.info("saving the model graph")
         self._log_graph()
-        logger.info("saving the text of the config.yaml")
+        logger.info("saving the text of config.yaml")
         self._log_yaml()
 
         logger.info("starting training")  # - = - § >>
@@ -615,7 +615,10 @@ class ModelTrainer(ABC):
         x = self._get_filtered_input(self.dummy_input_train)
         with warnings.catch_warnings():
             warnings.simplefilter("ignore")
-            self.log_writer.add_graph(self.net, x)
+            try:
+                self.log_writer.add_graph(self.net, x)
+            except Exception:
+                pass
 
     def _log_yaml(self) -> None:
         """
