@@ -27,6 +27,7 @@ __all__ = [
     "get_submodules",
     "get_gradients",
     "get_model_parameters",
+    "quantize",
     "one_hot_quantization",
     "invert_one_hot",
 ]
@@ -385,6 +386,30 @@ def get_model_parameters(model: nn.Module) -> int:
     """
     return sum(p.numel() for p in model.parameters())
 
+# TODO: write test
+def quantize(x: Tensor, steps: int, min: float = -1, max: float = 1)->Tensor:
+    """
+    Quantize a real signal.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor of shape (B, ...)
+    steps : int
+        Number of quantization steps
+    min : float, optional
+        Minimum value of the input (mapped to 0), by default -1
+    max : float, optional
+        Maximum value of the input (mapped to steps-1), by default 1
+
+    Returns
+    -------
+    Tensor
+        Quantized tensor of shape (B, ...)
+    """
+    x = (x - min) / (max - min) * steps
+    x = x.floor().clip(0, steps - 1).to(int)
+    return x
 
 def one_hot_quantization(x: Tensor, steps: int, min: float = -1, max: float = 1) -> Tensor:
     """
@@ -411,8 +436,7 @@ def one_hot_quantization(x: Tensor, steps: int, min: float = -1, max: float = 1)
     dims.insert(1, n)
 
     # quantization
-    x = (x + min) / (max - min) * steps
-    x = x.floor().clip(0, steps - 1).to(int)
+    x = quantize(x, steps, min, max)
 
     # one-hot vector
     x = F.one_hot(x, steps)
