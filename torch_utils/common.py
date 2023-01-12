@@ -351,12 +351,20 @@ def get_gradients(model: nn.Module) -> Tensor:
         Model gradients
     """
     modules = get_submodules(model)
-    valid = lambda x, n: hasattr(x, n) and hasattr(getattr(x, n), "grad")
+    
+    valid = (
+        lambda x, n: hasattr(x, n) and getattr(x, n) is not None and getattr(x, n).grad is not None
+    )
+
     _norm = lambda x: torch.linalg.norm(x).item()
     f = lambda n: [_norm(getattr(x, n).grad) if valid(x, n) else 0 for x in modules]
     w_grad = f("weight")
     b_grad = f("bias")
-    grad = [w + b for w, b in zip(w_grad, b_grad)]
+    # weight normalization
+    g_grad = f("weight_g")
+    v_grad = f("weight_v")
+    # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+    grad = [sum(xs) for xs in zip(w_grad, b_grad, g_grad, v_grad)]
     grad = torch.FloatTensor(grad)
     return grad
 
