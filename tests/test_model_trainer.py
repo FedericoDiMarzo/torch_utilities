@@ -87,9 +87,7 @@ class ModelTrainerDummy(tu.ModelTrainer):
         loss_values = [loss(y_hat, y_true) for loss in self.losses]
         return loss_values
 
-    def tensorboard_logs(
-        self, net_ins: List[Tensor], epoch: int, is_training: bool
-    ) -> None:
+    def tensorboard_logs(self, raw_data: List[Tensor], epoch: int, is_training: bool) -> None:
         pass
 
     def on_train_begin(self) -> None:
@@ -120,9 +118,7 @@ class TestModelTrainer(unittest.TestCase):
         _setup()
 
     def setUp(self):
-        self.model_path = (
-            get_test_data_dir() / n for n in ("test_model", "test_model_overfit")
-        )
+        self.model_path = (get_test_data_dir() / n for n in ("test_model", "test_model_overfit"))
         self.loader_type = (tu.HDF5Dataset, tu.HDF5OnlineDataset)
         self.optimizer = (Adam, Rprop)  # with and without weight decay setting
         self.n_losses = (4,)
@@ -133,6 +129,7 @@ class TestModelTrainer(unittest.TestCase):
             self.n_losses,
         )
         self.params = list(self.params)
+        self.batch_size = 16
         self.clear_model_folders()
 
     def clear_model_folders(self):
@@ -192,21 +189,20 @@ class TestModelTrainer(unittest.TestCase):
         """
         dataset_path = get_test_data_dir() / "dataset.hdf5"
         data_layout = ["x", "y_true"]
-        batch_size = 16
 
         if loader_type == tu.HDF5Dataset:
             loader = tu.get_hdf5_dataloader(
                 dataset_path=dataset_path,
                 data_layout=data_layout,
-                batch_size=batch_size,
+                batch_size=self.batch_size,
             )
         else:
             n = 2
             ds = tu.HDF5OnlineDataset(
                 dataset_paths=[dataset_path] * n,
                 data_layouts=[data_layout] * n,
-                batch_size=4,
-                total_items=4,
+                batch_size=self.batch_size,
+                total_items=self.batch_size,
             )
             loader = DataLoader(ds)
 
@@ -265,6 +261,21 @@ class TestModelTrainer(unittest.TestCase):
                     ],
                     [True] * 4 + [False] * 2 if overfit else [True] * 6,
                 )
+
+    def test_get_dummy_data(self):
+        params = self.params
+        is_training = (False, True)
+        params = product(params, is_training)
+        for p, it in params:
+            is_hdf5_dataset = p[1] == tu.HDF5Dataset
+            with self.subTest(p=p, it=it):
+                trainer = self.get_model_trainer(p)
+                xs = trainer._get_dummy_data(it)
+                y = 2 if is_hdf5_dataset else 4
+                self.assertEqual(len(xs), y)
+                y = 2 if is_hdf5_dataset else self.batch_size
+                [self.assertEqual(x.shape[0], y) for x in xs]
+                pass
 
 
 if __name__ == "__main__":

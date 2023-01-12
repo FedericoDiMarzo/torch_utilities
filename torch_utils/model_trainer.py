@@ -132,8 +132,8 @@ class ModelTrainer(ABC):
         self.save_buffer_maxlen = save_buffer_maxlen
         self.log_writer = SummaryWriter(self.logs_dir)
         self.figsize = (8, 6)
-        self.dummy_input_train = self._get_dummy_input(True)
-        self.dummy_input_valid = self._get_dummy_input(False)
+        self.dummy_input_train = self._get_dummy_data(True)
+        self.dummy_input_valid = self._get_dummy_data(False)
         self.last_total_loss = 1e10  # used to select the best checkpoints
 
     # = = = = = = = = = = = = = = = = = = = = = =
@@ -494,14 +494,14 @@ class ModelTrainer(ABC):
         return self.log_writer
 
     @abc.abstractclassmethod
-    def tensorboard_logs(self, net_ins: List[Tensor], epoch: int, is_training: bool) -> None:
+    def tensorboard_logs(self, raw_data: List[Tensor], epoch: int, is_training: bool) -> None:
         """
         Additional tensorboard logging.
 
         Parameters
         ----------
-        net_ins : List[Tensor]
-            Network raw inputs (no transforms)
+        raw_data : List[Tensor]
+            Dataset input
         epoch : int
             Current epoch
         is_training : bool
@@ -509,9 +509,9 @@ class ModelTrainer(ABC):
         """
         pass
 
-    def _get_dummy_input(self, is_training: bool) -> List[Tensor]:
+    def _get_dummy_data(self, is_training: bool) -> List[Tensor]:
         """
-        Returns an input from the validation dataset
+        Returns an input from the dataset
 
         Parameters
         -------
@@ -521,11 +521,10 @@ class ModelTrainer(ABC):
         Returns
         -------
         List[Tensor]
-            Validation input selection
+            Dataset input
         """
         ds = self.train_ds if is_training else self.valid_ds
-        data = [x.to(tu.get_device()) for x in ds.dataset[[0, 1]]]
-        # net_ins = self._get_filtered_input(data)
+        data = [x.to(tu.get_device()) for x in ds.dataset[[0,1]]]
         return data
 
     def _log_losses(self, is_training: bool, steps: int, epoch: int) -> None:
