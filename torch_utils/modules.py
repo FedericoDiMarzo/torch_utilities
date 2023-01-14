@@ -542,6 +542,7 @@ class CausalConvNeuralUpsampler(nn.Module):
         out_channels: int,
         post_conv_kernel_size: Tuple[int, int],
         post_conv_dilation: Optional[Tuple[int, int]] = None,
+        disable_dilation_f: bool = False,
         post_conv_count: int = 1,
         tconv_kernel_f: Optional[int] = None,
         tconv_stride_f: int = 2,
@@ -573,6 +574,9 @@ class CausalConvNeuralUpsampler(nn.Module):
             of ints/Tuple[int, int] of length post_conv_count;
             by default the dilation is equal to the kernel to the power of
             the post_conv layer index
+        disable_dilation_f : bool
+            If True dilation_f==1 for each post_conv_dilation setting,
+            by default False
         post_conv_count : int, optional
             Number of post convolutions, by default 1
         tconv_kernel_f : Optional[int], optional
@@ -600,7 +604,7 @@ class CausalConvNeuralUpsampler(nn.Module):
         activation : nn.Module, optional
             Activation to use, by default nn.LeakyReLU()
         residual_merge : Optional[Callable], optional
-            Merge operation performed between the layer output and a residual skip connection 
+            Merge operation performed between the layer output and a residual skip connection
             from the output of the transposed conv to the output of the activation, by default None
         dtype : optional
             Module dtype, by default None
@@ -612,6 +616,7 @@ class CausalConvNeuralUpsampler(nn.Module):
         self.out_channels = out_channels
         self.post_conv_kernel_size = post_conv_kernel_size
         self.post_conv_dilation = post_conv_dilation
+        self.disable_dilation_f = disable_dilation_f
         self.post_conv_count = post_conv_count
         self.tconv_kernel_f = tconv_kernel_f
         self.tconv_stride_f = tconv_stride_f
@@ -696,6 +701,8 @@ class CausalConvNeuralUpsampler(nn.Module):
         """
         k_t, k_f = [f(self.post_conv_kernel_size) for f in (get_time_value, get_freq_value)]
         dilation = [(k_t**x, k_f**x) for x in range(self.post_conv_count)]
+        if self.disable_dilation_f:
+            dilation = [(d[0], 1) for d in dilation]
         return dilation
 
     def _get_conv_layers(self) -> nn.Sequential:
