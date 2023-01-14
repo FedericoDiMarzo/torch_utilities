@@ -33,6 +33,7 @@ class ModelTrainer(ABC):
         net_ins_indices: Optional[List[int]] = None,
         losses_names: Optional[List[str]] = None,
         save_buffer_maxlen: int = 5,
+        gradient_clip_value: Optional[float] = None,
     ) -> None:
         """
         Abstract class to structure a model training.
@@ -74,6 +75,8 @@ class ModelTrainer(ABC):
         save_buffer_maxlen : int, optional
             N best checkpoints saved (based on a lower total loss),
             by default 5
+        gradient_clip_value : Optional[float]
+            Maximum gradient update value, by default no gradient clipping
 
 
         config.yml [training] parameters
@@ -101,6 +104,7 @@ class ModelTrainer(ABC):
         self.net_ins_indices = net_ins_indices
         self.losses_names = losses_names or self._default_losses_names()
         self.optimizer_class = optimizer_class
+        self.gradient_clip_value = gradient_clip_value
 
         # configuration attributes
         self.config_path = self.model_path / "config.yml"
@@ -215,6 +219,13 @@ class ModelTrainer(ABC):
         _losses = self._apply_losses_weights(_losses)
         total_loss = sum(_losses)
         total_loss.backward()
+        # gradient clipping ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
+        if self.gradient_clip_value is not None:
+            nn.utils.clip_grad_value_(
+                self.net.parameters(),
+                clip_value=self.gradient_clip_value,
+            )
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
         self.optimizer.step()
         # for logging
         self._update_running_losses(_losses)
@@ -524,7 +535,7 @@ class ModelTrainer(ABC):
             Dataset input
         """
         ds = self.train_ds if is_training else self.valid_ds
-        data = [x.to(tu.get_device()) for x in ds.dataset[[0,1]]]
+        data = [x.to(tu.get_device()) for x in ds.dataset[[0, 1]]]
         return data
 
     def _log_losses(self, is_training: bool, steps: int, epoch: int) -> None:
