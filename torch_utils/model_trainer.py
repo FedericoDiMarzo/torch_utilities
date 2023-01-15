@@ -196,7 +196,7 @@ class ModelTrainer(ABC):
             self.save_model(epoch)
             self.on_epoch_end(epoch)
 
-        logger.info("training complete")  # - = - § >>
+        logger.info(f"{self.model_path.name} training complete")  # - = - § >>
         self.on_train_end()
 
     def train_step(self, data: List[Tensor], epoch: int) -> None:
