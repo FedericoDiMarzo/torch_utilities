@@ -163,7 +163,7 @@ class ModelTrainer(ABC):
         self.on_train_begin()
         for epoch in range(self.start_epoch, self.max_epochs):
             self.on_epoch_begin(epoch)
-            logger.info(f"epoch [{epoch}/{self.max_epochs}]")
+            logger.info(f"epoch [{epoch+1}/{self.max_epochs}]")
 
             # training
             self.net.train()
@@ -219,13 +219,13 @@ class ModelTrainer(ABC):
         _losses = self._apply_losses_weights(_losses)
         total_loss = sum(_losses)
         total_loss.backward()
-        # gradient clipping ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
+        # gradient clipping ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
         if self.gradient_clip_value is not None:
             nn.utils.clip_grad_value_(
                 self.net.parameters(),
                 clip_value=self.gradient_clip_value,
             )
-        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
         self.optimizer.step()
         # for logging
         self._update_running_losses(_losses)
