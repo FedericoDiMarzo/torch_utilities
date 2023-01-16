@@ -606,14 +606,14 @@ class ModelTrainer(ABC):
         """
         net_ins = self._get_filtered_input(self.dummy_input_train)
         net_outs = self.net(*net_ins)
-        norm = [torch.linalg.norm(x[0]).item() for x in net_outs]
-        norm = Tensor(norm).cpu()
+        net_outs = [x.flatten().cpu() for x in net_outs]
+        
         plt.figure(figsize=self.figsize)
-        plt.bar(range(norm.shape[0]), norm)
+        plt.violinplot(net_outs)
         plt.title("model outputs")
         plt.grid()
         plt.xlabel("output index")
-        plt.ylabel("output norm")
+        # plt.ylabel("")
         fig = plt.gcf()
         self.log_writer.add_figure("outputs", fig, epoch)
         plt.close()
