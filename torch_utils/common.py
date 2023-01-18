@@ -352,9 +352,11 @@ def get_gradients(model: nn.Module) -> Tensor:
         Model gradients
     """
     modules = get_submodules(model)
-    
+
     valid = (
-        lambda x, n: hasattr(x, n) and getattr(x, n) is not None and getattr(x, n).grad is not None
+        lambda x, n: hasattr(x, n)
+        and isinstance(getattr(x, n), Tensor)
+        and getattr(x, n).grad is not None
     )
 
     _norm = lambda x: torch.linalg.norm(x).item()
@@ -364,6 +366,7 @@ def get_gradients(model: nn.Module) -> Tensor:
     # weight normalization
     g_grad = f("weight_g")
     v_grad = f("weight_v")
+    # TODO: GRU
     # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
     grad = [sum(xs) for xs in zip(w_grad, b_grad, g_grad, v_grad)]
     grad = torch.FloatTensor(grad)
@@ -386,8 +389,9 @@ def get_model_parameters(model: nn.Module) -> int:
     """
     return sum(p.numel() for p in model.parameters())
 
+
 # TODO: write test
-def quantize(x: Tensor, steps: int, min: float = -1, max: float = 1)->Tensor:
+def quantize(x: Tensor, steps: int, min: float = -1, max: float = 1) -> Tensor:
     """
     Quantize a real signal.
 
@@ -410,6 +414,7 @@ def quantize(x: Tensor, steps: int, min: float = -1, max: float = 1)->Tensor:
     x = (x - min) / (max - min) * steps
     x = x.floor().clip(0, steps - 1).to(int)
     return x
+
 
 def one_hot_quantization(x: Tensor, steps: int, min: float = -1, max: float = 1) -> Tensor:
     """
