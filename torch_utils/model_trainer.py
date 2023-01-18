@@ -1,9 +1,9 @@
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
 from torch.utils.tensorboard import SummaryWriter
+from contextlib import suppress, nullcontext
 from torch.utils.data import DataLoader
 from pathimport import set_module_root
 import matplotlib.pyplot as plt
-from contextlib import suppress
 from torch.optim import Optimizer
 from torch import nn, Tensor
 from loguru import logger
@@ -34,6 +34,7 @@ class ModelTrainer(ABC):
         losses_names: Optional[List[str]] = None,
         save_buffer_maxlen: int = 5,
         gradient_clip_value: Optional[float] = None,
+        enable_profiling: bool = False,
     ) -> None:
         """
         Abstract class to structure a model training.
@@ -77,6 +78,9 @@ class ModelTrainer(ABC):
             by default 5
         gradient_clip_value : Optional[float]
             Maximum gradient update value, by default no gradient clipping
+        enable_profiling : bool, optional
+            If True runs one full run of the train dataset and
+            logs to tensorboard the profiling information, by default False
 
 
         config.yml [training] parameters
@@ -105,6 +109,7 @@ class ModelTrainer(ABC):
         self.losses_names = losses_names or self._default_losses_names()
         self.optimizer_class = optimizer_class
         self.gradient_clip_value = gradient_clip_value
+        self.enable_profiling = enable_profiling # TODO: tests
 
         # configuration attributes
         self.config_path = self.model_path / "config.yml"
@@ -139,6 +144,7 @@ class ModelTrainer(ABC):
         self.dummy_input_train = self._get_dummy_data(True)
         self.dummy_input_valid = self._get_dummy_data(False)
         self.last_total_loss = 1e10  # used to select the best checkpoints
+        self.profiler = self._get_profiler()  # null context manager if enable_profiling==False
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Training loop
@@ -152,14 +158,18 @@ class ModelTrainer(ABC):
         logger.info(f"parameters: {self._get_model_parameters() / 1e3} K")
         if self.overfit_mode:
             logger.info("overfit mode on")
+        if self.enable_profiling:
+            logger.info("profiler on: stopping after one epoch")
 
         # logging
         logger.info("saving the model graph")
         self._log_graph()
         logger.info("saving the text of config.yaml")
         self._log_yaml()
+        msg =  "starting profilation" if self.enable_profiling else "starting training"
 
-        logger.info("starting training")  # - = - § >>
+        logger.info(msg)  # - = - § >>
+        self._start_profiling()  # <- - profiler on
         self.on_train_begin()
         for epoch in range(self.start_epoch, self.max_epochs):
             self.on_epoch_begin(epoch)
@@ -182,6 +192,14 @@ class ModelTrainer(ABC):
                 _log_data = lambda t: self.dummy_input_train if t else self.dummy_input_valid
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
                 self._log_outs(epoch)
+
+                self._stop_profiling()  # <- - profiler off
+
+                # leaving the training  ~ ~
+                if self.enable_profiling:
+                    logger.info(f"{self.model_path.name} profilation complete")
+                    return
+                # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
                 if not self.overfit_mode:
                     # validation
@@ -230,6 +248,9 @@ class ModelTrainer(ABC):
         # for logging
         self._update_running_losses(_losses)
         self.on_train_step_end(epoch)
+
+        # profiler update
+        self.profiler.step()
 
     def valid_step(self, data: List[Tensor], epoch) -> None:
         """
@@ -607,7 +628,7 @@ class ModelTrainer(ABC):
         net_ins = self._get_filtered_input(self.dummy_input_train)
         net_outs = self.net(*net_ins)
         net_outs = [x.flatten().cpu() for x in net_outs]
-        
+
         plt.figure(figsize=self.figsize)
         plt.violinplot(net_outs)
         plt.title("model outputs")
@@ -644,9 +665,49 @@ class ModelTrainer(ABC):
         self.log_writer.add_text("config.yaml", txt, 0)
 
     # = = = = = = = = = = = = = = = = = = = = = =
+    #                Profiler
+    # = = = = = = = = = = = = = = = = = = = = = =
+    def _get_profiler(self) -> torch.profiler.profile:
+        """
+        Return the profiler context manager.
+
+        Returns
+        -------
+        torch.profiler.profile
+            Pytorch profiler
+        """
+        prof = (
+            torch.profiler.profile(
+                schedule=torch.profiler.schedule(wait=1, warmup=1, active=3, repeat=2),
+                on_trace_ready=torch.profiler.tensorboard_trace_handler(self.logs_dir),
+                record_shapes=True,
+                profile_memory=True,
+                with_stack=True,
+            )
+            if self.enable_profiling
+            else nullcontext
+        )
+        return prof
+
+    def _start_profiling(self) -> None:
+        """
+        Starts the profiling.
+        """
+        self.profiler.start()
+        logger.info("profiler started")
+
+    def _stop_profiling(self) -> None:
+        """
+        Stops the profiling.
+        """
+        self.profiler.stop()
+        logger.info("profiler stopped")
+
+        # leaving
+
+    # = = = = = = = = = = = = = = = = = = = = = =
     #                Utilities
     # = = = = = = = = = = = = = = = = = = = = = =
-
     def _remove_extra_dim(self, data: List[Tensor]) -> List[Tensor]:
         """
         Removes extra starting dimensions from the
