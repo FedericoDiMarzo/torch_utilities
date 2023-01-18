@@ -285,7 +285,7 @@ class CausalConv2d(nn.Module):
         out_channels: int,
         kernel_size: Tuple[int, int],
         stride_f: int = 1,
-        padding_f: int = 0,
+        padding_f: Optional[int] = None,
         dilation: Tuple[int, int] = 1,
         bias: bool = True,
         separable: bool = False,
@@ -299,7 +299,10 @@ class CausalConv2d(nn.Module):
         ----------
         Same parameters as Conv2d plus
 
-        separable: bool, optional
+        padding_f : Optional[int]
+            Symmetric padding over frequency, by default the same shape
+            of input is enforced with padding
+        separable : bool, optional
             Enable separable convolution (depthwise + pointwise), by default False
         enable_weight_norm : bool, optional
             Enables weight normalization, by default False
@@ -378,6 +381,13 @@ class CausalConv2d(nn.Module):
         kernel_size_t, dilation_t = map(get_time_value, (self.kernel_size, self.dilation))
         causal_pad = get_causal_conv_padding(kernel_size_t, dilation_t)
         return causal_pad
+
+    def _get_default_freq_padding(self) -> nn.Module:
+        """
+        Gets the default frequency padding        
+        """
+        # TODO: implement same padding here
+        pass
 
 
 class CausalConv2dNormAct(nn.Module):
@@ -868,3 +878,91 @@ class GruNormAct(nn.Module):
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y, h
+
+
+class DenseConvBlock(nn.Module):
+    def __init__(
+        self,
+        channels: int,
+        kernel_size: Tuple[int, int],
+        dilation: Optional[Tuple[int, int]] = None,
+        disable_dilation_f: bool = False,
+        depth: int = 3,
+        final_stride: int = 1,
+        separable: bool = False,
+        batchnorm_eps: float = 1e-05,
+        batchnorm_momentum: float = 0.1,
+        batchnorm_affine: bool = True,
+        batchnorm_track_running_stats: bool = True,
+        disable_batchnorm: bool = False,
+        enable_weight_norm: bool = False,
+        activation: nn.Module = nn.LeakyReLU(),
+        residual_merge: Optional[Callable] = None,
+        dtype=None,
+    ) -> None:
+        """
+        Dense block from  Dense CNN With Self-Attention for Time-Domain Speech Enhancement
+        paper (https://ieeexplore.ieee.org/document/9372863).
+
+        Parameters
+        ----------
+        channels : int
+            Number of input and output channels
+        kernel_size : Tuple[int, int]
+            Kernel size. Can be also an int, or a list
+            of ints/Tuple[int, int] of length of depth
+        dilation : Optional[Tuple[int,int]]
+            Dilation. Can be also an int, or a list
+            of ints/Tuple[int, int] of length depth;
+            by default the dilation is equal to the kernel to the power of
+            the post_conv layer index
+        disable_dilation_f : bool
+            If True dilation_f==1 for each conv dilation setting,
+            by default False
+        tconv_kernel_f : Optional[int], optional
+            Frequncy kernel size of the transposed convolution,
+            by default twice tconv_stride_f
+        final_stride : int, optional
+            Stride of the last convolution, by default 1
+        separable : bool, optional
+            Enable separable convolutions, by default False
+        batchnorm_eps : float, optional
+            Eps parameter of the BatchNorm2d , by default 1e-05
+        batchnorm_momentum : float, optional
+            Momentum parameter of the BatchNorm2d, by default 0.1
+        batchnorm_affine : bool, optional
+            Affine parameter of the BatchNorm2d, by default True
+        batchnorm_track_running_stats : bool, optional
+            Track running stats parameter of the BatchNorm2d, by default True
+        disable_batchnorm : bool, optional
+            Disables the batch normalization, by default False
+        enable_weight_norm : bool, optional
+            Uses the weight normalization instead of the batch normalization,
+            by default False
+        activation : nn.Module, optional
+            Activation to use, by default nn.LeakyReLU()
+        residual_merge : Optional[Callable], optional
+            Merge operation performed between the input  the last activation output,
+            by default None
+        dtype : optional
+            Module dtype, by default None
+        """
+        super().__init__()
+
+        # attributes
+        self.channels = channels
+        self.kernel_size = kernel_size
+        self.dilation = dilation
+        self.disable_dilation_f = disable_dilation_f
+        self.depth = depth
+        self.final_stride = final_stride
+        self.separable = separable
+        self.batchnorm_eps = batchnorm_eps
+        self.batchnorm_momentum = batchnorm_momentum
+        self.batchnorm_affine = batchnorm_affine
+        self.batchnorm_track_running_stats = batchnorm_track_running_stats
+        self.disable_batchnorm = disable_batchnorm
+        self.enable_weight_norm = enable_weight_norm
+        self.activation = activation
+        self.residual_merge = residual_merge
+        self.dtype = dtype
