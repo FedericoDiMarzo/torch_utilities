@@ -131,7 +131,7 @@ class TestGeneric(unittest.TestCase):
         for d, s in params:
             with self.subTest(d=d, s=s):
                 x = torch.rand([3] * d) * s
-                x = torch.floor(x).clip(0, s-1)
+                x = torch.floor(x).clip(0, s - 1)
                 y = tu.one_hot_quantization(x, s, 0, s)
                 x_hat = tu.invert_one_hot(y)
                 self.assertTrue(x.equal(x_hat))

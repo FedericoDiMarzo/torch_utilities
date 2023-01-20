@@ -361,14 +361,21 @@ def get_gradients(model: nn.Module) -> Tensor:
 
     _norm = lambda x: torch.linalg.norm(x).item()
     f = lambda n: [_norm(getattr(x, n).grad) if valid(x, n) else 0 for x in modules]
+    # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
     w_grad = f("weight")
     b_grad = f("bias")
     # weight normalization
     g_grad = f("weight_g")
     v_grad = f("weight_v")
-    # TODO: GRU
+    # GRU ~ ~ ~ ~ ~ ~ ~ ~
+    max_gru = 4
+    gru_w_ih = sum([f(f"weight_ih_l{i}") for i in range(max_gru)])
+    gru_w_hh = sum([f(f"weight_hh_l{i}") for i in range(max_gru)])
+    bias_w_ih = sum([f(f"bias_ih_l{i}") for i in range(max_gru)])
+    bias_w_hh = sum([f(f"bias_hh_l{i}") for i in range(max_gru)])
     # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-    grad = [sum(xs) for xs in zip(w_grad, b_grad, g_grad, v_grad)]
+    zipped = zip(w_grad, b_grad, g_grad, v_grad, gru_w_ih, gru_w_hh, bias_w_ih, bias_w_hh)
+    grad = [sum(xs) for xs in zipped]
     grad = torch.FloatTensor(grad)
     return grad
 
@@ -390,7 +397,6 @@ def get_model_parameters(model: nn.Module) -> int:
     return sum(p.numel() for p in model.parameters())
 
 
-# TODO: write test
 def quantize(x: Tensor, steps: int, min: float = -1, max: float = 1) -> Tensor:
     """
     Quantize a real signal.
