@@ -109,7 +109,7 @@ class ModelTrainer(ABC):
         self.losses_names = losses_names or self._default_losses_names()
         self.optimizer_class = optimizer_class
         self.gradient_clip_value = gradient_clip_value
-        self.enable_profiling = enable_profiling # TODO: tests
+        self.enable_profiling = enable_profiling
 
         # configuration attributes
         self.config_path = self.model_path / "config.yml"
@@ -134,6 +134,7 @@ class ModelTrainer(ABC):
         self.optim_state = None
         self.optimizer = self._setup_optimizer()
         self.running_losses = None
+        self.running_losses_steps = 0
         self._reset_running_losses()
 
         # extra stuff
@@ -166,7 +167,7 @@ class ModelTrainer(ABC):
         self._log_graph()
         logger.info("saving the text of config.yaml")
         self._log_yaml()
-        msg =  "starting profilation" if self.enable_profiling else "starting training"
+        msg = "starting profilation" if self.enable_profiling else "starting training"
 
         logger.info(msg)  # - = - § >>
         self._start_profiling()  # <- - profiler on
@@ -181,11 +182,11 @@ class ModelTrainer(ABC):
                 data = self._remove_extra_dim(data)
                 self.train_step(data, epoch)
                 if i % self.log_every == 0 and i != 0:
-                    self._log_losses(is_training=True, steps=self.log_every, epoch=epoch)
+                    self._log_losses(is_training=True, epoch=epoch)
                     self._reset_running_losses()
                 #
             self._log_gradients(epoch)
-            self._log_losses(is_training=True, steps=(i % self.log_every) + 1, epoch=epoch)
+            self._log_losses(is_training=True, epoch=epoch)
             self._reset_running_losses()
 
             with torch.no_grad():
@@ -207,7 +208,7 @@ class ModelTrainer(ABC):
                     for i, data in enumerate(self.valid_ds):
                         data = self._remove_extra_dim(data)
                         self.valid_step(data, epoch)
-                    self._log_losses(is_training=False, steps=i + 1, epoch=epoch)
+                    self._log_losses(is_training=False, epoch=epoch)
                     self._reset_running_losses()
                     self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
 
@@ -250,7 +251,8 @@ class ModelTrainer(ABC):
         self.on_train_step_end(epoch)
 
         # profiler update
-        self.profiler.step()
+        if self.enable_profiling:
+            self.profiler.step()
 
     def valid_step(self, data: List[Tensor], epoch) -> None:
         """
@@ -325,12 +327,14 @@ class ModelTrainer(ABC):
         """
         losses = [loss.item() for loss in losses]
         self.running_losses = [l0 + l1 for l0, l1 in zip(self.running_losses, losses)]
+        self.running_losses_steps += 1
 
     def _reset_running_losses(self) -> None:
         """
         Resets the state of the running_losses.
         """
         self.running_losses = np.zeros(len(self.losses))
+        self.running_losses_steps = 0
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #               Callbacks
@@ -559,7 +563,7 @@ class ModelTrainer(ABC):
         data = [x.to(tu.get_device()) for x in ds.dataset[[0, 1]]]
         return data
 
-    def _log_losses(self, is_training: bool, steps: int, epoch: int) -> None:
+    def _log_losses(self, is_training: bool, epoch: int) -> None:
         """
         Logs running_losses.
 
@@ -567,23 +571,20 @@ class ModelTrainer(ABC):
         ----------
         is_training : bool
             Flag to separate train/valid logging
-        steps : int
-            Iterations before this function was called
         epoch : int
             Current epoch
         """
         tag_suffix = "train" if is_training else "valid"
         losses_names = self.losses_names + ["total"]
-        losses = self._apply_losses_weights(self.running_losses)
-        total_loss = sum(losses)
+        total_loss = sum(self.running_losses)
         losses = self.running_losses + [total_loss]
         for loss, name in zip(losses, losses_names):
-            loss /= steps
+            loss /= self.running_losses_steps
             logger.info(f"{name}: {loss}")
             self.log_writer.add_scalar(f"{name}_{tag_suffix}", loss, global_step=epoch)
         self._reset_running_losses()
 
-        self.last_total_loss = total_loss / steps
+        self.last_total_loss = total_loss / self.running_losses_steps
 
     def _default_losses_names(self) -> List[str]:
         """
@@ -685,7 +686,7 @@ class ModelTrainer(ABC):
                 with_stack=True,
             )
             if self.enable_profiling
-            else nullcontext
+            else nullcontext()
         )
         return prof
 
@@ -693,14 +694,14 @@ class ModelTrainer(ABC):
         """
         Starts the profiling.
         """
-        self.profiler.start()
+        self.profiler.__enter__()
         logger.info("profiler started")
 
     def _stop_profiling(self) -> None:
         """
         Stops the profiling.
         """
-        self.profiler.stop()
+        self.profiler.__exit__(None, None, None)
         logger.info("profiler stopped")
 
         # leaving

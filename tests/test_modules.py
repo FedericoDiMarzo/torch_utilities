@@ -67,7 +67,7 @@ class TestCausalConv2d(unittest.TestCase):
         self.out_channels = (1, 3)
         self.kernel_size = (1, 4, (2, 3))
         self.stride_f = (1, 2, 3, 4)
-        self.padding_f = (0, 1, 2)
+        self.padding_f = (None, 0, 1, 2)
         self.dilation = (1, 2, 4, (3, 2))
         self.bias = (False, True)
         self.separable = (False, True)
@@ -151,15 +151,25 @@ class TestCausalConv2d(unittest.TestCase):
             ) = p
             with self.subTest(p=p):
                 conv = self.get_instance(p)
+                self.assertEqual(type(conv.layers), nn.Sequential)
+                padding_layer = nn.Identity if padding_f is not None else nn.ConstantPad2d
                 if separable:
-                    self.assertEqual(type(conv.conv), nn.Sequential)
-                    self.assertEqual(type(conv.conv[0]), nn.Conv2d)
-                    self.assertEqual(type(conv.conv[1]), nn.Conv2d)
-                else:
-                    self.assertEqual(type(conv.conv), nn.Conv2d)
+                    self.assertEqual(type(conv.layers[0]), nn.ConstantPad2d)
+                    self.assertEqual(type(conv.layers[1]), nn.Conv2d)
+                    self.assertEqual(type(conv.layers[2]), nn.Conv2d)
+                    self.assertEqual(type(conv.layers[3]), padding_layer)
                     self.assertTrue(
-                        conv.conv.kernel_size == kernel_size
-                        or conv.conv.kernel_size == (kernel_size, kernel_size)
+                        conv.layers[1].kernel_size == kernel_size
+                        or conv.layers[1].kernel_size == (kernel_size, kernel_size)
+                    )
+                    self.assertEqual(conv.layers[2].kernel_size, (1, 1))
+                else:
+                    self.assertEqual(type(conv.layers[0]), nn.ConstantPad2d)
+                    self.assertEqual(type(conv.layers[1]), nn.Conv2d)
+                    self.assertEqual(type(conv.layers[2]), padding_layer)
+                    self.assertTrue(
+                        conv.layers[1].kernel_size == kernel_size
+                        or conv.layers[1].kernel_size == (kernel_size, kernel_size)
                     )
 
                 if enable_weight_norm:
@@ -187,8 +197,19 @@ class TestCausalConv2d(unittest.TestCase):
                 batch_size, _, frames = x.shape[:3]
                 dilation_f = _get_f(dilation)
                 kernel_f = _get_f(kernel_size)
-                out_freqs = in_freqs + 2 * padding_f - dilation_f * (kernel_f - 1) - 1
-                out_freqs = int(out_freqs / stride_f + 1)
+
+                if padding_f is None and stride_f != 1:
+                    # auto padding for stride != 1
+                    padding_f = 0
+
+                if padding_f is None and stride_f == 1:
+                    # auto padding for stride == 1
+                    out_freqs = in_freqs
+                else:
+                    # manual padding
+                    out_freqs = in_freqs + 2 * padding_f - dilation_f * (kernel_f - 1) - 1
+                    out_freqs = int(out_freqs / stride_f + 1)
+
                 expected_shape = (batch_size, out_channels, frames, out_freqs)
                 self.assertEqual(y.shape, expected_shape)
 
