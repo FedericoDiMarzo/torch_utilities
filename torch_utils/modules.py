@@ -438,13 +438,7 @@ class CausalConv2dNormAct(nn.Module):
         """
         CausalConv2d + BatchNorm2d + Activation.
 
-
-        This layer ensures f_in = f_out // stride_f only if #TODO: change that with padding_f=None in Conv2D
-        f_in is even, stride_f divides f_in and
-        [dilation_f * (kernel_f - 1) + 1] is odd.
-
-        Otherwise f_in = f_out // stride_f + 1.
-
+        This layer ensures f_in = f_out // stride_f only if stride_f divides f_in. #TODO: else ?
 
         Parameters
         ----------
@@ -506,15 +500,10 @@ class CausalConv2dNormAct(nn.Module):
             self.disable_batchnorm = True
 
         # inner modules
-        kernel_f = get_freq_value(self.kernel_size)
-        dilation_f = get_freq_value(self.dilation)
-        half_padding_f = self._get_freq_padding(kernel_f, dilation_f)
-
         self.conv = CausalConv2d(
             in_channels=self.in_channels,
             out_channels=self.out_channels,
             kernel_size=self.kernel_size,
-            padding_f=half_padding_f,
             stride_f=stride_f,
             dilation=self.dilation,
             bias=False,
@@ -542,34 +531,6 @@ class CausalConv2dNormAct(nn.Module):
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y
-
-    def _get_freq_padding(self, kernel_f: int, dilation_f: int) -> int:
-        """
-        Gets the padding needed to keep the frequency output dimension
-        equal to f_out = int(f_in / stride_f + 1).
-
-        The previous formula it's valid only when
-        [dilation_f * (kernel_f - 1) + 1 / 2] is an integer.
-        (more information here https://pytorch.org/docs/stable/generated/torch.nn.Conv2d.html).
-
-        Parameters
-        ----------
-        kernel_f : int
-            Kernel size over frequency dimension
-        dilation_f : int
-            Dilation over frequency dimension
-        stride_f : int
-            Stride value over frequency dimension
-
-        Returns
-        -------
-        int
-            Padding needed to approximate f_out = int(f_in / stride_f + 1)
-        """
-
-        padding = get_causal_conv_padding(kernel_f, dilation_f) + 1
-        padding = padding // 2  # the approximation occours here
-        return padding
 
 
 class CausalConvNeuralUpsampler(nn.Module):
