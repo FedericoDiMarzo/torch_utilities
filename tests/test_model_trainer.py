@@ -1,3 +1,4 @@
+from contextlib import nullcontext
 from typing import Callable, List, Tuple, Type, Optional
 from torch.utils.data import Dataset, DataLoader
 from torch.optim import Adam, Rprop, Optimizer
@@ -57,6 +58,7 @@ class ModelTrainerDummy(tu.ModelTrainer):
         losses: List[Callable],
         net_ins_indices: Optional[List[int]] = None,
         losses_names: Optional[List[str]] = None,
+        enable_profiling: bool = False,
     ) -> None:
         """
         ModelTrainer implementation.
@@ -70,6 +72,7 @@ class ModelTrainerDummy(tu.ModelTrainer):
             losses,
             net_ins_indices,
             losses_names,
+            enable_profiling=enable_profiling,
         )
         self.net = self.net.to(float)
 
@@ -140,7 +143,7 @@ class TestModelTrainer(unittest.TestCase):
             not_config = list(set(model.glob("*")) - set(model.glob("*.yml")))
             [f.unlink for f in not_config]
 
-    def get_model_trainer(self, params: Tuple) -> ModelTrainerDummy:
+    def get_model_trainer(self, params: Tuple, enable_profiling: bool = False) -> ModelTrainerDummy:
         """
         Initializes the model trainer.
 
@@ -148,6 +151,8 @@ class TestModelTrainer(unittest.TestCase):
         ----------
         params : Tuple
             Parameters
+        enable_profiling : bool, optional
+            If True enables the profiler, by default False
 
         Returns
         -------
@@ -170,6 +175,7 @@ class TestModelTrainer(unittest.TestCase):
             losses=[nn.MSELoss()] * n_losses,
             net_ins_indices=[0],
             losses_names=[f"test_loss_{i}" for i in range(n_losses)],
+            enable_profiling=enable_profiling,
         )
         return trainer
 
@@ -261,6 +267,14 @@ class TestModelTrainer(unittest.TestCase):
                     ],
                     [True] * 4 + [False] * 2 if overfit else [True] * 6,
                 )
+
+    def test_profiler(self):
+        p = self.params[0]
+        for is_profiling in (False, True):
+            with self.subTest(is_profiling=is_profiling):
+                trainer = self.get_model_trainer(p, enable_profiling=is_profiling)
+                expected = torch.profiler.profile if is_profiling else nullcontext
+                self.assertEqual(type(trainer.profiler), expected)
 
     def test_get_dummy_data(self):
         params = self.params
