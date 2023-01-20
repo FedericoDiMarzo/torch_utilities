@@ -438,7 +438,7 @@ class CausalConv2dNormAct(nn.Module):
         """
         CausalConv2d + BatchNorm2d + Activation.
 
-        
+
         This layer ensures f_in = f_out // stride_f only if #TODO: change that with padding_f=None in Conv2D
         f_in is even, stride_f divides f_in and
         [dilation_f * (kernel_f - 1) + 1] is odd.
@@ -765,38 +765,6 @@ class CausalConvNeuralUpsampler(nn.Module):
                     assert type(p) != int and len(p) == self.post_conv_count, err_msg
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
-        paddings = self._get_conv_layer_paddings_f()
-
-        conv = []
-        for k, p, d in zip(self.post_conv_kernel_size, paddings, self.post_conv_dilation):
-            conv.append(
-                CausalConv2d(
-                    in_channels=self.out_channels,
-                    out_channels=self.out_channels,
-                    kernel_size=k,
-                    dilation=d,
-                    bias=False,
-                    separable=self.separable,
-                    enable_weight_norm=self.enable_weight_norm,
-                    dtype=self.dtype,
-                )
-            )
-            conv.append(p)
-
-        conv = nn.Sequential(*conv)
-        return conv
-
-    def _get_conv_layer_paddings_f(self) -> List[int]:
-        """
-        Gets the paddings of the CausalConv2d layers
-
-        Returns
-        -------
-        int
-            Padding of CausalConv2d layers
-        """
-        paddings = []
-
         # to solve an unique case ~ ~ ~
         if self.post_conv_dilation is None:
             self.post_conv_dilation = self._get_default_dilation()
@@ -806,19 +774,24 @@ class CausalConvNeuralUpsampler(nn.Module):
             self.post_conv_kernel_size = [self.post_conv_kernel_size]
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
-        f = get_freq_value
-        for d, k in zip(self.post_conv_dilation, self.post_conv_kernel_size):
-            d_f, k_f = [f(x) for x in (d, k)]
-            pad_f = d_f * (k_f - 1) + 1
-            half_pad_f = pad_f // 2
-            if pad_f % 2 == 0:
-                pad = nn.ConstantPad2d((half_pad_f, half_pad_f - 1, 0, 0), 0)
-            else:
-                pad = nn.ConstantPad2d((half_pad_f, half_pad_f, 0, 0), 0)
+        conv = []
+        for k, d in zip(self.post_conv_kernel_size, self.post_conv_dilation):
+            conv.append(
+                CausalConv2d(
+                    in_channels=self.out_channels,
+                    out_channels=self.out_channels,
+                    kernel_size=k,
+                    padding_f=None,
+                    dilation=d,
+                    bias=False,
+                    separable=self.separable,
+                    enable_weight_norm=self.enable_weight_norm,
+                    dtype=self.dtype,
+                )
+            )
 
-            paddings.append(pad)
-
-        return paddings
+        conv = nn.Sequential(*conv)
+        return conv
 
 
 class GruNormAct(nn.Module):

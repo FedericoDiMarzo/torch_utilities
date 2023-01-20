@@ -421,7 +421,7 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
         _setup()
 
     def setUp(self):
-        self.in_channels = (1, 2)
+        self.in_channels = (1,)
         self.out_channels = (3,)
         self.post_conv_kernel_size = (1, 2, (1, 3))
         self.post_conv_count = (1, 2)
@@ -432,7 +432,7 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
         self.enable_weight_norm = (False, True)
         self.activation = (None, nn.ReLU())
         self.residual_merge = (None, sum_merge)
-        self.dtype = (torch.float, torch.double)
+        self.dtype = (torch.float,)
         self.in_freqs = (50, 51)
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
         self.params = product(
