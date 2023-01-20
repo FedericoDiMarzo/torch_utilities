@@ -300,8 +300,8 @@ class CausalConv2d(nn.Module):
         Same parameters as Conv2d plus
 
         padding_f : Optional[int]
-            Symmetric padding over frequency, by default the same shape
-            of input is enforced with padding
+            Symmetric padding over frequency, by default keep the same frequency shape
+            as the input if stride_f==1 else set padding_f=1
         separable : bool, optional
             Enable separable convolution (depthwise + pointwise), by default False
         enable_weight_norm : bool, optional
@@ -326,22 +326,30 @@ class CausalConv2d(nn.Module):
 
         # inner modules
         self.causal_pad_amount = self._get_causal_pad_amount()
-        self.causal_pad = nn.ConstantPad2d((0, 0, self.causal_pad_amount, 0), 0)
         self.groups = np.gcd(self.in_channels, self.out_channels)
 
+        layers = []
+
+        # causal padding
+        causal_pad = nn.ConstantPad2d((0, 0, self.causal_pad_amount, 0), 0)
+        layers.append(causal_pad)
+
+        # convolution
+        conv_pad = 0 if self.padding_f is None else (0, self.padding_f)
         if not self.separable:
-            self.conv = self._normalize(
+            full_conv = self._normalize(
                 nn.Conv2d(
                     in_channels=self.in_channels,
                     out_channels=self.out_channels,
                     kernel_size=self.kernel_size,
                     stride=(1, stride_f),
-                    padding=(0, padding_f),
                     dilation=self.dilation,
                     bias=self.bias,
                     dtype=self.dtype,
+                    padding=conv_pad,
                 )
             )
+            layers.append(full_conv)
         else:
             # separable convolution
             # depthwise + pointwise
@@ -351,11 +359,11 @@ class CausalConv2d(nn.Module):
                     out_channels=self.out_channels,
                     kernel_size=self.kernel_size,
                     stride=(1, stride_f),
-                    padding=(0, padding_f),
                     dilation=self.dilation,
                     bias=self.bias,
                     groups=self.groups,
                     dtype=self.dtype,
+                    padding=conv_pad,
                 )
             )
             pointwise = self._normalize(
@@ -367,11 +375,16 @@ class CausalConv2d(nn.Module):
                     dtype=self.dtype,
                 )
             )
-            self.conv = nn.Sequential(depthwise, pointwise)
+            layers += [depthwise, pointwise]
+
+        # freq padding
+        freq_pad = self._get_default_freq_padding()
+        layers.append(freq_pad)
+
+        self.layers = nn.Sequential(*layers)
 
     def forward(self, x: Tensor) -> Tensor:
-        x = self.causal_pad(x)
-        x = self.conv(x)
+        x = self.layers(x)
         return x
 
     def _get_causal_pad_amount(self) -> int:
@@ -384,10 +397,23 @@ class CausalConv2d(nn.Module):
 
     def _get_default_freq_padding(self) -> nn.Module:
         """
-        Gets the default frequency padding        
+        Gets the default frequency padding.
+
+        Returns
+        -------
+        nn.Module
+            Frequency padding module
         """
-        # TODO: implement same padding here
-        pass
+        kernel_size_f, dilation_f = map(get_freq_value, (self.kernel_size, self.dilation))
+        pad_f = dilation_f * (kernel_size_f - 1) + 1
+        half_pad_f = pad_f // 2
+        if self.padding_f is not None or self.stride_f != 1:
+            pad = nn.Identity()  # manual padding
+        elif pad_f % 2 == 0:
+            pad = nn.ConstantPad2d((half_pad_f, half_pad_f - 1, 0, 0), 0)
+        else:
+            pad = nn.ConstantPad2d((half_pad_f, half_pad_f, 0, 0), 0)
+        return pad
 
 
 class CausalConv2dNormAct(nn.Module):
@@ -412,7 +438,8 @@ class CausalConv2dNormAct(nn.Module):
         """
         CausalConv2d + BatchNorm2d + Activation.
 
-        This layer ensures f_in = f_out // stride_f only if
+        
+        This layer ensures f_in = f_out // stride_f only if #TODO: change that with padding_f=None in Conv2D
         f_in is even, stride_f divides f_in and
         [dilation_f * (kernel_f - 1) + 1] is odd.
 
