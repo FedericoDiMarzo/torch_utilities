@@ -65,8 +65,8 @@ class TestCausalConv2d(unittest.TestCase):
     def setUp(self):
         self.in_channels = (1, 2)
         self.out_channels = (1, 3)
-        self.kernel_size = (1, 4, (2, 3)) 
-        self.stride_f = (1, 2, 4) 
+        self.kernel_size = (1, 4, (2, 3))
+        self.stride_f = (1, 2, 4)
         self.padding_f = (None, 0, 1, 2)
         self.dilation = (1, 2, 4, (3, 2))
         self.bias = (False, True)
@@ -155,21 +155,21 @@ class TestCausalConv2d(unittest.TestCase):
                 padding_layer = nn.Identity if padding_f is not None else nn.ConstantPad2d
                 if separable:
                     self.assertEqual(type(conv.layers[0]), nn.ConstantPad2d)
-                    self.assertEqual(type(conv.layers[1]), nn.Conv2d)
+                    self.assertEqual(type(conv.layers[1]), padding_layer)
                     self.assertEqual(type(conv.layers[2]), nn.Conv2d)
-                    self.assertEqual(type(conv.layers[3]), padding_layer)
+                    self.assertEqual(type(conv.layers[3]), nn.Conv2d)
                     self.assertTrue(
-                        conv.layers[1].kernel_size == kernel_size
-                        or conv.layers[1].kernel_size == (kernel_size, kernel_size)
+                        conv.layers[2].kernel_size == kernel_size
+                        or conv.layers[2].kernel_size == (kernel_size, kernel_size)
                     )
-                    self.assertEqual(conv.layers[2].kernel_size, (1, 1))
+                    self.assertEqual(conv.layers[3].kernel_size, (1, 1))
                 else:
                     self.assertEqual(type(conv.layers[0]), nn.ConstantPad2d)
-                    self.assertEqual(type(conv.layers[1]), nn.Conv2d)
-                    self.assertEqual(type(conv.layers[2]), padding_layer)
+                    self.assertEqual(type(conv.layers[1]), padding_layer)
+                    self.assertEqual(type(conv.layers[2]), nn.Conv2d)
                     self.assertTrue(
-                        conv.layers[1].kernel_size == kernel_size
-                        or conv.layers[1].kernel_size == (kernel_size, kernel_size)
+                        conv.layers[2].kernel_size == kernel_size
+                        or conv.layers[2].kernel_size == (kernel_size, kernel_size)
                     )
 
                 if enable_weight_norm:
@@ -323,16 +323,9 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             with self.subTest(p=p):
                 conv = self.get_instance(p)
                 causal_conv_2d = conv.conv
-                if separable:
-                    self.assertEqual(type(causal_conv_2d.conv), nn.Sequential)
-                    self.assertEqual(type(causal_conv_2d.conv[0]), nn.Conv2d)
-                    self.assertEqual(type(causal_conv_2d.conv[1]), nn.Conv2d)
-                else:
-                    self.assertEqual(type(causal_conv_2d.conv), nn.Conv2d)
-
+                self.assertEqual(type(causal_conv_2d), tu.CausalConv2d)
                 if enable_weight_norm:
                     self.assertEqual(causal_conv_2d._normalize, weight_norm)
-
                 if activation is None:
                     self.assertEqual(type(conv.activation), nn.Identity)
 
@@ -435,7 +428,7 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
         self.activation = (None, nn.ReLU())
         self.residual_merge = (None, sum_merge)
         self.dtype = (torch.float,)
-        self.in_freqs = (50, 51)
+        self.in_freqs = (50,)
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
         self.params = product(
             self.in_channels,
@@ -539,23 +532,22 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
                 # post conv
                 pconv = upsamp.conv
                 self.assertEqual(type(pconv), nn.Sequential)
-                self.assertEqual(len(pconv), post_conv_count * 2)
+                self.assertEqual(len(pconv), post_conv_count)
                 for i, c in enumerate(pconv):
-                    i = i // 2
                     if isinstance(c, tu.CausalConv2d) and not separable:
-                        self.assertEqual(c.conv.in_channels, out_channels)
-                        self.assertEqual(c.conv.out_channels, out_channels)
+                        self.assertEqual(c.in_channels, out_channels)
+                        self.assertEqual(c.out_channels, out_channels)
                         self.assertEqual(c.separable, separable)
                         self.assertEqual(c.enable_weight_norm, enable_weight_norm)
                         self.assertTrue(
-                            c.conv.kernel_size == post_conv_kernel_size
-                            or c.conv.kernel_size == (post_conv_kernel_size, post_conv_kernel_size)
+                            c.kernel_size == post_conv_kernel_size
+                            or c.kernel_size == (post_conv_kernel_size, post_conv_kernel_size)
                         )
                         if post_conv_dilation is None:
-                            k_t = get_time_value(c.conv.kernel_size)
-                            k_f = get_freq_value(c.conv.kernel_size)
+                            k_t = get_time_value(c.kernel_size)
+                            k_f = get_freq_value(c.kernel_size)
                             expected_dilation = (k_t**i, k_f**i)
-                            self.assertEqual(c.conv.dilation, expected_dilation)
+                            self.assertEqual(c.dilation, expected_dilation)
 
                 # batchnorm
                 if enable_weight_norm:

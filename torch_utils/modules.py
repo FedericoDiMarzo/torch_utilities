@@ -300,7 +300,7 @@ class CausalConv2d(nn.Module):
         Same parameters as Conv2d plus
 
         padding_f : Optional[int]
-            Symmetric padding over frequency, by default ensures f_out = f_in // stride_f 
+            Symmetric padding over frequency, by default ensures f_out = f_in // stride_f
             if stride_f divides f_in
         separable : bool, optional
             Enable separable convolution (depthwise + pointwise), by default False
@@ -652,6 +652,8 @@ class CausalConvNeuralUpsampler(nn.Module):
                 dtype=self.dtype,
             )
         )
+        tconv_out_pad_f = self.tconv_stride_f - self.tconv_kernel_f
+        self.tconv_out_pad = nn.ConstantPad2d((0, tconv_out_pad_f, 0, 0), 0)
 
         self.conv = self._get_conv_layers()
 
@@ -672,6 +674,7 @@ class CausalConvNeuralUpsampler(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.tconv(x)
+        x = self.tconv_out_pad(x)
         y = self.conv(x)
         y = self.batchnorm(y)
         y = self.activation(y)
