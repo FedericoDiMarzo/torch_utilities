@@ -300,8 +300,8 @@ class CausalConv2d(nn.Module):
         Same parameters as Conv2d plus
 
         padding_f : Optional[int]
-            Symmetric padding over frequency, by default keep the same frequency shape
-            as the input if stride_f==1 else set padding_f=1
+            Symmetric padding over frequency, by default ensures f_out = f_in // stride_f 
+            if stride_f divides f_in
         separable : bool, optional
             Enable separable convolution (depthwise + pointwise), by default False
         enable_weight_norm : bool, optional
@@ -333,6 +333,10 @@ class CausalConv2d(nn.Module):
         # causal padding
         causal_pad = nn.ConstantPad2d((0, 0, self.causal_pad_amount, 0), 0)
         layers.append(causal_pad)
+
+        # freq padding
+        freq_pad = self._get_default_freq_padding()
+        layers.append(freq_pad)
 
         # convolution
         conv_pad = 0 if self.padding_f is None else (0, self.padding_f)
@@ -377,10 +381,6 @@ class CausalConv2d(nn.Module):
             )
             layers += [depthwise, pointwise]
 
-        # freq padding
-        freq_pad = self._get_default_freq_padding()
-        layers.append(freq_pad)
-
         self.layers = nn.Sequential(*layers)
 
     def forward(self, x: Tensor) -> Tensor:
@@ -405,14 +405,14 @@ class CausalConv2d(nn.Module):
             Frequency padding module
         """
         kernel_size_f, dilation_f = map(get_freq_value, (self.kernel_size, self.dilation))
-        pad_f = dilation_f * (kernel_size_f - 1) + 1
+        pad_f = dilation_f * (kernel_size_f - 1) + 1 - self.stride_f
         half_pad_f = pad_f // 2
-        if self.padding_f is not None or self.stride_f != 1:
+        if self.padding_f is not None:
             pad = nn.Identity()  # manual padding
         elif pad_f % 2 == 0:
-            pad = nn.ConstantPad2d((half_pad_f, half_pad_f - 1, 0, 0), 0)
-        else:
             pad = nn.ConstantPad2d((half_pad_f, half_pad_f, 0, 0), 0)
+        else:
+            pad = nn.ConstantPad2d((half_pad_f, half_pad_f + 1, 0, 0), 0)
         return pad
 
 

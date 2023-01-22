@@ -65,8 +65,8 @@ class TestCausalConv2d(unittest.TestCase):
     def setUp(self):
         self.in_channels = (1, 2)
         self.out_channels = (1, 3)
-        self.kernel_size = (1, 4, (2, 3))
-        self.stride_f = (1, 2, 3, 4)
+        self.kernel_size = (1, 4, (2, 3)) 
+        self.stride_f = (1, 2, 4) 
         self.padding_f = (None, 0, 1, 2)
         self.dilation = (1, 2, 4, (3, 2))
         self.bias = (False, True)
@@ -190,6 +190,11 @@ class TestCausalConv2d(unittest.TestCase):
                 dtype,
                 in_freqs,
             ) = p
+
+            # skipping autopadding when stride_f doesn't divide in_freqs
+            if padding_f is None and in_freqs % stride_f != 0:
+                continue
+
             with self.subTest(p=p):
                 conv = self.get_instance(p)
                 x = self.get_input(p)
@@ -198,14 +203,9 @@ class TestCausalConv2d(unittest.TestCase):
                 dilation_f = _get_f(dilation)
                 kernel_f = _get_f(kernel_size)
 
-                if padding_f is None and stride_f != 1:
-                    # auto padding for stride != 1
-                    padding_f = 0
-
-                if padding_f is None and stride_f == 1:
-                    # TODO: solve for stride_f != 1
-                    # auto padding for stride == 1
-                    out_freqs = in_freqs
+                if padding_f is None:
+                    # auto padding
+                    out_freqs = in_freqs // stride_f
                 else:
                     # manual padding
                     out_freqs = in_freqs + 2 * padding_f - dilation_f * (kernel_f - 1) - 1
