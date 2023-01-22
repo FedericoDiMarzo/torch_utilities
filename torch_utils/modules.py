@@ -438,7 +438,7 @@ class CausalConv2dNormAct(nn.Module):
         """
         CausalConv2d + BatchNorm2d + Activation.
 
-        This layer ensures f_in = f_out // stride_f only if stride_f divides f_in. #TODO: else ?
+        This layer ensures f_in = f_out // stride_f only if stride_f divides f_in.
 
         Parameters
         ----------
@@ -653,13 +653,6 @@ class CausalConvNeuralUpsampler(nn.Module):
             )
         )
 
-        pad_f = self.tconv_stride_f - self.tconv_kernel_f
-        half_pad_f = pad_f // 2
-        if pad_f % 2 == 0:
-            self.padding_f = nn.ConstantPad2d((half_pad_f, half_pad_f, 0, 0), 0)
-        else:
-            self.padding_f = nn.ConstantPad2d((half_pad_f, half_pad_f + 1, 0, 0), 0)
-
         self.conv = self._get_conv_layers()
 
         if disable_batchnorm:
@@ -679,7 +672,6 @@ class CausalConvNeuralUpsampler(nn.Module):
 
     def forward(self, x: Tensor) -> Tensor:
         x = self.tconv(x)
-        x = self.padding_f(x)
         y = self.conv(x)
         y = self.batchnorm(y)
         y = self.activation(y)
