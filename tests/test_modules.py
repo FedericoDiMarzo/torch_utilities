@@ -410,7 +410,7 @@ class TestScaleChannels2d(unittest.TestCase):
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
-class TestCausalConvNeuralUpsampler(unittest.TestCase):
+class TestCausalSmoothedTConv(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         _setup()
@@ -446,7 +446,7 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
             self.in_freqs,
         )
 
-    def get_instance(self, p: Tuple) -> tu.CausalConvNeuralUpsampler:
+    def get_instance(self, p: Tuple) -> tu.CausalSmoothedTConv:
         (
             in_channels,
             out_channels,
@@ -463,7 +463,7 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
             in_freqs,
         ) = p
 
-        instance = tu.CausalConvNeuralUpsampler(
+        instance = tu.CausalSmoothedTConv(
             in_channels=in_channels,
             out_channels=out_channels,
             post_conv_kernel_size=post_conv_kernel_size,
@@ -710,7 +710,7 @@ class TestDenseConvBlock(unittest.TestCase):
             self.feature_size,
         )
 
-    def get_instance(self, p: Tuple) -> tu.CausalConvNeuralUpsampler:
+    def get_instance(self, p: Tuple) -> tu.CausalSmoothedTConv:
         (
             channels,
             kernel_size,

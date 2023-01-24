@@ -6,23 +6,32 @@ import numpy as np
 import torch
 
 set_module_root(".")
+from torch_utils.audio import interleave
 
 __all__ = [
+    # utilities
     "LambdaLayer",
     "Lookahead",
     "Reparameterize",
     "ScaleChannels2d",
+    # dense variants
     "GroupedLinear",
+    # conv2d variants
     "CausalConv2d",
-    "GruNormAct",
+    "CausalSubConv2d",
+    # conv2d compositions
     "CausalConv2dNormAct",
-    "CausalConvNeuralUpsampler",
+    "CausalSmoothedTConv",
     "DenseConvBlock",
+    # recurrent variants
+    "GruNormAct",
 ]
 
 # TODO: typing submodule
 T = TypeVar("T")
 OneOrPair = Union[T, List[T]]
+
+# private utility functions = = = = = = = = = = = = = =
 
 
 def get_time_value(param):
@@ -111,6 +120,7 @@ def get_default_dilation(
     return dilation
 
 
+# utilitiy layers  = = = = = = = = = = = = = = = = = = =
 class LambdaLayer(nn.Module):
     def __init__(self, f: Callable):
         """
@@ -235,6 +245,7 @@ class ScaleChannels2d(nn.Module):
         return x
 
 
+# dense variants = = = = = = = = = = = = = = = = = = = =
 class GroupedLinear(nn.Module):
     def __init__(
         self,
@@ -313,6 +324,7 @@ class GroupedLinear(nn.Module):
         return f"{cls}(input_dim: {self.input_dim}, hidden_size: {self.hidden_size}, groups: {self.groups})"
 
 
+# conv2d variants = = = = = = = = = = = = = = = = = = =
 class CausalConv2d(nn.Module):
     def __init__(
         self,
@@ -334,6 +346,8 @@ class CausalConv2d(nn.Module):
         ----------
         Same parameters as Conv2d plus
 
+        stride_f : int
+            Kernel stride over frequency
         padding_f : Optional[int]
             Symmetric padding over frequency, by default ensures f_out = f_in // stride_f
             if stride_f divides f_in
@@ -451,6 +465,78 @@ class CausalConv2d(nn.Module):
         return pad
 
 
+class CausalSubConv2d(nn.Module):
+    def __init__(
+        self,
+        in_channels: int,
+        out_channels: int,
+        kernel_size: OneOrPair[int],
+        stride_f: int = 1,
+        padding_f: Optional[int] = None,
+        dilation: OneOrPair[int] = 1,
+        bias: bool = True,
+        separable: bool = False,
+        enable_weight_norm: bool = False,
+        dtype=None,
+    ) -> None:
+        """
+        Also known as sub pixel convolution, described in
+        Dense CNN With Self-Attention for Time-Domain Speech Enhancement
+        paper (https://ieeexplore.ieee.org/document/9372863).
+
+        Many convolutions are interleaved to upsample a signal over frequency.
+
+        Parameters
+        ----------
+        Same parameters as Conv2d plus
+
+        stride_f : int
+            Defines how many interleaved convolutions are present
+        padding_f : Optional[int]
+            Symmetric padding over frequency, by default ensures f_out = f_in // stride_f
+            if stride_f divides f_in
+        separable : bool, optional
+            Enable separable convolution (depthwise + pointwise), by default False
+        enable_weight_norm : bool, optional
+            Enables weight normalization, by default False
+        """
+        super().__init__()
+
+        # attributes
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride_f = stride_f
+        self.padding_f = padding_f
+        self.dilation = dilation
+        self.bias = bias
+        self.separable = separable
+        self.enable_weight_norm = enable_weight_norm
+        self.dtype = dtype
+
+        # inner modules
+        _conv = lambda: CausalConv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride_f=1,
+            padding_f=padding_f,
+            dilation=dilation,
+            bias=bias,
+            separable=separable,
+            enable_weight_norm=enable_weight_norm,
+            dtype=dtype,
+        )
+        self.layers = nn.Sequential(*[_conv() for _ in range(self.stride_f)])
+
+    def forward(self, x: Tensor) -> Tensor:
+        # TODO: docs
+        xs = [conv(x) for conv in self.layers]
+        x = interleave(xs)
+        return x
+
+
+# conv2d compositions = = = = = = = = = = = = = = = = =
 class CausalConv2dNormAct(nn.Module):
     def __init__(
         self,
@@ -568,7 +654,7 @@ class CausalConv2dNormAct(nn.Module):
         return y
 
 
-class CausalConvNeuralUpsampler(nn.Module):
+class CausalSmoothedTConv(nn.Module):
     def __init__(
         self,
         in_channels: int,
@@ -788,7 +874,7 @@ class DenseConvBlock(nn.Module):
         dtype=None,
     ) -> None:
         """
-        Dense block from  Dense CNN With Self-Attention for Time-Domain Speech Enhancement
+        Dense block from Dense CNN With Self-Attention for Time-Domain Speech Enhancement
         paper (https://ieeexplore.ieee.org/document/9372863).
 
         Parameters
@@ -908,6 +994,7 @@ class DenseConvBlock(nn.Module):
         return x
 
 
+# recurrent layers variants = = = = = = = = = = = = = =
 class GruNormAct(nn.Module):
     def __init__(
         self,
@@ -992,3 +1079,6 @@ class GruNormAct(nn.Module):
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y, h
+
+
+# = = = = = = = = = = = = = = = = = = = = = = = = = = =
