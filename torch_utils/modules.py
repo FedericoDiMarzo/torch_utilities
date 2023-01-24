@@ -1,7 +1,6 @@
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, List, Optional, Tuple, TypeVar, Union
 from torch.nn.utils import weight_norm
 from pathimport import set_module_root
-import torch.nn.functional as F
 from torch import nn, Tensor
 import numpy as np
 import torch
@@ -19,6 +18,10 @@ __all__ = [
     "CausalConv2dNormAct",
     "CausalConvNeuralUpsampler",
 ]
+
+# TODO: typing submodule
+T = TypeVar("T")
+OneOrPair = Union[T, List[T]]
 
 
 def get_time_value(param):
@@ -74,6 +77,37 @@ def get_causal_conv_padding(kernel_size: int, dilation: int) -> int:
     """
     causal_pad = (kernel_size - 1) * dilation
     return causal_pad
+
+
+def get_default_dilation(
+    kernel_size: OneOrPair[int],
+    depth: int,
+    disable_dilation_f: bool = False,
+) -> List[Tuple[int, int]]:
+    """
+    The default dilation is an increasing power of the kernel
+    # e.g: d_t_conv2 = k_t**2
+
+    Parameters
+    ----------
+    kernel_size : OneOrPair[int]
+        Size of the kernel
+    depth : int
+        Number of layers with dilation
+    disable_dilation_f : bool, optional
+        If True the dilation over frequency will be always 1,
+        by default False
+
+    Returns
+    -------
+    List[Tuple[int, int]]
+        default dilation
+    """
+    k_t, k_f = [f(kernel_size) for f in (get_time_value, get_freq_value)]
+    dilation = [(k_t**x, k_f**x) for x in range(depth)]
+    if disable_dilation_f:
+        dilation = [(d[0], 1) for d in dilation]
+    return dilation
 
 
 class LambdaLayer(nn.Module):
@@ -283,10 +317,10 @@ class CausalConv2d(nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        kernel_size: Tuple[int, int],
+        kernel_size: OneOrPair[int],
         stride_f: int = 1,
         padding_f: Optional[int] = None,
-        dilation: Tuple[int, int] = 1,
+        dilation: OneOrPair[int] = 1,
         bias: bool = True,
         separable: bool = False,
         enable_weight_norm: bool = False,
@@ -421,9 +455,9 @@ class CausalConv2dNormAct(nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        kernel_size: Tuple[int, int],
+        kernel_size: OneOrPair[int],
         stride_f: int = 1,
-        dilation: Tuple[int, int] = 1,
+        dilation: OneOrPair[int] = 1,
         separable: bool = False,
         batchnorm_eps: float = 1e-05,
         batchnorm_momentum: float = 0.1,
@@ -446,11 +480,11 @@ class CausalConv2dNormAct(nn.Module):
             Number of input channels
         out_channels : int
             Number of output channels
-        kernel_size : Tuple[int, int]
+        kernel_size : OneOrPair[int]
             Convolution kernel size
         stride_f : int, optional
             Frequency stride, by default 1
-        dilation : Tuple[int, int], optional
+        dilation : OneOrPair[int], optional
             Convolution dilation, by default 1
         separable : bool, optional
             Enable separable convolution (depthwise + pointwise), by default False
@@ -472,7 +506,7 @@ class CausalConv2dNormAct(nn.Module):
         enable_weight_norm : bool, optional
             Uses the weight normalization instead of the batch normalization,
             by default False
-        dtype : _type_, optional
+        dtype, optional
             Module dtype, by default None
         """
 
@@ -538,8 +572,8 @@ class CausalConvNeuralUpsampler(nn.Module):
         self,
         in_channels: int,
         out_channels: int,
-        post_conv_kernel_size: Tuple[int, int],
-        post_conv_dilation: Optional[Tuple[int, int]] = None,
+        post_conv_kernel_size: OneOrPair[int],
+        post_conv_dilation: Optional[OneOrPair[int]] = None,
         disable_dilation_f: bool = False,
         post_conv_count: int = 1,
         tconv_kernel_f: Optional[int] = None,
@@ -564,12 +598,10 @@ class CausalConvNeuralUpsampler(nn.Module):
             Number of input channels
         out_channels : int
             Number of output channels
-        post_conv_kernel_size : Tuple[int, int]
-            Kernel size of the post convolutions. Can be also an int, or a list
-            of ints/Tuple[int, int] of length post_conv_count
+        post_conv_kernel_size : OneOrPair[int]
+            Kernel size of the post convolutions.
         post_conv_dilation : Optional[Tuple[int,int]]
-            Dilation of the post convolutions. Can be also an int, or a list
-            of ints/Tuple[int, int] of length post_conv_count;
+            Dilation of the post convolutions,
             by default the dilation is equal to the kernel to the power of
             the post_conv layer index
         disable_dilation_f : bool
@@ -682,20 +714,21 @@ class CausalConvNeuralUpsampler(nn.Module):
             y = self.residual_merge(x, y)
         return y
 
-    def _get_default_dilation(self) -> List[Tuple[int, int]]:
+    def _get_default_dilation(self) -> List[OneOrPair[int]]:
         """
         The default dilation is an increasing power of the kernel
         # e.g: d_t_conv2 = k_t**2
 
         Returns
         -------
-        List[Tuple[int, int]]
+        List[OneOrPair[int]]
             default dilation
         """
-        k_t, k_f = [f(self.post_conv_kernel_size) for f in (get_time_value, get_freq_value)]
-        dilation = [(k_t**x, k_f**x) for x in range(self.post_conv_count)]
-        if self.disable_dilation_f:
-            dilation = [(d[0], 1) for d in dilation]
+        dilation = get_default_dilation(
+            self.post_conv_kernel_size,
+            self.post_conv_count,
+            self.disable_dilation_f,
+        )
         return dilation
 
     def _get_conv_layers(self) -> nn.Sequential:
@@ -708,30 +741,16 @@ class CausalConvNeuralUpsampler(nn.Module):
             Sequence of one or more CausalConv2d layers
         """
 
-        # error handling ~ ~ ~ ~ ~ ~ ~ ~
-        if self.post_conv_dilation is None:
-            err_msg = f"kernel size should be an int or Tuple[int] when post_conv_dilation is None"
-            assert type(self.post_conv_kernel_size) in (int, tuple), err_msg
-        else:
-            err_msg = f"post_conv_count == {self.post_conv_count} is not enforced"
-            for p in self.post_conv_kernel_size, self.post_conv_dilation:
-                if self.post_conv_count == 1:
-                    assert (type(p) == tuple and len(p) == 2) or (type(p) == int), err_msg
-                else:
-                    assert type(p) != int and len(p) == self.post_conv_count, err_msg
-        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-
         # to solve an unique case ~ ~ ~
         if self.post_conv_dilation is None:
             self.post_conv_dilation = self._get_default_dilation()
-            self.post_conv_kernel_size = [self.post_conv_kernel_size] * self.post_conv_count
-        elif self.post_conv_count == 1:
-            self.post_conv_dilation = [self.post_conv_dilation]
-            self.post_conv_kernel_size = [self.post_conv_kernel_size]
+        else:
+            self.post_conv_dilation = [self.post_conv_dilation] * self.post_conv_count
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
         conv = []
-        for k, d in zip(self.post_conv_kernel_size, self.post_conv_dilation):
+        kernels = [self.post_conv_kernel_size] * self.post_conv_count
+        for k, d in zip(kernels, self.post_conv_dilation):
             conv.append(
                 CausalConv2d(
                     in_channels=self.out_channels,
@@ -840,12 +859,11 @@ class DenseConvBlock(nn.Module):
     def __init__(
         self,
         channels: int,
-        kernel_size: Tuple[int, int],
-        dilation: Optional[Tuple[int, int]] = None,
+        kernel_size: OneOrPair[int],
+        dilation: Optional[OneOrPair[int]] = None,
         disable_dilation_f: bool = False,
         depth: int = 3,
         final_stride: int = 1,
-        separable: bool = False,
         batchnorm_eps: float = 1e-05,
         batchnorm_momentum: float = 0.1,
         batchnorm_affine: bool = True,
@@ -864,13 +882,10 @@ class DenseConvBlock(nn.Module):
         ----------
         channels : int
             Number of input and output channels
-        kernel_size : Tuple[int, int]
-            Kernel size. Can be also an int, or a list
-            of ints/Tuple[int, int] of length of depth
+        kernel_size : OneOrPair[int]
+            Size of the convolutional kernels
         dilation : Optional[Tuple[int,int]]
-            Dilation. Can be also an int, or a list
-            of ints/Tuple[int, int] of length depth;
-            by default the dilation is equal to the kernel to the power of
+            By default the dilation is equal to the kernel to the power of
             the post_conv layer index
         disable_dilation_f : bool
             If True dilation_f==1 for each conv dilation setting,
@@ -880,8 +895,6 @@ class DenseConvBlock(nn.Module):
             by default twice tconv_stride_f
         final_stride : int, optional
             Stride of the last convolution, by default 1
-        separable : bool, optional
-            Enable separable convolutions, by default False
         batchnorm_eps : float, optional
             Eps parameter of the BatchNorm2d , by default 1e-05
         batchnorm_momentum : float, optional
@@ -912,7 +925,6 @@ class DenseConvBlock(nn.Module):
         self.disable_dilation_f = disable_dilation_f
         self.depth = depth
         self.final_stride = final_stride
-        self.separable = separable
         self.batchnorm_eps = batchnorm_eps
         self.batchnorm_momentum = batchnorm_momentum
         self.batchnorm_affine = batchnorm_affine
@@ -922,3 +934,30 @@ class DenseConvBlock(nn.Module):
         self.activation = activation
         self.residual_merge = residual_merge
         self.dtype = dtype
+
+        # default dilation ~ ~ ~ ~ ~ ~
+        self.dilation = (
+            get_default_dilation(self.kernel_size, self.depth, self.disable_dilation_f)
+            if self.dilation is None
+            else [self.dilation] * self.depth
+        )
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
+        # inner modules
+        # TODO: layer normalization on CausalConv2d
+        kernels = [self.kernel_size] * self.depth
+        layers = [
+            CausalConv2dNormAct(
+                in_channels=(i + 1) * self.channels,
+                out_channels=self.channels,
+                kernel_size=k,
+                stride_f=(1, self.final_stride) if i == self.depth - 1 else 1,
+                dilation=d,
+                separable=False,
+                activation=self.activation,
+                disable_batchnorm=self.disable_batchnorm,
+                enable_weight_norm=self.enable_weight_norm,
+                dtype=self.dtype,
+            )
+            for i, (k, d) in enumerate(zip(kernels, self.dilation))
+        ]

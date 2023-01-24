@@ -463,10 +463,6 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
             in_freqs,
         ) = p
 
-        if post_conv_count > 1 and post_conv_dilation is not None:
-            post_conv_kernel_size, post_conv_dilation = [
-                [y] * post_conv_count for y in (post_conv_kernel_size, post_conv_dilation)
-            ]
 
         instance = tu.CausalConvNeuralUpsampler(
             in_channels=in_channels,
