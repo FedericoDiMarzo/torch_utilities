@@ -369,12 +369,12 @@ def get_gradients(model: nn.Module) -> Tensor:
     v_grad = f("weight_v")
     # GRU ~ ~ ~ ~ ~ ~ ~ ~
     max_gru = 4
-    gru_w_ih = sum([f(f"weight_ih_l{i}") for i in range(max_gru)])
-    gru_w_hh = sum([f(f"weight_hh_l{i}") for i in range(max_gru)])
-    bias_w_ih = sum([f(f"bias_ih_l{i}") for i in range(max_gru)])
-    bias_w_hh = sum([f(f"bias_hh_l{i}") for i in range(max_gru)])
+    gru_w_ih = [f(f"weight_ih_l{i}") for i in range(max_gru)]
+    gru_w_hh = [f(f"weight_hh_l{i}") for i in range(max_gru)]
+    bias_w_ih = [f(f"bias_ih_l{i}") for i in range(max_gru)]
+    bias_w_hh = [f(f"bias_hh_l{i}") for i in range(max_gru)]
     # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-    zipped = zip(w_grad, b_grad, g_grad, v_grad, gru_w_ih, gru_w_hh, bias_w_ih, bias_w_hh)
+    zipped = zip(w_grad, b_grad, g_grad, v_grad, *gru_w_ih, *gru_w_hh, *bias_w_ih, *bias_w_hh)
     grad = [sum(xs) for xs in zipped]
     grad = torch.FloatTensor(grad)
     return grad
