@@ -99,6 +99,8 @@ class ModelTrainer(ABC):
             Frequency of the logs (over the dataset iterations),
             by default 100
         """
+        self.device = tu.get_device()
+
         # explicit attributes
         self.model_path = model_path
         self.model = model
@@ -154,7 +156,7 @@ class ModelTrainer(ABC):
         """
         Trains a model.
         """
-        logger.info(f"device selected: {tu.get_device()}")
+        logger.info(f"device selected: {self.device}")
         logger.info(f"model: {self.model_path.name}")
         logger.info(f"parameters: {self._get_model_parameters() / 1e3} K")
         if self.overfit_mode:
@@ -230,7 +232,7 @@ class ModelTrainer(ABC):
             Current epoch
         """
         self.on_train_step_begin(epoch)
-        data = [x.to(tu.get_device()) for x in data]
+        data = [x.to(self.device) for x in data]
         net_ins = self._get_filtered_input(data)
         self.optimizer.zero_grad()
         net_outs = self.net(*net_ins)
@@ -266,7 +268,7 @@ class ModelTrainer(ABC):
             Current epoch
         """
         self.on_valid_step_begin(epoch)
-        data = [x.to(tu.get_device()) for x in data]
+        data = [x.to(self.device) for x in data]
         net_ins = [data[i] for i in self.net_ins_indices]
         net_outs = self.net(*net_ins)
         _losses = self.apply_losses(data, net_outs)
@@ -428,7 +430,7 @@ class ModelTrainer(ABC):
         chosen = checkpoints[i]
 
         # loading and parsing
-        chosen = DotDict(torch.load(chosen))
+        chosen = DotDict(torch.load(chosen, map_location=self.device))
         epoch = chosen.epoch
         model_state = chosen.model_state
         optim_state = chosen.optim_state
@@ -560,7 +562,7 @@ class ModelTrainer(ABC):
             Dataset input
         """
         ds = self.train_ds if is_training else self.valid_ds
-        data = [x.to(tu.get_device()) for x in ds.dataset[[0, 1]]]
+        data = [x.to(self.device) for x in ds.dataset[[0, 1]]]
         return data
 
     def _log_losses(self, is_training: bool, epoch: int) -> None:
@@ -574,6 +576,10 @@ class ModelTrainer(ABC):
         epoch : int
             Current epoch
         """
+        if self.running_losses_steps == 0:
+            # nothing to log
+            return
+
         tag_suffix = "train" if is_training else "valid"
         losses_names = self.losses_names + ["total"]
         total_loss = sum(self.running_losses)
