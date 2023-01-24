@@ -588,9 +588,9 @@ class ModelTrainer(ABC):
             loss /= self.running_losses_steps
             logger.info(f"{name}: {loss}")
             self.log_writer.add_scalar(f"{name}_{tag_suffix}", loss, global_step=epoch)
-        self._reset_running_losses()
 
         self.last_total_loss = total_loss / self.running_losses_steps
+        self._reset_running_losses()
 
     def _default_losses_names(self) -> List[str]:
         """
