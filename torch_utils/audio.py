@@ -1,3 +1,4 @@
+from ast import List
 from torchaudio.functional import melscale_fbanks
 from pathimport import set_module_root
 from typing import Optional, Union
@@ -26,6 +27,7 @@ __all__ = [
     "fade_sides",
     "random_trim",
     "trim_silence",
+    "interleave",
 ]
 
 
@@ -642,3 +644,32 @@ def trim_silence(
     except ValueError:
         # no value found
         return x
+
+
+# TODO: tests
+# TODO: union typedef
+def interleave(*xs: List[Union[Tensor, np.ndarray]]) -> Tensor:
+    """
+    Interleaves many input tensors in one over the last dimension.
+
+    Parameters
+    ----------
+    xs : List[Union[Tensor, np.ndarray]]
+        Input signals of the same shape
+
+    Returns
+    -------
+    Tensor
+        Interleaved signal, the shape is the same of the inputs except
+        for the interleaved dimension of lenght D that will be len(xs)*D
+    """
+    mod = get_np_or_torch(xs[0])
+    stride = len(xs)
+    new_shape = list(xs[0].shape)
+    new_shape[-1] *= stride
+    y = mod.zeros(new_shape)
+
+    for i, x in enumerate(xs):
+        y[..., i:stride:] = x
+
+    return y
