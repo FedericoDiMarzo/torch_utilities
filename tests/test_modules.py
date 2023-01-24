@@ -463,7 +463,6 @@ class TestCausalConvNeuralUpsampler(unittest.TestCase):
             in_freqs,
         ) = p
 
-
         instance = tu.CausalConvNeuralUpsampler(
             in_channels=in_channels,
             out_channels=out_channels,
@@ -667,6 +666,147 @@ class TestGruNormAct(unittest.TestCase):
                 y, h = gru(x)
                 self.assertEqual(y.shape, (*x.shape[:-1], h_size))
                 self.assertEqual(h.shape, (x.shape[0], 1, h_size))
+
+
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+class TestDenseConvBlock(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        _setup()
+
+    def setUp(self):
+        self.channels = (2, 4)
+        self.kernel_size = (3, (3, 5))
+        self.dilation = (None, 1, (2, 5))
+        self.disable_dilation_f = (False, True)
+        self.depth = (1, 4)
+        self.final_stride = (1, 2)
+        self.disable_layernorm = (False, True)
+        self.enable_weight_norm = (False, True)
+        self.activation = (None, nn.ReLU())
+        self.feature_size = (40,)
+
+        # self.channels = (4,)
+        # self.kernel_size = ((3, 5),)
+        # self.dilation = ((2, 5),)
+        # self.disable_dilation_f = (True,)
+        # self.depth = ( 4,)
+        # self.final_stride = (2,)
+        # self.disable_layernorm = (False, )
+        # self.enable_weight_norm = (False, )
+        # self.activation = (None,)
+        # self.feature_size = (40,)
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+        self.params = product(
+            self.channels,
+            self.kernel_size,
+            self.dilation,
+            self.disable_dilation_f,
+            self.depth,
+            self.final_stride,
+            self.disable_layernorm,
+            self.enable_weight_norm,
+            self.activation,
+            self.feature_size,
+        )
+
+    def get_instance(self, p: Tuple) -> tu.CausalConvNeuralUpsampler:
+        (
+            channels,
+            kernel_size,
+            dilation,
+            disable_dilation_f,
+            depth,
+            final_stride,
+            disable_layernorm,
+            enable_weight_norm,
+            activation,
+            feature_size,
+        ) = p
+        disable_layernorm = disable_layernorm or enable_weight_norm
+        instance = tu.DenseConvBlock(
+            channels=channels,
+            kernel_size=kernel_size,
+            feature_size=feature_size,
+            dilation=dilation,
+            disable_dilation_f=disable_dilation_f,
+            depth=depth,
+            final_stride=final_stride,
+            disable_layernorm=disable_layernorm,
+            enable_weight_norm=enable_weight_norm,
+            activation=activation,
+        )
+        return instance
+
+    def get_input(self, p: Tuple) -> Tensor:
+        (
+            channels,
+            kernel_size,
+            dilation,
+            disable_dilation_f,
+            depth,
+            final_stride,
+            disable_layernorm,
+            enable_weight_norm,
+            activation,
+            feature_size,
+        ) = p
+        x = _get_input(channels, feature_size, None)
+        return x
+
+    def test_inner_modules(self):
+        for p in self.params:
+            (
+                channels,
+                kernel_size,
+                dilation,
+                disable_dilation_f,
+                depth,
+                final_stride,
+                disable_layernorm,
+                enable_weight_norm,
+                activation,
+                feature_size,
+            ) = p
+            disable_layernorm = disable_layernorm or enable_weight_norm
+            with self.subTest(p=p):
+                dcb = self.get_instance(p)
+                layers = dcb.layers
+                for i, seq in enumerate(layers):
+                    expected_layernorm = nn.Identity if disable_layernorm else nn.LayerNorm
+                    expected_layernorm = nn.Identity if i == (depth - 1) else expected_layernorm
+                    expected_activation = nn.Identity if activation is None else type(activation)
+                    self.assertEqual(type(seq), nn.Sequential)
+                    self.assertEqual(type(seq[0]), tu.CausalConv2dNormAct)
+                    self.assertEqual(type(seq[1]), expected_layernorm)
+                    self.assertEqual(type(seq[2]), expected_activation)
+                    self.assertEqual(seq[0].in_channels, (i + 1) * channels)
+                    self.assertEqual(seq[0].out_channels, channels)
+                    self.assertEqual(seq[0].stride_f, 1 if i != (depth - 1) else final_stride)
+                    self.assertTrue(seq[0].disable_batchnorm)
+                    self.assertEqual(seq[0].enable_weight_norm, enable_weight_norm)
+
+    def test_forward(self):
+        for p in self.params:
+            (
+                channels,
+                kernel_size,
+                dilation,
+                disable_dilation_f,
+                depth,
+                final_stride,
+                disable_layernorm,
+                enable_weight_norm,
+                activation,
+                feature_size,
+            ) = p
+            disable_layernorm = disable_layernorm or enable_weight_norm
+            with self.subTest(p=p):
+                dcb = self.get_instance(p)
+                x = self.get_input(p)
+                y = dcb(x)
+                B, C, T, F = x.shape
+                self.assertEqual(y.shape, (B, C, T, F // final_stride))
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =

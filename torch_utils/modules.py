@@ -17,6 +17,7 @@ __all__ = [
     "GruNormAct",
     "CausalConv2dNormAct",
     "CausalConvNeuralUpsampler",
+    "DenseConvBlock",
 ]
 
 # TODO: typing submodule
@@ -769,6 +770,144 @@ class CausalConvNeuralUpsampler(nn.Module):
         return conv
 
 
+class DenseConvBlock(nn.Module):
+    def __init__(
+        self,
+        channels: int,
+        kernel_size: OneOrPair[int],
+        feature_size: int,
+        dilation: Optional[OneOrPair[int]] = None,
+        disable_dilation_f: bool = False,
+        depth: int = 3,
+        final_stride: int = 1,
+        batchnorm_eps: float = 1e-05,
+        batchnorm_affine: bool = True,
+        disable_layernorm: bool = False,
+        enable_weight_norm: bool = False,
+        activation: nn.Module = nn.LeakyReLU(),
+        dtype=None,
+    ) -> None:
+        """
+        Dense block from  Dense CNN With Self-Attention for Time-Domain Speech Enhancement
+        paper (https://ieeexplore.ieee.org/document/9372863).
+
+        Parameters
+        ----------
+        channels : int
+            Number of input and output channels
+        kernel_size : OneOrPair[int]
+            Size of the convolutional kernels
+        feature_size : int
+            Size of the last dimension
+        dilation : Optional[Tuple[int,int]]
+            By default the dilation is equal to the kernel to the power of
+            the post_conv layer index
+        disable_dilation_f : bool
+            If True dilation_f==1 for each conv dilation setting,
+            by default False
+        tconv_kernel_f : Optional[int], optional
+            Frequncy kernel size of the transposed convolution,
+            by default twice tconv_stride_f
+        final_stride : int, optional
+            Stride of the last convolution, by default 1
+        batchnorm_eps : float, optional
+            Eps parameter of the BatchNorm2d , by default 1e-05
+        batchnorm_affine : bool, optional
+            Affine parameter of the BatchNorm2d, by default True
+        disable_layernorm : bool, optional
+            Disables the batch normalization, by default False
+        enable_weight_norm : bool, optional
+            Uses the weight normalization instead of the batch normalization,
+            by default False
+        activation : nn.Module, optional
+            Activation to use, by default nn.LeakyReLU()
+        dtype : optional
+            Module dtype, by default None
+        """
+        super().__init__()
+
+        # attributes
+        self.channels = channels
+        self.kernel_size = kernel_size
+        self.feature_size = feature_size
+        self.dilation = dilation
+        self.disable_dilation_f = disable_dilation_f
+        self.depth = depth
+        self.final_stride = final_stride
+        self.batchnorm_eps = batchnorm_eps
+        self.batchnorm_affine = batchnorm_affine
+        self.disable_layernorm = disable_layernorm
+        self.enable_weight_norm = enable_weight_norm
+        self.activation = activation or nn.Identity()
+        self.dtype = dtype
+
+        # optional weight normalization
+        self._normalize = weight_norm if self.enable_weight_norm else (lambda x: x)
+
+        # default dilation ~ ~ ~ ~ ~ ~
+        self.dilation = (
+            get_default_dilation(self.kernel_size, self.depth, self.disable_dilation_f)
+            if self.dilation is None
+            else [self.dilation] * self.depth
+        )
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
+        # inner modules
+        _sample_norm = lambda i: (
+            nn.Identity()
+            if (self.disable_layernorm or self.enable_weight_norm or i == (self.depth - 1))
+            else nn.LayerNorm(
+                normalized_shape=self.feature_size,
+                eps=self.batchnorm_eps,
+                elementwise_affine=self.batchnorm_affine,
+                dtype=self.dtype,
+            )
+        )
+
+        _block = lambda i, k, d: nn.Sequential(
+            CausalConv2dNormAct(
+                in_channels=(i + 1) * self.channels,
+                out_channels=self.channels,
+                kernel_size=k,
+                stride_f=self.final_stride if i == (self.depth - 1) else 1,
+                dilation=d,
+                separable=False,
+                activation=None,
+                disable_batchnorm=True,
+                enable_weight_norm=self.enable_weight_norm,
+                dtype=self.dtype,
+            ),
+            _sample_norm(i),
+            self.activation,
+        )
+
+        kernels = [self.kernel_size] * self.depth
+        layers = [_block(i, k, d) for i, (k, d) in enumerate(zip(kernels, self.dilation))]
+
+        self.layers = nn.Sequential(*layers)
+
+        # concat over channels
+        self._concat = lambda x, y: torch.cat((x, y), dim=1)
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Parameters
+        ----------
+        x : Tensor
+            Signal of shape (B, C, T, F)
+
+        Returns
+        -------
+        Tensor
+            Output of shape (B, C, T, F//final_stride)
+        """
+        for i, block in enumerate(self.layers):
+            y = block(x)
+            x = self._concat(x, y) if i != (self.depth - 1) else y
+
+        return x
+
+
 class GruNormAct(nn.Module):
     def __init__(
         self,
@@ -853,111 +992,3 @@ class GruNormAct(nn.Module):
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y, h
-
-
-class DenseConvBlock(nn.Module):
-    def __init__(
-        self,
-        channels: int,
-        kernel_size: OneOrPair[int],
-        dilation: Optional[OneOrPair[int]] = None,
-        disable_dilation_f: bool = False,
-        depth: int = 3,
-        final_stride: int = 1,
-        batchnorm_eps: float = 1e-05,
-        batchnorm_momentum: float = 0.1,
-        batchnorm_affine: bool = True,
-        batchnorm_track_running_stats: bool = True,
-        disable_batchnorm: bool = False,
-        enable_weight_norm: bool = False,
-        activation: nn.Module = nn.LeakyReLU(),
-        residual_merge: Optional[Callable] = None,
-        dtype=None,
-    ) -> None:
-        """
-        Dense block from  Dense CNN With Self-Attention for Time-Domain Speech Enhancement
-        paper (https://ieeexplore.ieee.org/document/9372863).
-
-        Parameters
-        ----------
-        channels : int
-            Number of input and output channels
-        kernel_size : OneOrPair[int]
-            Size of the convolutional kernels
-        dilation : Optional[Tuple[int,int]]
-            By default the dilation is equal to the kernel to the power of
-            the post_conv layer index
-        disable_dilation_f : bool
-            If True dilation_f==1 for each conv dilation setting,
-            by default False
-        tconv_kernel_f : Optional[int], optional
-            Frequncy kernel size of the transposed convolution,
-            by default twice tconv_stride_f
-        final_stride : int, optional
-            Stride of the last convolution, by default 1
-        batchnorm_eps : float, optional
-            Eps parameter of the BatchNorm2d , by default 1e-05
-        batchnorm_momentum : float, optional
-            Momentum parameter of the BatchNorm2d, by default 0.1
-        batchnorm_affine : bool, optional
-            Affine parameter of the BatchNorm2d, by default True
-        batchnorm_track_running_stats : bool, optional
-            Track running stats parameter of the BatchNorm2d, by default True
-        disable_batchnorm : bool, optional
-            Disables the batch normalization, by default False
-        enable_weight_norm : bool, optional
-            Uses the weight normalization instead of the batch normalization,
-            by default False
-        activation : nn.Module, optional
-            Activation to use, by default nn.LeakyReLU()
-        residual_merge : Optional[Callable], optional
-            Merge operation performed between the input  the last activation output,
-            by default None
-        dtype : optional
-            Module dtype, by default None
-        """
-        super().__init__()
-
-        # attributes
-        self.channels = channels
-        self.kernel_size = kernel_size
-        self.dilation = dilation
-        self.disable_dilation_f = disable_dilation_f
-        self.depth = depth
-        self.final_stride = final_stride
-        self.batchnorm_eps = batchnorm_eps
-        self.batchnorm_momentum = batchnorm_momentum
-        self.batchnorm_affine = batchnorm_affine
-        self.batchnorm_track_running_stats = batchnorm_track_running_stats
-        self.disable_batchnorm = disable_batchnorm
-        self.enable_weight_norm = enable_weight_norm
-        self.activation = activation
-        self.residual_merge = residual_merge
-        self.dtype = dtype
-
-        # default dilation ~ ~ ~ ~ ~ ~
-        self.dilation = (
-            get_default_dilation(self.kernel_size, self.depth, self.disable_dilation_f)
-            if self.dilation is None
-            else [self.dilation] * self.depth
-        )
-        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-
-        # inner modules
-        # TODO: layer normalization on CausalConv2d
-        kernels = [self.kernel_size] * self.depth
-        layers = [
-            CausalConv2dNormAct(
-                in_channels=(i + 1) * self.channels,
-                out_channels=self.channels,
-                kernel_size=k,
-                stride_f=(1, self.final_stride) if i == self.depth - 1 else 1,
-                dilation=d,
-                separable=False,
-                activation=self.activation,
-                disable_batchnorm=self.disable_batchnorm,
-                enable_weight_norm=self.enable_weight_norm,
-                dtype=self.dtype,
-            )
-            for i, (k, d) in enumerate(zip(kernels, self.dilation))
-        ]
