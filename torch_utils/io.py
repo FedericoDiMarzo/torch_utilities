@@ -8,7 +8,7 @@ import numpy as np
 import torchaudio
 
 set_module_root(".")
-from torch_utils.common import get_device, to_numpy
+from torch_utils.common import get_device, to_numpy, TensorOrArray
 
 # export list
 __all__ = [
@@ -21,7 +21,7 @@ def load_audio(
     file_path: Path,
     sample_rate: int = None,
     tensor: bool = False,
-) -> Tuple[Union[np.ndarray, Tensor], int]:
+) -> Tuple[TensorOrArray, int]:
     """
     Loads an audio file.
 
@@ -57,7 +57,7 @@ def load_audio(
     return data, sample_rate
 
 
-def save_audio(file_path: Path, data: Union[np.ndarray, Tensor], sample_rate: int):
+def save_audio(file_path: Path, data: TensorOrArray, sample_rate: int):
     """
     Saves an audio file
 
@@ -65,7 +65,7 @@ def save_audio(file_path: Path, data: Union[np.ndarray, Tensor], sample_rate: in
     ----------
     file_path : Path
         Path to the audio file
-    data : Union[np.ndarray, Tensor]
+    data : TensorOrArray
         Audio file to save
     sample_rate : int, optional
         Target sample rate, by default None

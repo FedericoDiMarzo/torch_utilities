@@ -1,7 +1,6 @@
-from ast import List
 from torchaudio.functional import melscale_fbanks
 from pathimport import set_module_root
-from typing import Optional, Union
+from typing import Optional, List
 import torch.nn.functional as F
 from random import randrange
 from torch import Tensor
@@ -9,7 +8,7 @@ import numpy as np
 import torch
 
 set_module_root(".")
-from torch_utils.common import get_device, get_np_or_torch, to_numpy
+from torch_utils.common import get_device, get_np_or_torch, to_numpy, TensorOrArray
 
 
 # export list
@@ -32,19 +31,19 @@ __all__ = [
 
 
 def stft(
-    x: Union[np.ndarray, Tensor],
+    x: TensorOrArray,
     sample_rate: int = 16000,
     hopsize_ms: int = 10,
     window: str = "hann",
     win_len_ms: int = 20,
     win_oversamp: int = 2,
-) -> Union[np.ndarray, Tensor]:
+) -> TensorOrArray:
     """
     Calculates the STFT of a signal.
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input signal of shape (..., T)
     sample_rate : int, optional
         Sample rate of the signal, by default 16000
@@ -60,7 +59,7 @@ def stft(
 
     Returns
     -------
-    Union[np.ndarray, Tensor]
+    TensorOrArray
         STFT of the input of shape (..., T', F')
 
     Raises
@@ -80,19 +79,19 @@ def stft(
 
 
 def istft(
-    x: Union[np.ndarray, Tensor],
+    x: TensorOrArray,
     sample_rate: int = 16000,
     hopsize_ms: int = 10,
     window: str = "hann",
     win_len_ms: int = 20,
     win_oversamp: int = 2,
-) -> Union[np.ndarray, Tensor]:
+) -> TensorOrArray:
     """
     Calculates the ISTFT of a signal.
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input signal of shape (..., T, F)
     sample_rate : int, optional
         Sample rate of the signal, by default 16000
@@ -108,7 +107,7 @@ def istft(
 
     Returns
     -------
-    Union[np.ndarray, Tensor]
+    TensorOrArray
         ISTFT of the input of shape (..., T')
 
     Raises
@@ -129,13 +128,13 @@ def istft(
 
 def _stft_istft_core(
     is_stft: bool,
-    x: Union[np.ndarray, Tensor],
+    x: TensorOrArray,
     sample_rate: int = 16000,
     hopsize_ms: int = 10,
     window: str = "hann",
     win_len_ms: int = 20,
     win_oversamp: int = 2,
-) -> Union[np.ndarray, Tensor]:
+) -> TensorOrArray:
     """
     Calculates the STFT/ISTFT of a signal.
 
@@ -143,7 +142,7 @@ def _stft_istft_core(
     ----------
     is_stft : bool
         Selects between STFT and ISTFT
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input signal
     sample_rate : int, optional
         Sample rate of the signal, by default 16000
@@ -159,7 +158,7 @@ def _stft_istft_core(
 
     Returns
     -------
-    Union[np.ndarray, Tensor]
+    TensorOrArray
         STFT of the input
 
     Raises
@@ -271,11 +270,11 @@ class MelFilterbank:
 
         return filterbank
 
-    def __call__(self, x: Union[np.ndarray, Tensor]) -> Tensor:
+    def __call__(self, x: TensorOrArray) -> Tensor:
         """
         Parameters
         ----------
-        x : Union[np.ndarray, Tensor]
+        x : TensorOrArray
             Signal of shape (B, C, T, n_freq)
 
         Returns
@@ -350,16 +349,16 @@ class MelInverseFilterbank:
 
         return filterbank
 
-    def __call__(self, x: Union[np.ndarray, Tensor]) -> Union[np.ndarray, Tensor]:
+    def __call__(self, x: TensorOrArray) -> TensorOrArray:
         """
         Parameters
         ----------
-        x : Union[np.ndarray, Tensor]
+        x : TensorOrArray
             Signal of shape (B, C, T, n_freq)
 
         Returns
         -------
-        Union[np.ndarray, Tensor]
+        TensorOrArray
             STFT of shape (B, C, T, n_mel)
         """
         is_np = get_np_or_torch(x) == np
@@ -377,13 +376,13 @@ class MelInverseFilterbank:
         return y
 
 
-def db(x: Union[np.ndarray, Tensor], eps: float = 1e-12) -> Union[np.ndarray, Tensor]:
+def db(x: TensorOrArray, eps: float = 1e-12) -> TensorOrArray:
     """
     Converts linear to dB
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input signal amplitude
     eps : float
         Number summed to x before applying the logarithm,
@@ -398,13 +397,13 @@ def db(x: Union[np.ndarray, Tensor], eps: float = 1e-12) -> Union[np.ndarray, Te
     return 20 * module.log10(x + eps)
 
 
-def invert_db(x: Union[np.ndarray, Tensor], eps: float = 1e-12) -> Union[np.ndarray, Tensor]:
+def invert_db(x: TensorOrArray, eps: float = 1e-12) -> TensorOrArray:
     """
     Converts dB to linear
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input signal amplitude in dB
 
     Returns
@@ -415,13 +414,13 @@ def invert_db(x: Union[np.ndarray, Tensor], eps: float = 1e-12) -> Union[np.ndar
     return 10 ** (x / 20) - eps
 
 
-def power(x: Union[np.ndarray, Tensor]) -> float:
+def power(x: TensorOrArray) -> float:
     """
     Power of a signal, calculated for each channel.
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input signal of shape (..., T)
 
     Returns
@@ -434,13 +433,13 @@ def power(x: Union[np.ndarray, Tensor]) -> float:
     return _power
 
 
-def energy(x: Union[np.ndarray, Tensor]) -> float:
+def energy(x: TensorOrArray) -> float:
     """
     Energy of a signal.
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input signal of shape (..., T)
 
     Returns
@@ -452,13 +451,13 @@ def energy(x: Union[np.ndarray, Tensor]) -> float:
     return power(x) / samples
 
 
-def rms(x: Union[np.ndarray, Tensor]) -> float:
+def rms(x: TensorOrArray) -> float:
     """
     RMS of a signal, calculated for each channel.
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input signal of shape (..., T)
 
     Returns
@@ -470,16 +469,16 @@ def rms(x: Union[np.ndarray, Tensor]) -> float:
     return module.sqrt(energy(x))
 
 
-def snr(x: Union[np.ndarray, Tensor], noise: Union[np.ndarray, Tensor]) -> float:
+def snr(x: TensorOrArray, noise: TensorOrArray) -> float:
     """
     Signal to Noise Ratio (SNR) ratio in dB,
     calculated considering the RMS.
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Signal of interest
-    noise : Union[np.ndarray, Tensor]
+    noise : TensorOrArray
         Interference
 
     Returns
@@ -502,26 +501,26 @@ def snr(x: Union[np.ndarray, Tensor], noise: Union[np.ndarray, Tensor]) -> float
 
 
 def _win_to_sides(
-    x: Union[np.ndarray, Tensor],
-    win: Union[np.ndarray, Tensor],
+    x: TensorOrArray,
+    win: TensorOrArray,
     fade_len: int,
-) -> Union[np.ndarray, Tensor]:
+) -> TensorOrArray:
     """
     Handler used to apply a window over the sides of
     a signal.
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input of shape (..., C, T)
-    win : Union[np.ndarray, Tensor]
+    win : TensorOrArray
         Window
-    fade_len : Union[np.ndarray, Tensor]
+    fade_len : TensorOrArray
         Length of each fade in samples
 
     Returns
     -------
-    Union[np.ndarray, Tensor]
+    TensorOrArray
         Faded output
     """
     x[..., :fade_len] *= win[:fade_len]
@@ -529,14 +528,14 @@ def _win_to_sides(
     return x
 
 
-def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 100) -> Union[np.ndarray, Tensor]:
+def fade_sides(x: TensorOrArray, fade_len: int = 100) -> TensorOrArray:
     """
     Apply an half of an Hanning window to both
     sides of the input, in order to obtain a fade in/out.
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input of shape (..., C, T)
     fade_len : int, optional
         Length of the fade in samples, by default 10.
@@ -544,7 +543,7 @@ def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 100) -> Union[np.nd
 
     Returns
     -------
-    Union[np.ndarray, Tensor]
+    TensorOrArray
         Faded output
     """
     module = get_np_or_torch(x)
@@ -561,16 +560,16 @@ def fade_sides(x: Union[np.ndarray, Tensor], fade_len: int = 100) -> Union[np.nd
 
 
 def random_trim(
-    x: Union[np.ndarray, Tensor],
+    x: TensorOrArray,
     sample_rate: int,
     duration: float = 3,
-) -> Union[np.ndarray, Tensor]:
+) -> TensorOrArray:
     """
     Extracts a random temporal selection from the input.
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input of shape (..., T)
     sample_rate : int
         Sample rate in Hz
@@ -579,7 +578,7 @@ def random_trim(
 
     Returns
     -------
-    Union[np.ndarray, Tensor]
+    TensorOrArray
         Random temporal selection of the input
     """
     module = get_np_or_torch(x)
@@ -601,16 +600,16 @@ def random_trim(
 
 
 def trim_silence(
-    x: Union[np.ndarray, Tensor],
+    x: TensorOrArray,
     threshold_db: float = -35,
     margin: int = 0,
-) -> Union[np.ndarray, Tensor]:
+) -> TensorOrArray:
     """
     Trims the silences at the beginning and end of a sample.
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input sample of shape (T,)
     threshold_db : float, optional
         Relative to x.max() to detect the silences, by default -35 dB
@@ -619,7 +618,7 @@ def trim_silence(
 
     Returns
     -------
-    Union[np.ndarray, Tensor]
+    TensorOrArray
         Trimmed ouput of shape (T',)
     """
     module = get_np_or_torch(x)
@@ -647,14 +646,13 @@ def trim_silence(
 
 
 # TODO: tests
-# TODO: union typedef
-def interleave(*xs: List[Union[Tensor, np.ndarray]]) -> Tensor:
+def interleave(*xs: List[TensorOrArray]) -> Tensor:
     """
     Interleaves many input tensors in one over the last dimension.
 
     Parameters
     ----------
-    xs : List[Union[Tensor, np.ndarray]]
+    xs : List[TensorOrArray]
         Input signals of the same shape
 
     Returns

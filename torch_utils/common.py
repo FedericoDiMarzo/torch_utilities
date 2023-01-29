@@ -1,7 +1,8 @@
-from typing import Any, Callable, Iterator, List, Tuple, Type, Union, Dict
+from typing import Any, Callable, List, Tuple, Type, TypeVar, Union, Dict
 import torch.nn.functional as F
 from functools import partial
 from torch import nn, Tensor
+from numpy import ndarray
 from pathlib import Path
 from torch import Tensor
 import numpy as np
@@ -10,6 +11,9 @@ import yaml
 
 # export list
 __all__ = [
+    # types
+    "OneOrPair",
+    "TensorOrArray",
     # generic utilities
     "DotDict",
     "Config",
@@ -32,6 +36,22 @@ __all__ = [
     "invert_one_hot",
 ]
 
+# = = = = types
+
+""" 
+Generic variable
+"""
+T = TypeVar("T")
+
+"""
+Single or Pair of values of a certain type.
+"""
+OneOrPair = Union[T, Tuple[T, T]]
+
+"""
+Can be a torch Tensor or numpy ndarray.
+"""
+TensorOrArray = Union[Tensor, ndarray]
 
 # = = = = generic utilities
 
@@ -106,13 +126,13 @@ class Config:
         return param
 
 
-def get_np_or_torch(x: Union[np.ndarray, Tensor]):
+def get_np_or_torch(x: TensorOrArray):
     """
     Returns numpy or torch modules depending on the input
 
     Parameters
     ----------
-    x : Union[np.ndarray, Tensor]
+    x : TensorOrArray
         Input
 
     Returns

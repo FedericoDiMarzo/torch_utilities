@@ -7,6 +7,7 @@ import torch
 
 set_module_root(".")
 from torch_utils.audio import interleave
+from torch_utils.common import OneOrPair
 
 __all__ = [
     # utilities
@@ -26,10 +27,6 @@ __all__ = [
     # recurrent variants
     "GruNormAct",
 ]
-
-# TODO: typing submodule
-T = TypeVar("T")
-OneOrPair = Union[T, List[T]]
 
 # private utility functions = = = = = = = = = = = = = =
 
@@ -472,7 +469,6 @@ class CausalSubConv2d(nn.Module):
         out_channels: int,
         kernel_size: OneOrPair[int],
         stride_f: int = 1,
-        padding_f: Optional[int] = None,
         dilation: OneOrPair[int] = 1,
         bias: bool = True,
         separable: bool = False,
@@ -492,9 +488,6 @@ class CausalSubConv2d(nn.Module):
 
         stride_f : int
             Defines how many interleaved convolutions are present
-        padding_f : Optional[int]
-            Symmetric padding over frequency, by default ensures f_out = f_in // stride_f
-            if stride_f divides f_in
         separable : bool, optional
             Enable separable convolution (depthwise + pointwise), by default False
         enable_weight_norm : bool, optional
@@ -502,12 +495,12 @@ class CausalSubConv2d(nn.Module):
         """
         super().__init__()
 
+
         # attributes
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
         self.stride_f = stride_f
-        self.padding_f = padding_f
         self.dilation = dilation
         self.bias = bias
         self.separable = separable
@@ -520,7 +513,7 @@ class CausalSubConv2d(nn.Module):
             out_channels=out_channels,
             kernel_size=kernel_size,
             stride_f=1,
-            padding_f=padding_f,
+            padding_f=None,
             dilation=dilation,
             bias=bias,
             separable=separable,
@@ -530,7 +523,17 @@ class CausalSubConv2d(nn.Module):
         self.layers = nn.Sequential(*[_conv() for _ in range(self.stride_f)])
 
     def forward(self, x: Tensor) -> Tensor:
-        # TODO: docs
+        """
+        Parameters
+        ----------
+        x : Tensor
+            Input of shape (B, C, T, F)
+
+        Returns
+        -------
+        Tensor
+            Output of shape (B, C, T, F * stride_f)
+        """
         xs = [conv(x) for conv in self.layers]
         x = interleave(xs)
         return x

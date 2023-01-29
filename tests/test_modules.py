@@ -685,17 +685,6 @@ class TestDenseConvBlock(unittest.TestCase):
         self.enable_weight_norm = (False, True)
         self.activation = (None, nn.ReLU())
         self.feature_size = (40,)
-
-        # self.channels = (4,)
-        # self.kernel_size = ((3, 5),)
-        # self.dilation = ((2, 5),)
-        # self.disable_dilation_f = (True,)
-        # self.depth = ( 4,)
-        # self.final_stride = (2,)
-        # self.disable_layernorm = (False, )
-        # self.enable_weight_norm = (False, )
-        # self.activation = (None,)
-        # self.feature_size = (40,)
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
         self.params = product(
             self.channels,
@@ -710,7 +699,7 @@ class TestDenseConvBlock(unittest.TestCase):
             self.feature_size,
         )
 
-    def get_instance(self, p: Tuple) -> tu.CausalSmoothedTConv:
+    def get_instance(self, p: Tuple) -> tu.DenseConvBlock:
         (
             channels,
             kernel_size,
@@ -807,6 +796,89 @@ class TestDenseConvBlock(unittest.TestCase):
                 y = dcb(x)
                 B, C, T, F = x.shape
                 self.assertEqual(y.shape, (B, C, T, F // final_stride))
+
+
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+# TODO: finish test
+class TestCausalSubConv2d(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        _setup()
+
+    def setUp(self):
+        self.in_channels = (2,)
+        self.out_channels = (3,)
+        self.kernel_size = (4, (5, 3))
+        self.stride_f = (1, 2, 4)
+        self.dilation = (1, (2, 3))
+        self.bias = (False,)
+        self.separable = (False, True)
+        self.enable_weight_norm = (False, True)
+        self.in_freqs = (16,)
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+        self.params = product(
+            self.in_channels,
+            self.out_channels,
+            self.kernel_size,
+            self.stride_f,
+            self.dilation,
+            self.bias,
+            self.separable,
+            self.enable_weight_norm,
+        )
+
+    def get_instance(self, p: Tuple) -> tu.CausalSubConv2d:
+        (
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride_f,
+            dilation,
+            bias,
+            separable,
+            enable_weight_norm,
+            in_freqs,
+        ) = p
+        instance = tu.CausalSubConv2d(
+            in_channels=in_channels,
+            out_channels=out_channels,
+            kernel_size=kernel_size,
+            stride_f=stride_f,
+            dilation=dilation,
+            bias=bias,
+            separable=separable,
+            enable_weight_norm=enable_weight_norm,
+        )
+        return instance
+
+    def get_input(self, p: Tuple) -> Tensor:
+        (
+            in_channels,
+            out_channels,
+            kernel_size,
+            stride_f,
+            dilation,
+            bias,
+            separable,
+            enable_weight_norm,
+            in_freqs,
+        ) = p
+        x = _get_input(in_channels, in_freqs, None)
+        return x
+
+    def test_inner_modules(self):
+        for p in self.params:
+            () = p
+            with self.subTest(p=p):
+                dcb = self.get_instance(p)
+                pass
+
+    def test_forward(self):
+        for p in self.params:
+            () = p
+            with self.subTest(p=p):
+                pass
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
