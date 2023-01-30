@@ -27,7 +27,7 @@ This will run a suite of tests to ensure that the module is functioning as expec
 ## Module Documentation
 To read the API documentation of the module run the following line.
 ```bash
-pdoc --docformat numpy torch_utils/torch_utils
+pdoc --docformat numpy torch_utilities/torch_utilities
 ```
 The documentation will then be accessible at the address http://localhost:8080 .
 
