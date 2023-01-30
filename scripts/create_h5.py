@@ -17,6 +17,8 @@ def main():
     args = parse_args()
     gbl = args.group_batch_len
     sr = args.sample_rate
+    thr = args.trim_silence_threshold
+    length = args.len
 
     # calculating dataset path
     cwd = Path.cwd()
@@ -34,19 +36,54 @@ def main():
 
     # writing into the HDF5
     groups = len(stdin) // gbl
-    thr = args.trim_silence_threshold
-    transform = lambda x: fade_sides((random_trim(trim_silence(x, thr), sr, args.len)))
+    fade_direction = "left" if args.fade_right_only else "both"
+    _transform = lambda x: transform(x, sr, thr, length, fade_direction)
     with h5py.File(dataset_path, "w") as ds:
         for i in tqdm(range(groups)):
             selection = stdin[i * gbl : (i + 1) * gbl]
             selection = [path.rstrip("\n") for path in selection]
             tracks = [load_audio(path, sr)[0] for path in selection]
-            tracks_trimmed = [transform(x) for x in tracks]
+            tracks_trimmed = [_transform(x) for x in tracks]
             if args.mono:
                 tracks = [x[:0] for x in tracks]
             x = np.stack(tracks_trimmed)
             g = ds.create_group(f"group_{i}")
             g.create_dataset("x", data=x)
+
+
+def transform(
+    x: np.ndarray,
+    sample_rate: int,
+    threshold: float,
+    length: float,
+    fade_direction: str,
+) -> np.ndarray:
+    """
+    Trims the silence from the sides of the sample, cut a section to fit
+    the length of the sequence and applies a fade.
+
+    Parameters
+    ----------
+    x : np.ndarray
+        Input signal
+    sample_rate : int
+        Sample frequency in Hz
+    threshold : float
+        Silence trimming threshold
+    length : float
+        Sequence length
+    fade_direction : str
+        One between "both" and "right"
+
+    Returns
+    -------
+    np.ndarray
+        Trimmed sample
+    """
+    x = trim_silence(x, threshold)
+    x = random_trim(x, sample_rate, length)
+    x = fade_sides(x, direction=fade_direction)
+    return x
 
 
 def parse_args() -> Dict:
@@ -95,6 +132,13 @@ def parse_args() -> Dict:
         type=float,
         help="threshold for the silence trimming, by default -35 dB",
     )
+    argparser.add_argument(
+        "--fade_right_only",
+        default=False,
+        action="store_true",
+        help="if set, a fade is performed on the right side of the samples only",
+    )
+
     return argparser.parse_args()
 
 

@@ -504,6 +504,7 @@ def _win_to_sides(
     x: TensorOrArray,
     win: TensorOrArray,
     fade_len: int,
+    direction: str,
 ) -> TensorOrArray:
     """
     Handler used to apply a window over the sides of
@@ -517,20 +518,29 @@ def _win_to_sides(
         Window
     fade_len : TensorOrArray
         Length of each fade in samples
+    direction : str
+        Indicates the sides in which the fade is applied,
+        one between "left", "right" or "both"
 
     Returns
     -------
     TensorOrArray
         Faded output
     """
-    x[..., :fade_len] *= win[:fade_len]
-    x[..., -fade_len:] *= win[-fade_len:]
+    # error handling
+    err_msg = 'direction must be one between "left", "right" or "both"'
+    assert direction in ["left", "right", "both"], err_msg
+
+    if direction in ["left", "both"]:
+        x[..., :fade_len] *= win[:fade_len]
+    if direction in ["right", "both"]:
+        x[..., -fade_len:] *= win[-fade_len:]
     return x
 
 
-def fade_sides(x: TensorOrArray, fade_len: int = 100) -> TensorOrArray:
+def fade_sides(x: TensorOrArray, fade_len: int = 100, direction: str = "both") -> TensorOrArray:
     """
-    Apply an half of an Hanning window to both
+    Apply an half of an Hanning window to the
     sides of the input, in order to obtain a fade in/out.
 
     Parameters
@@ -540,6 +550,9 @@ def fade_sides(x: TensorOrArray, fade_len: int = 100) -> TensorOrArray:
     fade_len : int, optional
         Length of the fade in samples, by default 10.
         The length of the window is 2 * fade_len + 1.
+    direction : str
+        Indicates the sides in which the fade is applied,
+        one between "left", "right" or "both", by default "both"
 
     Returns
     -------
@@ -554,7 +567,7 @@ def fade_sides(x: TensorOrArray, fade_len: int = 100) -> TensorOrArray:
         win = win.to(get_device())
         win[-1] = 0
         y = x.detach().clone()
-    y = _win_to_sides(y, win, fade_len)
+    y = _win_to_sides(y, win, fade_len, direction)
 
     return y
 
