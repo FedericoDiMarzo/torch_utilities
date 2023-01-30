@@ -9,7 +9,7 @@ import h5py
 import sys
 
 set_module_root("..", prefix=False)
-from torch_utils import load_audio, random_trim, fade_sides, trim_silence
+from torch_utilities import load_audio, random_trim, fade_sides, trim_silence
 
 
 def main():
@@ -34,7 +34,8 @@ def main():
 
     # writing into the HDF5
     groups = len(stdin) // gbl
-    transform = lambda x: fade_sides((random_trim(trim_silence(x), sr, args.len)))
+    thr = args.trim_silence_threshold
+    transform = lambda x: fade_sides((random_trim(trim_silence(x, thr), sr, args.len)))
     with h5py.File(dataset_path, "w") as ds:
         for i in tqdm(range(groups)):
             selection = stdin[i * gbl : (i + 1) * gbl]
@@ -57,9 +58,7 @@ def parse_args() -> Dict:
     Dict
         Parsed arguments
     """
-    desc = (
-        "Converts a list of absolute wav paths passed through stdin to an HDF5 dataset."
-    )
+    desc = "Converts a list of absolute wav paths passed through stdin to an HDF5 dataset."
     argparser = ArgumentParser(description=desc)
     argparser.add_argument(
         "dataset_name",
@@ -89,6 +88,12 @@ def parse_args() -> Dict:
         default=3,
         type=float,
         help="duration in seconds inside the datasets, by default 3 s",
+    )
+    argparser.add_argument(
+        "--trim_silence_threshold",
+        default=-35,
+        type=float,
+        help="threshold for the silence trimming, by default -35 dB",
     )
     return argparser.parse_args()
 
