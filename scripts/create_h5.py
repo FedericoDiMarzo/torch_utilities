@@ -15,9 +15,11 @@ from torch_utilities import load_audio, random_trim, fade_sides, trim_silence
 def main():
     # argparse
     args = parse_args()
-    gbl = args.group_batch_len
     sr = args.sample_rate
+    gbl = args.group_batch_len
     thr = args.trim_silence_threshold
+    fade_direction = "right" if args.fade_right_only else "both"
+    no_rand_trim = args.no_rand_trim
     length = args.len
 
     # calculating dataset path
@@ -36,8 +38,7 @@ def main():
 
     # writing into the HDF5
     groups = len(stdin) // gbl
-    fade_direction = "left" if args.fade_right_only else "both"
-    _transform = lambda x: transform(x, sr, thr, length, fade_direction)
+    _transform = lambda x: transform(x, sr, thr, length, fade_direction, no_rand_trim)
     with h5py.File(dataset_path, "w") as ds:
         for i in tqdm(range(groups)):
             selection = stdin[i * gbl : (i + 1) * gbl]
@@ -57,6 +58,7 @@ def transform(
     threshold: float,
     length: float,
     fade_direction: str,
+    no_rand_trim: bool,
 ) -> np.ndarray:
     """
     Trims the silence from the sides of the sample, cut a section to fit
@@ -65,7 +67,7 @@ def transform(
     Parameters
     ----------
     x : np.ndarray
-        Input signal
+        Input signal of shape (C, T)
     sample_rate : int
         Sample frequency in Hz
     threshold : float
@@ -74,6 +76,9 @@ def transform(
         Sequence length
     fade_direction : str
         One between "both" and "right"
+    no_rand_trim : bool
+        If True the samples are always taken from their beginning,
+        by default False
 
     Returns
     -------
@@ -81,7 +86,15 @@ def transform(
         Trimmed sample
     """
     x = trim_silence(x, threshold)
-    x = random_trim(x, sample_rate, length)
+    if no_rand_trim:
+        # trimming the sample from the beginning
+        C, T = x.shape
+        len_samples = int(length * sample_rate)
+        tmp = np.zeros((C, len_samples))
+        tmp[:, :T] = x
+        x = tmp
+    else:
+        x = random_trim(x, sample_rate, length)
     x = fade_sides(x, direction=fade_direction)
     return x
 
@@ -137,6 +150,12 @@ def parse_args() -> Dict:
         default=False,
         action="store_true",
         help="if set, a fade is performed on the right side of the samples only",
+    )
+    argparser.add_argument(
+        "--no_rand_trim",
+        default=False,
+        action="store_true",
+        help="if set, the samples are always taken from their beginning",
     )
 
     return argparser.parse_args()
