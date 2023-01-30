@@ -8,7 +8,7 @@ import numpy as np
 import torch
 
 set_module_root(".")
-from torch_utils.common import get_device, get_np_or_torch, to_numpy, TensorOrArray
+from torch_utilities.common import get_device, get_np_or_torch, to_numpy, TensorOrArray
 
 
 # export list

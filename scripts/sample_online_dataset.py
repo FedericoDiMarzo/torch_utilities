@@ -9,9 +9,9 @@ import torch
 
 
 set_module_root("..", prefix=False)
-from torch_utils import HDF5OnlineDataset
-import torch_utils.augmentation as aug
-import torch_utils as tu
+from torch_utilities import HDF5OnlineDataset
+import torch_utilities.augmentation as aug
+import torch_utilities as tu
 
 
 def main():

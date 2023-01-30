@@ -7,7 +7,7 @@ import unittest
 import torch
 
 set_module_root("../torch_utils")
-import torch_utils as tu
+import torch_utilities as tu
 
 
 def _setup() -> None:

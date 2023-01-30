@@ -8,7 +8,7 @@ import torch
 
 
 set_module_root(".")
-from torch_utils.audio import invert_db, rms
+from torch_utilities.audio import invert_db, rms
 
 
 # export list

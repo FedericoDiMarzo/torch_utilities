@@ -9,9 +9,9 @@ import unittest
 import torch
 
 set_module_root("../torch_utils")
-from torch_utils import repeat_test, set_device
-from torch_utils.modules import get_time_value, get_freq_value
-import torch_utils as tu
+from torch_utilities import repeat_test, set_device
+from torch_utilities.modules import get_time_value, get_freq_value
+import torch_utilities as tu
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 

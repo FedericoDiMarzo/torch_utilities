@@ -10,7 +10,7 @@ import torch
 import h5py
 
 set_module_root("..", prefix=False)
-from torch_utils import save_audio
+from torch_utilities import save_audio
 
 
 def main():

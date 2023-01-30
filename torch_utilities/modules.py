@@ -6,8 +6,8 @@ import numpy as np
 import torch
 
 set_module_root(".")
-from torch_utils.audio import interleave
-from torch_utils.common import OneOrPair
+from torch_utilities.audio import interleave
+from torch_utilities.common import OneOrPair
 
 __all__ = [
     # utilities

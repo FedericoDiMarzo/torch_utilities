@@ -4,8 +4,8 @@ import unittest
 import torch
 
 set_module_root("../torch_utils")
-import torch_utils as tu
-import torch_utils.augmentation as aug
+import torch_utilities as tu
+import torch_utilities.augmentation as aug
 
 
 def _setup() -> None:

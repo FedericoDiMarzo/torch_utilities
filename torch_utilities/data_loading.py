@@ -10,7 +10,7 @@ import torch
 import h5py
 
 set_module_root(".")
-from torch_utils.common import to_numpy, split_complex
+from torch_utilities.common import to_numpy, split_complex
 
 # export list
 __all__ = [

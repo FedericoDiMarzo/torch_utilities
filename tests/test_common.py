@@ -6,7 +6,7 @@ import unittest
 import torch
 
 set_module_root("../torch_utils")
-import torch_utils as tu
+import torch_utilities as tu
 from tests.generate_test_data import get_test_data_dir
 
 

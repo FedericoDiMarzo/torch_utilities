@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 from torch.optim import Optimizer
 from torch import nn, Tensor
 from loguru import logger
-import torch_utils as tu
+import torch_utilities as tu
 from pathlib import Path
 import numpy as np
 from abc import ABC
@@ -16,7 +16,7 @@ import torch
 import abc
 
 set_module_root(".")
-from torch_utils.common import DotDict
+from torch_utilities.common import DotDict
 
 __all__ = ["ModelTrainer"]
 
