@@ -68,7 +68,7 @@ def save_audio(file_path: Path, data: TensorOrArray, sample_rate: int):
     data : TensorOrArray
         Audio file to save
     sample_rate : int, optional
-        Target sample rate, by default None
+        Target sample rate
     """
     dtype = type(data)
 
