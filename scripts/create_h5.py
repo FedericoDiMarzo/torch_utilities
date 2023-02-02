@@ -18,7 +18,8 @@ def main():
     sr = args.sample_rate
     gbl = args.group_batch_len
     thr = args.trim_silence_threshold
-    fade_direction = "right" if args.fade_right_only else "both"
+    mono = args.mono
+    fade_direction = "right" if args.right_fade_only else "both"
     no_rand_trim = args.no_rand_trim
     length = args.len
 
@@ -38,7 +39,7 @@ def main():
 
     # writing into the HDF5
     groups = len(stdin) // gbl
-    _transform = lambda x: transform(x, sr, thr, length, fade_direction, no_rand_trim)
+    _transform = lambda x: transform(x, sr, mono, thr, length, fade_direction, no_rand_trim)
     with h5py.File(dataset_path, "w") as ds:
         for i in tqdm(range(groups)):
             selection = stdin[i * gbl : (i + 1) * gbl]
@@ -55,6 +56,7 @@ def main():
 def transform(
     x: np.ndarray,
     sample_rate: int,
+    mono: bool,
     threshold: float,
     length: float,
     fade_direction: str,
@@ -70,6 +72,8 @@ def transform(
         Input signal of shape (C, T)
     sample_rate : int
         Sample frequency in Hz
+    mono : bool
+        If True force to mono taking the first channel
     threshold : float
         Silence trimming threshold
     length : float
@@ -85,13 +89,16 @@ def transform(
     np.ndarray
         Trimmed sample
     """
+    if mono:
+        x = x[0][None, ...]
     x = trim_silence(x, threshold)
     if no_rand_trim:
         # trimming the sample from the beginning
         C, T = x.shape
         len_samples = int(length * sample_rate)
         tmp = np.zeros((C, len_samples))
-        tmp[:, :T] = x
+        end = min(T, len_samples)
+        tmp[..., :T] = x[..., :end]
         x = tmp
     else:
         x = random_trim(x, sample_rate, length)
@@ -146,7 +153,7 @@ def parse_args() -> Dict:
         help="threshold for the silence trimming, by default -35 dB",
     )
     argparser.add_argument(
-        "--fade_right_only",
+        "--right_fade_only",
         default=False,
         action="store_true",
         help="if set, a fade is performed on the right side of the samples only",
