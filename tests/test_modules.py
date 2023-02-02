@@ -800,7 +800,6 @@ class TestDenseConvBlock(unittest.TestCase):
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-# TODO: finish test
 class TestCausalSubConv2d(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -826,6 +825,7 @@ class TestCausalSubConv2d(unittest.TestCase):
             self.bias,
             self.separable,
             self.enable_weight_norm,
+            self.in_freqs,
         )
 
     def get_instance(self, p: Tuple) -> tu.CausalSubConv2d:
@@ -869,16 +869,49 @@ class TestCausalSubConv2d(unittest.TestCase):
 
     def test_inner_modules(self):
         for p in self.params:
-            () = p
+            (
+                in_channels,
+                out_channels,
+                kernel_size,
+                stride_f,
+                dilation,
+                bias,
+                separable,
+                enable_weight_norm,
+                in_freqs,
+            ) = p
             with self.subTest(p=p):
-                dcb = self.get_instance(p)
-                pass
+                csc = self.get_instance(p)
+                self.assertEqual(len(csc.layers), stride_f)
+                for layer in csc.layers:
+                    self.assertEqual(layer.in_channels, in_channels)
+                    self.assertEqual(layer.out_channels, out_channels)
+                    self.assertEqual(layer.kernel_size, kernel_size)
+                    self.assertEqual(layer.stride_f, 1)
+                    self.assertEqual(layer.dilation, dilation)
+                    self.assertEqual(layer.bias, bias)
+                    self.assertEqual(layer.separable, separable)
+                    self.assertEqual(layer.enable_weight_norm, enable_weight_norm)
 
     def test_forward(self):
         for p in self.params:
-            () = p
+            (
+                in_channels,
+                out_channels,
+                kernel_size,
+                stride_f,
+                dilation,
+                bias,
+                separable,
+                enable_weight_norm,
+                in_freqs,
+            ) = p
             with self.subTest(p=p):
-                pass
+                csc = self.get_instance(p)
+                x = self.get_input(p)
+                y = csc(x)
+                B, C, T, F = x.shape
+                self.assertEqual(y.shape, (B, out_channels, T, in_freqs * stride_f))
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =

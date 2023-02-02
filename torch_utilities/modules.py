@@ -535,7 +535,7 @@ class CausalSubConv2d(nn.Module):
             Output of shape (B, C, T, F * stride_f)
         """
         xs = [conv(x) for conv in self.layers]
-        x = interleave(xs)
+        x = interleave(*xs)
         return x
 
 

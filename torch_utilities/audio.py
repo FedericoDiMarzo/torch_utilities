@@ -681,6 +681,6 @@ def interleave(*xs: List[TensorOrArray]) -> Tensor:
     y = mod.zeros(new_shape)
 
     for i, x in enumerate(xs):
-        y[..., i:stride:] = x
+        y[..., i::stride] = x
 
     return y
