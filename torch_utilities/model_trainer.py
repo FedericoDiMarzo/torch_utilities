@@ -193,6 +193,7 @@ class ModelTrainer(ABC):
 
             with torch.no_grad():
                 _log_data = lambda t: self.dummy_input_train if t else self.dummy_input_valid
+                logger.info("logging tensorboard train data")
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
                 self._log_outs(epoch)
 
@@ -212,6 +213,7 @@ class ModelTrainer(ABC):
                         self.valid_step(data, epoch)
                     self._log_losses(is_training=False, epoch=epoch)
                     self._reset_running_losses()
+                    logger.info("logging tensorboard valid data")
                     self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
 
             self.save_model(epoch)
@@ -378,7 +380,8 @@ class ModelTrainer(ABC):
             Loaded model
         """
         m = self.model(self.config_path)
-
+        m.to(self.device)
+        
         # load checkpoint if it exists
         if self._prev_train_exists():
             epoch, model_state, optim_state = self._load_checkpoint()
@@ -449,7 +452,7 @@ class ModelTrainer(ABC):
             Current epoch
         """
         # saving
-        checkpoint_path = self.checkpoints_dir / f"checkpoint_{epoch}.ckpt"
+        checkpoint_path = self.checkpoints_dir / f"checkpoint_{epoch+1}.ckpt"
         torch.save(
             dict(
                 model_state=self.net.state_dict(),
@@ -615,7 +618,7 @@ class ModelTrainer(ABC):
         grad = tu.get_gradients(self.net)
         plt.figure(figsize=self.figsize)
         plt.bar(range(grad.shape[0]), grad)
-        plt.title("model gradient")
+        plt.title("model gradients")
         plt.grid()
         plt.xlabel("submodule index")
         plt.ylabel("gradient norm")
@@ -700,15 +703,17 @@ class ModelTrainer(ABC):
         """
         Starts the profiling.
         """
-        self.profiler.__enter__()
-        logger.info("profiler started")
+        if self.enable_profiling:
+            self.profiler.__enter__()
+            logger.info("profiler started")
 
     def _stop_profiling(self) -> None:
         """
         Stops the profiling.
         """
-        self.profiler.__exit__(None, None, None)
-        logger.info("profiler stopped")
+        if self.enable_profiling:
+            self.profiler.__exit__(None, None, None)
+            logger.info("profiler stopped")
 
         # leaving
 
