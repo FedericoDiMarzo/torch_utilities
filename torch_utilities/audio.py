@@ -658,7 +658,6 @@ def trim_silence(
         return x
 
 
-# TODO: tests
 def interleave(*xs: List[TensorOrArray]) -> Tensor:
     """
     Interleaves many input tensors in one over the last dimension.

@@ -276,6 +276,30 @@ class TestAudio(unittest.TestCase):
                 y = tu.trim_silence(x, margin=marg)
                 self.assertEqual(y.shape[-1], 10 + 2 * marg)
 
+    def test_interleave(self):
+        freqs = 10
+        dims = (1, 4)
+        params = itertools.product(self.modules, dims)
+        for p in params:
+            m, d = p
+            with self.subTest(p=p):
+                x_size = [freqs if i == (d - 1) else 1 for i in range(d)]
+
+                # input
+                if m == np:
+                    x = np.random.normal(size=x_size)
+                else:
+                    x = torch.randn(x_size)
+
+                xs = [x for _ in range(d)]
+                y = tu.interleave(*xs)
+                y_dim = x_size
+                y_dim[-1] *= d
+                self.assertEqual(y.shape, tuple(y_dim))
+                for i, z in enumerate(xs):
+                    e = m.abs(y[..., i::d] - z).max()
+                    self.assertLess(e, 1e-6)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
