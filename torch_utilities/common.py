@@ -22,6 +22,7 @@ __all__ = [
     "repeat_test",
     # pytorch utilities
     "get_device",
+    "enable_anomaly_detection",
     "to_numpy",
     "split_complex",
     "pack_complex",
@@ -198,6 +199,15 @@ def get_device() -> str:
         Device id
     """
     return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def enable_anomaly_detection():
+    """
+    Enable PyTorch anomaly detection
+    """
+    from torch import autograd
+
+    autograd.anomaly_mode.set_detect_anomaly(True)
 
 
 def to_numpy(x: Tensor) -> np.ndarray:
