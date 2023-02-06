@@ -6,6 +6,7 @@ import torch
 set_module_root("../torch_utils")
 import torch_utilities as tu
 import torch_utilities.augmentation as aug
+from torch_utilities.audio import invert_db
 
 
 def _setup() -> None:
@@ -36,8 +37,11 @@ class TestAugmentation(unittest.TestCase):
             with self.subTest(snr=snr):
                 x = torch.ones((1, 1, 100))
                 n = torch.ones_like(x)
-                y = aug.add_noise(x, n, (snr, snr))
+                y, actual_snr = aug.add_noise(x, n, (snr, snr))
                 self.assertTrue(x.max().equal(y.max()))
+                self.assertLess(actual_snr - invert_db(snr), 1e-6)
+                self.assertTrue(len(actual_snr.shape), 1)
+                self.assertTrue(actual_snr.shape[0], y.shape[0])
 
     def test_scale(self):
         scale_set = (-12, 0, 12)
@@ -45,8 +49,11 @@ class TestAugmentation(unittest.TestCase):
             with self.subTest(snr=scale):
                 lin_scale = aug.invert_db(scale)
                 x = torch.ones((1, 1, 100))
-                y = aug.scale(x, (scale, scale))
+                y, actual_scaling = aug.scale(x, (scale, scale))
                 self.assertAlmostEqual(y.max().item(), lin_scale)
+                self.assertLess(actual_scaling - invert_db(scale), 1e-6)
+                self.assertTrue(len(actual_scaling.shape), 1)
+                self.assertTrue(actual_scaling.shape[0], y.shape[0])
 
     def test_overdrive(self):
         x = torch.ones((1, 1, 100))

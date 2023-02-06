@@ -1,6 +1,7 @@
-from pathimport import set_module_root
 from typing import Optional, Tuple, Union
+from pathimport import set_module_root
 import torchaudio.functional as F
+from julius import fft_conv1d
 from random import randrange
 from torch import Tensor
 import numpy as np
@@ -61,7 +62,7 @@ _safe_div = lambda n, d, eps: n / (d + eps)
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 
-def add_noise(x: Tensor, n: Tensor, snr_range: Tuple[float, float]) -> Tensor:
+def add_noise(x: Tensor, n: Tensor, snr_range: Tuple[float, float]) -> Tuple[Tensor, Tensor]:
     """
     Add noise at various SNRs.
 
@@ -76,8 +77,10 @@ def add_noise(x: Tensor, n: Tensor, snr_range: Tuple[float, float]) -> Tensor:
 
     Returns
     -------
-    Tensor
-        Noisy version of x, same shape of x
+    Tuple[Tensor]
+        (
+            noisy version of x of shape (B, C, T),
+            per-batch SNR of shape (B,)
     """
     a, b = _db_to_lin_range(snr_range)
     snr = _rand_in_range(a, b, x.shape[0], x.device)
@@ -96,10 +99,10 @@ def add_noise(x: Tensor, n: Tensor, snr_range: Tuple[float, float]) -> Tensor:
     y = _normalize(y)
     y *= _expand3(x_peaks)
 
-    return y
+    return y, snr
 
 
-def scale(x: Tensor, range_db: Tuple[float, float]) -> Tensor:
+def scale(x: Tensor, range_db: Tuple[float, float]) -> Tuple[Tensor, Tensor]:
     """
     Applies a random scaling over the batches
 
@@ -112,14 +115,17 @@ def scale(x: Tensor, range_db: Tuple[float, float]) -> Tensor:
 
     Returns
     -------
-    Tensor
-        Scaled version of x, same shape of x
+    Tuple[Tensor, Tensor]
+        (
+            scaled version of x of shape (B, ...),
+            per-batch scaling of shape (B,)
+        )
     """
     a, b = _db_to_lin_range(range_db)
     scale = _rand_in_range(a, b, x.shape[0], x.device)
     x = _normalize(x)
     x *= _expand3(scale)
-    return x
+    return x, scale
 
 
 def overdrive(
