@@ -35,31 +35,33 @@ def main():
     filepaths = list(sys.stdin)
 
     # writing into the HDF5
-    if args.pack_samples:
-        pack_samples_in_h5(
-            dataset_path,
-            filepaths,
-            sr,
-            gbl,
-            mono,
-            length,
-        )
-    else:
-        isolated_samples_in_h5(
-            dataset_path,
-            filepaths,
-            sr,
-            gbl,
-            mono,
-            thr,
-            length,
-            fade_direction,
-            no_rand_trim,
-        )
+    with h5py.File(dataset_path, "w") as ds:
+        if args.pack_samples:
+            pack_samples_in_h5(
+                ds,
+                filepaths,
+                sr,
+                gbl,
+                mono,
+                length,
+            )
+        else:
+            isolated_samples_in_h5(
+                ds,
+                filepaths,
+                sr,
+                gbl,
+                mono,
+                thr,
+                length,
+                fade_direction,
+                no_rand_trim,
+            )
 
 
+# TODO: debug from here
 def pack_samples_in_h5(
-    dataset_path: Path,
+    ds: h5py.File,
     filepaths: List[str],
     sample_rate: int,
     group_batch_len: int,
@@ -72,8 +74,8 @@ def pack_samples_in_h5(
 
     Parameters
     ----------
-    dataset_path : Path
-        Path to the dataset
+    ds : h5py.File
+        Dataset file
     filepaths : List[str]
         List of audio files
     sample_rate : int
@@ -91,24 +93,23 @@ def pack_samples_in_h5(
     filepaths = [Path(x) for x in filepaths]
     channels = 1 if mono else load_audio(filepaths[0])[0].shape[0]
 
-    with h5py.File(dataset_path, "w") as ds:
-        filepaths = tqdm(filepaths)
-        itr = pack_audio_sequences(filepaths, length, sample_rate, channels)
-        for i in itertools.count():
-            try:
-                xs = [x for x in itertools.islice(itr, group_batch_len)]
-                if len(xs) < group_batch_len:
-                    break
-                x = np.stack(xs)
-                g = ds.create_group(f"group_{i}")
-                g.create_dataset("x", data=x)
-            except StopIteration:
-                # no more sequences
+    filepaths = tqdm(filepaths)
+    itr = pack_audio_sequences(filepaths, length, sample_rate, channels)
+    for i in itertools.count():
+        try:
+            xs = [x for x in itertools.islice(itr, group_batch_len)]
+            if len(xs) < group_batch_len:
                 break
+            x = np.stack(xs)
+            g = ds.create_group(f"group_{i}")
+            g.create_dataset("x", data=x)
+        except StopIteration:
+            # no more sequences
+            break
 
 
 def isolated_samples_in_h5(
-    dataset_path: Path,
+    ds: h5py.File,
     filepaths: List[str],
     sample_rate: int,
     group_batch_len: int,
@@ -124,8 +125,8 @@ def isolated_samples_in_h5(
 
     Parameters
     ----------
-    dataset_path : Path
-        Path to the dataset
+    ds : h5py.File
+        Dataset file
     filepaths : List[str]
         List of audio files
     sample_rate : int
@@ -155,17 +156,16 @@ def isolated_samples_in_h5(
     _transform = lambda x: transform(
         x, sample_rate, mono, thr, length, fade_direction, no_rand_trim
     )
-    with h5py.File(dataset_path, "w") as ds:
-        for i in tqdm(range(groups)):
-            selection = filepaths[i * group_batch_len : (i + 1) * group_batch_len]
-            selection = [path.rstrip("\n") for path in selection]
-            tracks = [load_audio(path, sample_rate)[0] for path in selection]
-            tracks_trimmed = [_transform(x) for x in tracks]
-            if mono:
-                tracks = [x[:0] for x in tracks]
-            x = np.stack(tracks_trimmed)
-            g = ds.create_group(f"group_{i}")
-            g.create_dataset("x", data=x)
+    for i in tqdm(range(groups)):
+        selection = filepaths[i * group_batch_len : (i + 1) * group_batch_len]
+        selection = [path.rstrip("\n") for path in selection]
+        tracks = [load_audio(path, sample_rate)[0] for path in selection]
+        tracks_trimmed = [_transform(x) for x in tracks]
+        if mono:
+            tracks = [x[:0] for x in tracks]
+        x = np.stack(tracks_trimmed)
+        g = ds.create_group(f"group_{i}")
+        g.create_dataset("x", data=x)
 
 
 def transform(
