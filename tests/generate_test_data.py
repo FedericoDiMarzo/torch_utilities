@@ -23,7 +23,7 @@ def get_test_data_dir():
 
 def generate_wavs(sample_rate: int = 16000, duration: float = 1):
     """
-    Generate a stereo and a mono wav files
+    Generate stereo and mono wav files
     of random noise.
 
     Parameters

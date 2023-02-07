@@ -1,13 +1,15 @@
 from pathimport import set_module_root
 from contextlib import suppress
+from itertools import product
 from torch import Tensor
 import numpy as np
-import itertools
 import unittest
 import torch
 
 set_module_root("../torch_utils")
+set_module_root(".")
 import torch_utilities as tu
+from tests.generate_test_data import get_test_data_dir
 
 
 def _setup() -> None:
@@ -28,7 +30,7 @@ class TestSTFT(unittest.TestCase):
         sample_rate = (8000, 16000, 24000, 48000)  # 2
         hopsize_ms = (8, 10)  # 3
         win_oversamp = (1, 2)  # 5
-        self.params = itertools.product(
+        self.params = product(
             module,
             channels,
             sample_rate,
@@ -85,7 +87,7 @@ class TestMelFilterbank(unittest.TestCase):
         n_freq = (160, 320, 640, 1280)
         n_mel = (8, 16, 32)
 
-        self.params = itertools.product(
+        self.params = product(
             module,
             channels,
             sample_rate,
@@ -94,7 +96,7 @@ class TestMelFilterbank(unittest.TestCase):
         )
 
     def test_to_mel(self):
-        for (module, channels, sample_rate, n_freq, n_mel) in self.params:
+        for module, channels, sample_rate, n_freq, n_mel in self.params:
             with self.subTest(
                 module=module,
                 channels=channels,
@@ -110,7 +112,7 @@ class TestMelFilterbank(unittest.TestCase):
                 self.assertEqual(type(y), np.ndarray if module == np else Tensor)
 
     def test_to_freq(self):
-        for (module, channels, sample_rate, n_freq, n_mel) in self.params:
+        for module, channels, sample_rate, n_freq, n_mel in self.params:
             with self.subTest(
                 module=module,
                 channels=channels,
@@ -268,7 +270,7 @@ class TestAudio(unittest.TestCase):
     def test_trim_silence(self):
         margins = (0, 10)
         values = (1, 0.1, 100)
-        params = itertools.product(self.modules, margins, values)
+        params = product(self.modules, margins, values)
         for module, marg, val in params:
             x = module.zeros(100)
             x[30:40] = 0.1
@@ -279,7 +281,7 @@ class TestAudio(unittest.TestCase):
     def test_interleave(self):
         freqs = 10
         dims = (1, 4)
-        params = itertools.product(self.modules, dims)
+        params = product(self.modules, dims)
         for p in params:
             m, d = p
             with self.subTest(p=p):
@@ -299,6 +301,25 @@ class TestAudio(unittest.TestCase):
                 for i, z in enumerate(xs):
                     e = m.abs(y[..., i::d] - z).max()
                     self.assertLess(e, 1e-6)
+
+    def test_pack_audio_sequences(self):
+        channels = (1, 2)
+        length = (1.5, 2)
+        sample_rate = (16000, 48000)
+        tensor = (False, True)
+        # delete_last = (False, True)
+        delete_last = (False,)
+        params = product(channels, length, sample_rate, tensor, delete_last)
+        n_files = 6
+        for p in params:
+            (c, l, sr, t, d) = p
+            filename = "mono" if c == 1 else "stereo"
+            files = [get_test_data_dir() / f"{filename}.wav" for _ in range(n_files)]
+            with self.subTest(p=p):
+                itr = tu.pack_audio_sequences(files, l, sr, c, t, d)
+                for i, seq in enumerate(itr):
+                    self.assertEqual(seq.shape, (c, int(sr * l)))
+                self.assertEqual(i + 1 if d else i, int(n_files / l))
 
 
 if __name__ == "__main__":
