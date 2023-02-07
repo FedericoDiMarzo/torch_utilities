@@ -31,31 +31,15 @@ def main():
     else:
         dataset_path = cwd / args.dataset_name
 
-    # filepaths = list(sys.stdin)
-    filepaths = list(sys.stdin)
+    filepaths = list([x.rstrip() for x in sys.stdin])
 
     # writing into the HDF5
     with h5py.File(dataset_path, "w") as ds:
         if args.pack_samples:
-            pack_samples_in_h5(
-                ds,
-                filepaths,
-                sr,
-                gbl,
-                mono,
-                length,
-            )
+            pack_samples_in_h5(ds, filepaths, sr, gbl, mono, length)
         else:
             isolated_samples_in_h5(
-                ds,
-                filepaths,
-                sr,
-                gbl,
-                mono,
-                thr,
-                length,
-                fade_direction,
-                no_rand_trim,
+                ds, filepaths, sr, gbl, mono, thr, length, fade_direction, no_rand_trim
             )
 
 
