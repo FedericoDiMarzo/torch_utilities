@@ -32,7 +32,7 @@ def main():
         dataset_path = cwd / args.dataset_name
 
     # filepaths = list(sys.stdin)
-    filepaths = Path("filelist.txt").read_text().split("\n")[:100]
+    filepaths = list(sys.stdin)
 
     # writing into the HDF5
     if args.pack_samples:
