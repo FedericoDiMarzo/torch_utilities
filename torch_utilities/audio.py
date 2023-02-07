@@ -713,7 +713,8 @@ def pack_audio_sequences(
     tensor : bool, optional
         If False returns a numpy ndarray else a torch Tensor, by default False
     delete_last : bool, optional
-        If True the last sequence is discarded (since it's typically not complete)
+        If True the last sequence is discarded (since it's typically not complete),
+        by default True
 
     Yields
     ------
