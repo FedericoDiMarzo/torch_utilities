@@ -307,16 +307,16 @@ class TestAudio(unittest.TestCase):
         length = (1.5, 2)
         sample_rate = (16000, 48000)
         tensor = (False, True)
-        # delete_last = (False, True)
-        delete_last = (False,)
-        params = product(channels, length, sample_rate, tensor, delete_last)
+        delete_last = (False, True)
+        num_workers = (1, 4)
+        params = product(channels, length, sample_rate, tensor, delete_last, num_workers)
         n_files = 6
         for p in params:
-            (c, l, sr, t, d) = p
+            (c, l, sr, t, d, w) = p
             filename = "mono" if c == 1 else "stereo"
             files = [get_test_data_dir() / f"{filename}.wav" for _ in range(n_files)]
             with self.subTest(p=p):
-                itr = tu.pack_audio_sequences(files, l, sr, c, t, d)
+                itr = tu.pack_audio_sequences(files, l, sr, c, t, d, w)
                 for i, seq in enumerate(itr):
                     self.assertEqual(seq.shape, (c, int(sr * l)))
                 self.assertEqual(i + 1 if d else i, int(n_files / l))
