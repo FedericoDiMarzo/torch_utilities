@@ -43,7 +43,6 @@ def main():
             )
 
 
-# TODO: debug from here
 def pack_samples_in_h5(
     ds: h5py.File,
     filepaths: List[str],
@@ -80,16 +79,14 @@ def pack_samples_in_h5(
     filepaths = tqdm(filepaths)
     itr = pack_audio_sequences(filepaths, length, sample_rate, channels)
     for i in itertools.count():
-        try:
-            xs = [x for x in itertools.islice(itr, group_batch_len)]
-            if len(xs) < group_batch_len:
-                break
-            x = np.stack(xs)
-            g = ds.create_group(f"group_{i}")
-            g.create_dataset("x", data=x)
-        except StopIteration:
-            # no more sequences
+        xs = [x for x in itertools.islice(itr, group_batch_len)]
+        if len(xs) < group_batch_len:
+            warn_msg = f"{len(xs)} samples will be removed since they don't complete the last group"
+            logger.warning(warn_msg)
             break
+        x = np.stack(xs)
+        g = ds.create_group(f"group_{i}")
+        g.create_dataset("x", data=x)
 
 
 def isolated_samples_in_h5(
@@ -268,6 +265,12 @@ def parse_args() -> Dict:
         default=False,
         action="store_true",
         help="if set, the samples are packed to fill the sequences without any fade",
+    )
+    argparser.add_argument(
+        "--num_workers",
+        default=1,
+        type=int,
+        help="parallel processes",
     )
 
     return argparser.parse_args()

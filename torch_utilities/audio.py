@@ -10,7 +10,7 @@ import torch
 
 set_module_root(".")
 from torch_utilities.common import get_device, get_np_or_torch, to_numpy, TensorOrArray
-from torch_utilities.io import load_audio, save_audio
+from torch_utilities.io import load_audio, load_audio_parallel_itr
 
 
 # export list
@@ -695,6 +695,7 @@ def pack_audio_sequences(
     channels: int = 1,
     tensor: bool = False,
     delete_last: bool = True,
+    num_workers: int = 1,
 ) -> Iterator[TensorOrArray]:
     """
     Reads from a list of audio filepaths and generate temporal sequences
@@ -715,6 +716,8 @@ def pack_audio_sequences(
     delete_last : bool, optional
         If True the last sequence is discarded (since it's typically not complete),
         by default True
+    num_workers : int, optional
+        Number of parallel processes
 
     Yields
     ------
@@ -736,20 +739,17 @@ def pack_audio_sequences(
     # utilities
     _seq_left = lambda: length - seq_ptr
     _sample_left = lambda x: x.shape[1] - sample_ptr
-    _t = lambda x: x.shape[1]
     _copy = lambda x: x.clone() if isinstance(x, Tensor) else x.copy()
 
+    # enables multiprocessing ~ ~ ~ ~ ~ 
+    if num_workers > 1:
+        xs = load_audio_parallel_itr(xs, sample_rate, tensor, num_workers=num_workers)
+    else:
+        xs = (load_audio(x, sample_rate, tensor)[0] for x in xs)
+    # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
+    
     seq = _reset_seq()
-
-    for filepath in xs:
-        # audio loading  ~  ~
-        try:
-            x = load_audio(filepath, sample_rate, tensor)[0]
-        except RuntimeError as e:
-            # skipping misreads
-            continue
-        # ~  ~  ~  ~  ~  ~  ~
-
+    for x in xs:
         while _sample_left(x) > 0:
             # copying into the sequence
             delta = min(_seq_left(), _sample_left(x))
