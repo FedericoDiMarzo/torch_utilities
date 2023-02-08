@@ -1,3 +1,4 @@
+from itertools import product
 import unittest
 from pathimport import set_module_root
 from torch import Tensor
@@ -75,6 +76,29 @@ class TestIO(unittest.TestCase):
 
     def test_tensor_resample_read(self):
         x = tu.load_audio(self.mono_file, 48000, tensor=True)
+
+    def test_load_audio_parallel(self):
+        mono = (False, True)
+        sample_rate = (16000, 48000)
+        tensor = (False, True)
+        num_workers = (1, 4)
+        params = product(
+            mono,
+            sample_rate,
+            tensor,
+            num_workers,
+        )
+        for p in params:
+            (m, sr, t, w) = p
+            n_files = 4
+            with self.subTest(p=p):
+                name = "mono.wav" if m else "stereo.wav"
+                filepaths = [get_test_data_dir() / name for _ in range(n_files)]
+                xs = tu.load_audio_parallel(filepaths, sr, t, w)
+                self.assertEqual(len(xs), n_files)
+                for x in xs:
+                    self.assertEqual(type(x), Tensor if t else np.ndarray)
+                    self.assertEqual(x.shape[0], 1 if m else 2)
 
 
 if __name__ == "__main__":
