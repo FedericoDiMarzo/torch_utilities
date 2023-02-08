@@ -62,7 +62,7 @@ class HDF5OnlineTestDataset(HDF5OnlineDataset):
     def transform(self, raw_data: List[Tensor]) -> List[Tensor]:
         s, n = raw_data
         x = aug.add_noise(s, n, (self.snr, self.snr))[0]
-        x = aug.scale(x, (0, 0))[0]
+        x = aug.random_scaling(x, (0, 0))[0]
         return [x]
 
 
