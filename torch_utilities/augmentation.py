@@ -16,9 +16,11 @@ from torch_utilities.audio import invert_db, rms
 __all__ = [
     "shuffle",
     "add_noise",
-    "scale",
-    "overdrive",
-    "biquad",
+    "random_scaling",
+    "random_overdrive",
+    "random_lowpass",
+    "random_highpass",
+    "random_peak_eq",
 ]
 
 
@@ -102,7 +104,7 @@ def add_noise(x: Tensor, n: Tensor, snr_range: Tuple[float, float]) -> Tuple[Ten
     return y, snr
 
 
-def scale(x: Tensor, range_db: Tuple[float, float]) -> Tuple[Tensor, Tensor]:
+def random_scaling(x: Tensor, range_db: Tuple[float, float]) -> Tuple[Tensor, Tensor]:
     """
     Applies a random scaling over the batches
 
@@ -128,7 +130,7 @@ def scale(x: Tensor, range_db: Tuple[float, float]) -> Tuple[Tensor, Tensor]:
     return x, scale
 
 
-def overdrive(
+def random_overdrive(
     x: Tensor,
     gain_range: Tuple[float, float] = (60, 100),
     colour_range: Tuple[float, float] = (0, 100),
@@ -148,7 +150,7 @@ def overdrive(
     Returns
     -------
     Tensor
-        Distorted version of x, same shape of x
+        Distorted version of x of shape (..., T)
     """
 
     x_peaks = _max_over_batch(x)
@@ -163,6 +165,96 @@ def overdrive(
     return y
 
 
-# TODO: biquad
-def biquad(x: Tensor) -> Tensor:
-    raise NotImplementedError()
+def random_lowpass(
+    x: Tensor,
+    sample_rate: int,
+    cutoff_range: Tuple[float, float],
+    q_range: Tuple[float, float],
+) -> Tensor:
+    """
+    Apply a random lowpass filter to the input batch.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor of shape (..., T)
+    sample_rate : int
+        Sample rate of the input
+    cutoff_range : Tuple[float, float]
+        Ranges of possible cutoffs in Hz
+    q_range : Tuple[float, float]
+        Range of possible Q factors
+
+    Returns
+    -------
+    Tensor
+        Filtered output of shape (..., T)
+    """
+    cutoff = _1rand_in_range(*cutoff_range)
+    q = _1rand_in_range(*q_range)
+    y = F.lowpass_biquad(x, sample_rate, cutoff, q)
+    return y
+
+
+def random_highpass(
+    x: Tensor,
+    sample_rate: int,
+    cutoff_range: Tuple[float, float],
+    q_range: Tuple[float, float],
+) -> Tensor:
+    """
+    Apply a random highpass filter to the input batch.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor of shape (..., T)
+    sample_rate : int
+        Sample rate of the input
+    cutoff_range : Tuple[float, float]
+        Ranges of possible cutoffs in Hz
+    q_range : Tuple[float, float]
+        Range of possible Q factors
+
+    Returns
+    -------
+    Tensor
+        Filtered output of shape (..., T)
+    """
+    cutoff = _1rand_in_range(*cutoff_range)
+    q = _1rand_in_range(*q_range)
+    y = F.highpass_biquad(x, sample_rate, cutoff, q)
+    return y
+
+
+def random_peak_eq(
+    x: Tensor,
+    sample_rate: int,
+    cutoff_range: Tuple[float, float],
+    gain_range: Tuple[float, float],
+    q_range: Tuple[float, float],
+) -> Tensor:
+    """
+    Apply a random peak eq filter to the input batch.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input tensor of shape (..., T)
+    sample_rate : int
+        Sample rate of the input
+    cutoff_range : Tuple[float, float]
+        Ranges of possible cutoffs in Hz
+    q_range : Tuple[float, float]
+        Range of possible Q factors
+
+    Returns
+    -------
+    Tensor
+        Filtered output of shape (..., T)
+    """
+    cutoff = _1rand_in_range(*cutoff_range)
+    q = _1rand_in_range(*q_range)
+    gain = _1rand_in_range(*gain_range)
+    y = F.equalizer_biquad(x, sample_rate, cutoff, gain, q)
+    return y

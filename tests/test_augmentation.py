@@ -49,7 +49,7 @@ class TestAugmentation(unittest.TestCase):
             with self.subTest(snr=scale):
                 lin_scale = aug.invert_db(scale)
                 x = torch.ones((1, 1, 100))
-                y, actual_scaling = aug.scale(x, (scale, scale))
+                y, actual_scaling = aug.random_scaling(x, (scale, scale))
                 self.assertAlmostEqual(y.max().item(), lin_scale)
                 self.assertLess(actual_scaling - invert_db(scale), 1e-6)
                 self.assertTrue(len(actual_scaling.shape), 1)
@@ -57,7 +57,7 @@ class TestAugmentation(unittest.TestCase):
 
     def test_overdrive(self):
         x = torch.ones((1, 1, 100))
-        y = aug.overdrive(x)
+        y = aug.random_overdrive(x)
         self.assertAlmostEqual(y.max().item(), 1)
 
 
