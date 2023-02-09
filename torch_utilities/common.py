@@ -20,7 +20,7 @@ __all__ = [
     "get_np_or_torch",
     "pack_many",
     "repeat_test",
-    "execute_with_probability"
+    "execute_with_probability",
     # pytorch utilities
     "get_device",
     "enable_anomaly_detection",
