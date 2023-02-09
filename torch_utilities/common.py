@@ -20,6 +20,7 @@ __all__ = [
     "get_np_or_torch",
     "pack_many",
     "repeat_test",
+    "execute_with_probability"
     # pytorch utilities
     "get_device",
     "enable_anomaly_detection",
@@ -184,6 +185,23 @@ def repeat_test(times: int):
     return repeatHelper 
 # fmt: on
 
+def execute_with_probability(prob:float)->bool:
+    """
+    Returns True of false based on the 
+    random variable prob
+
+    Parameters
+    ----------
+    prob : float
+        Probability to execute, from 0 (never happen) 
+        to 1 (always happen)
+
+    Returns
+    -------
+    bool
+        True prob % of the times
+    """
+    return np.random.uniform() > prob
 
 # = = = = pytorch utilities
 
