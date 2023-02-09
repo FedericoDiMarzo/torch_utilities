@@ -126,11 +126,7 @@ class TestUnfoldFoldSpectrogram(unittest.TestCase):
                 self.assertEqual(y.shape[1], self.in_channels)
                 self.assertEqual(y.shape[3], self.in_freqs)
 
-    # TODO: finish test
-
     def test_inversion(self):
-        import matplotlib.pyplot as plt
-
         for p in self.params:
             (block_size, stride) = p
             with self.subTest(p=p):
