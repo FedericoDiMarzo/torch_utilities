@@ -1,7 +1,9 @@
-from typing import Callable, List, Optional, Tuple, TypeVar, Union
+from typing import Callable, List, Optional, Tuple
 from torch.nn.utils import weight_norm
 from pathimport import set_module_root
+import torch.nn.functional as F
 from torch import nn, Tensor
+from torch.nn import Module
 import numpy as np
 import torch
 
@@ -15,6 +17,8 @@ __all__ = [
     "Lookahead",
     "Reparameterize",
     "ScaleChannels2d",
+    "UnfoldSpectrogram",
+    "FoldSpectrogram",
     # dense variants
     "GroupedLinear",
     # conv2d variants
@@ -118,7 +122,7 @@ def get_default_dilation(
 
 
 # utilitiy layers  = = = = = = = = = = = = = = = = = = =
-class LambdaLayer(nn.Module):
+class LambdaLayer(Module):
     def __init__(self, f: Callable):
         """
         Inspired to TF lambda layer
@@ -135,7 +139,7 @@ class LambdaLayer(nn.Module):
         return self.f(*x)
 
 
-class Lookahead(nn.Module):
+class Lookahead(Module):
     def __init__(
         self,
         lookahead: int,
@@ -171,7 +175,7 @@ class Lookahead(nn.Module):
         return x
 
 
-class Reparameterize(nn.Module):
+class Reparameterize(Module):
     def __init__(self) -> None:
         super().__init__()
 
@@ -197,7 +201,7 @@ class Reparameterize(nn.Module):
         return eps * std + mu
 
 
-class ScaleChannels2d(nn.Module):
+class ScaleChannels2d(Module):
     def __init__(
         self,
         in_channels: int,
@@ -242,8 +246,183 @@ class ScaleChannels2d(nn.Module):
         return x
 
 
+class UnfoldSpectrogram(Module):
+    def __init__(self, block_size: int, stride: int) -> None:
+        """
+        Custom unfold module, it performs a windowing over time of a time-freq signal.
+
+        Parameters
+        ----------
+        block_size : int
+            Size of the sliding window over time
+        stride : int
+            Stride of the sliding window over time
+        """
+        super().__init__()
+
+        # attributes
+        self.block_size = block_size
+        self.stride = stride
+
+        # inner modules ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
+        # (B, C, T, F) -> (B*C, 1, T, F)
+        self._reshape_0 = lambda x: x.view(x.shape[0] * x.shape[1], *x.shape[2:])[:, None, :, :]
+
+        # (B*C, 1, T, F) -> (B*C, F*block_size, num_blocks)
+        self._unfold = lambda x: F.unfold(x, (self.block_size, x.shape[3]), stride=(self.stride, 1))
+
+        # (B*C, F*block_size, num_blocks) -> (B*C, 1, F, block_size, num_blocks)
+        self._reshape_1 = lambda x: x.view(x.shape[0], 1, -1, self.block_size, x.shape[2])
+
+        # (B*C, 1, F, block_size, num_blocks) -> (B*C, 1, num_blocks, block_size, F)
+        self._reshape_2 = lambda x: x.permute(0, 1, 4, 3, 2)
+
+        # (B*C, 1, num_blocks, block_size, F) -> (B, C*num_blocks, block_size, F)
+        self._reshape_3 = lambda x, ch: x.reshape(-1, ch * x.shape[2], self.block_size, x.shape[4])
+
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Parameters
+        ----------
+        x : Tensor
+            Input of shape (B, C, T, F)
+
+        Returns
+        -------
+        Tensor
+            Unfolded input of shape (B, C*num_blocks, block_size, F)
+        """
+        assert self._input_shape_is_valid(x), r"x.shape[2] - block_size % stride != 0"
+        ch = x.shape[1]
+        x = self._reshape_0(x)
+        x = self._unfold(x)
+        x = self._reshape_1(x)
+        x = self._reshape_2(x)
+        x = self._reshape_3(x, ch)
+        return x
+
+    def _input_shape_is_valid(self, x: Tensor) -> bool:
+        """
+        Verifies that the input shape is valid for unfolding
+
+        Parameters
+        ----------
+        x : Tensor
+            Input tensor
+
+        Returns
+        -------
+        bool
+            True if the input shape is valid
+        """
+        t = x.shape[2]
+        flag = (t - self.block_size) % self.stride == 0
+        return flag
+
+
+class FoldSpectrogram(Module):
+    def __init__(self, block_size: int, stride: int, channels: int) -> None:
+        """
+        Custom fold module, reverses the result of UnfoldSpectrogram.
+
+        Parameters
+        ----------
+        block_size : int
+            Size of the sliding window over time
+        stride : int
+            Stride of the sliding window over time
+        channels : int
+            Number of channels before UnfoldSpectrogram
+        """
+        super().__init__()
+
+        # attributes
+        self.block_size = block_size
+        self.stride = stride
+        self.channels = channels
+
+        # inner modules
+
+        # (B, C*num_blocks, block_size, F)
+        # used to get the output_size for the folding
+        self._get_out_size = lambda x: (
+            x.shape[1] * self.stride // self.channels + self.block_size - self.stride,
+            x.shape[3],
+        )
+
+        # inner modules ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
+        # (B, C*num_blocks, block_size, F) -> (B*C, 1, num_blocks, block_size, F)
+        self._reshape_0 = lambda x: x.reshape(
+            -1, 1, x.shape[1] // self.channels, self.block_size, x.shape[3]
+        )
+
+        # (B*C, 1, num_blocks, block_size, F) -> (B*C, 1, F, block_size, num_blocks)
+        self._reshape_1 = lambda x: x.permute(0, 1, 4, 3, 2)
+
+        # (B*C, 1, F, block_size, num_blocks) -> (B*C, F*block_size, num_blocks)
+        self._reshape_2 = lambda x: x.reshape(x.shape[0], x.shape[2] * self.block_size, x.shape[4])
+
+        # (B*C, F*block_size, num_blocks) -> (B*C, 1, T, F)
+        self._fold = lambda x, o: F.fold(x, o, (self.block_size, o[1]), stride=(self.stride, 1))
+
+        # (B*C, 1, T, F) -> (B, C, T, F)
+        self._reshape_3 = lambda x: x.view(-1, self.channels, *x.shape[2:])
+
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Parameters
+        ----------
+        x : Tensor
+            Input of shape (B, C*num_blocks, block_size, F)
+
+        Returns
+        -------
+        Tensor
+            Folded input of shape (B, C, T, F)
+        """
+        out_sizes = self._get_out_size(x)
+        x = self._reshape_0(x)
+        x = self._reshape_1(x)
+        x = self._reshape_2(x)
+        x = self._fold(x, out_sizes)
+        x = self._reshape_3(x)
+        divisor = self._get_normalization_tensor(x, out_sizes)
+        x /= divisor
+        return x
+
+    def _get_normalization_tensor(self, x: Tensor, out_sizes: Tuple[int, int]) -> Tensor:
+        """
+        Obtain the normalization tensor for perfect fold/unfold inversion.
+        https://pytorch.org/docs/stable/generated/torch.nn.Unfold.html?highlight=unfold#torch.nn.Unfold
+
+        Parameters
+        ----------
+        x : Tensor
+            Input tensor
+        out_sizes : Tuple[int, int]
+            Parameter output_size needed for folding
+
+
+        Returns
+        -------
+        Tensor
+            Normalization tensor
+        """
+        o = out_sizes
+        y = torch.ones_like(x)
+        y = F.unfold(y, (self.block_size, o[1]), stride=(self.stride, 1))
+        y = F.fold(y, o, (self.block_size, o[1]), stride=(self.stride, 1))
+        return y
+
+
 # dense variants = = = = = = = = = = = = = = = = = = = =
-class GroupedLinear(nn.Module):
+class GroupedLinear(Module):
     def __init__(
         self,
         input_dim: int,
@@ -322,7 +501,7 @@ class GroupedLinear(nn.Module):
 
 
 # conv2d variants = = = = = = = = = = = = = = = = = = =
-class CausalConv2d(nn.Module):
+class CausalConv2d(Module):
     def __init__(
         self,
         in_channels: int,
@@ -441,13 +620,13 @@ class CausalConv2d(nn.Module):
         causal_pad = get_causal_conv_padding(kernel_size_t, dilation_t)
         return causal_pad
 
-    def _get_default_freq_padding(self) -> nn.Module:
+    def _get_default_freq_padding(self) -> Module:
         """
         Gets the default frequency padding.
 
         Returns
         -------
-        nn.Module
+        Module
             Frequency padding module
         """
         kernel_size_f, dilation_f = map(get_freq_value, (self.kernel_size, self.dilation))
@@ -462,7 +641,7 @@ class CausalConv2d(nn.Module):
         return pad
 
 
-class CausalSubConv2d(nn.Module):
+class CausalSubConv2d(Module):
     def __init__(
         self,
         in_channels: int,
@@ -494,7 +673,6 @@ class CausalSubConv2d(nn.Module):
             Enables weight normalization, by default False
         """
         super().__init__()
-
 
         # attributes
         self.in_channels = in_channels
@@ -540,7 +718,7 @@ class CausalSubConv2d(nn.Module):
 
 
 # conv2d compositions = = = = = = = = = = = = = = = = =
-class CausalConv2dNormAct(nn.Module):
+class CausalConv2dNormAct(Module):
     def __init__(
         self,
         in_channels: int,
@@ -553,7 +731,7 @@ class CausalConv2dNormAct(nn.Module):
         batchnorm_momentum: float = 0.1,
         batchnorm_affine: bool = True,
         batchnorm_track_running_stats: bool = True,
-        activation: nn.Module = nn.ReLU(),
+        activation: Module = nn.ReLU(),
         residual_merge: Optional[Callable] = None,
         disable_batchnorm: bool = False,
         enable_weight_norm: bool = False,
@@ -586,7 +764,7 @@ class CausalConv2dNormAct(nn.Module):
             Affine parameter of the BatchNorm2d, by default True
         batchnorm_track_running_stats : bool, optional
             Track running stats parameter of the BatchNorm2d, by default True
-        activation : nn.Module, optional
+        activation : Module, optional
             Activation module, by default nn.Relu()
         residual_merge : Optional[Callable], optional
             If different da None, it indicates the merge operation using a skip connection
@@ -657,7 +835,7 @@ class CausalConv2dNormAct(nn.Module):
         return y
 
 
-class CausalSmoothedTConv(nn.Module):
+class CausalSmoothedTConv(Module):
     def __init__(
         self,
         in_channels: int,
@@ -675,7 +853,7 @@ class CausalSmoothedTConv(nn.Module):
         batchnorm_track_running_stats: bool = True,
         disable_batchnorm: bool = False,
         enable_weight_norm: bool = False,
-        activation: nn.Module = nn.LeakyReLU(),
+        activation: Module = nn.LeakyReLU(),
         residual_merge: Optional[Callable] = None,
         dtype=None,
     ) -> None:
@@ -721,7 +899,7 @@ class CausalSmoothedTConv(nn.Module):
         enable_weight_norm : bool, optional
             Uses the weight normalization instead of the batch normalization,
             by default False
-        activation : nn.Module, optional
+        activation : Module, optional
             Activation to use, by default nn.LeakyReLU()
         residual_merge : Optional[Callable], optional
             Merge operation performed between the layer output and a residual skip connection
@@ -859,7 +1037,7 @@ class CausalSmoothedTConv(nn.Module):
         return conv
 
 
-class DenseConvBlock(nn.Module):
+class DenseConvBlock(Module):
     def __init__(
         self,
         channels: int,
@@ -873,7 +1051,7 @@ class DenseConvBlock(nn.Module):
         batchnorm_affine: bool = True,
         disable_layernorm: bool = False,
         enable_weight_norm: bool = False,
-        activation: nn.Module = nn.LeakyReLU(),
+        activation: Module = nn.LeakyReLU(),
         dtype=None,
     ) -> None:
         """
@@ -908,7 +1086,7 @@ class DenseConvBlock(nn.Module):
         enable_weight_norm : bool, optional
             Uses the weight normalization instead of the batch normalization,
             by default False
-        activation : nn.Module, optional
+        activation : Module, optional
             Activation to use, by default nn.LeakyReLU()
         dtype : optional
             Module dtype, by default None
@@ -998,7 +1176,7 @@ class DenseConvBlock(nn.Module):
 
 
 # recurrent layers variants = = = = = = = = = = = = = =
-class GruNormAct(nn.Module):
+class GruNormAct(Module):
     def __init__(
         self,
         input_size: int,
@@ -1012,7 +1190,7 @@ class GruNormAct(nn.Module):
         momentum: float = 0.1,
         affine: bool = True,
         track_running_stats: bool = True,
-        activation: nn.Module = nn.ReLU(),
+        activation: Module = nn.ReLU(),
         residual_merge: Optional[Callable] = None,
         disable_batchnorm: bool = False,
         dtype=None,
@@ -1024,7 +1202,7 @@ class GruNormAct(nn.Module):
         ----------
         Combination of the modules parameters
 
-        activation: nn.Module, optional
+        activation: Module, optional
             Activation module, by default nn.Relu()
         residual_merge: Optional[Callable], optional
             If different da None, it indicates the merge operation after
@@ -1082,6 +1260,28 @@ class GruNormAct(nn.Module):
         if self.residual_merge is not None:
             y = self.residual_merge(x, y)
         return y, h
+
+
+# attention variants  = = = = = = = = = = = = = = = = =
+class CausalSelfAttentionEncoder(Module):
+    def __init__(
+        self,
+        receptive_field: int,
+        stride: int,
+        hidden_size: int,
+        heads: int,
+        dropout: float = 0.1,
+    ) -> None:
+        super().__init__()
+
+        # attributes
+        self.receptive_field = receptive_field
+        self.stride = stride
+        self.hidden_size = hidden_size
+        self.heads = heads
+        self.dropout = dropout
+
+        # inner modules
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = =

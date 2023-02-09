@@ -57,6 +57,93 @@ class TestLookahead(unittest.TestCase):
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+
+class TestUnfoldFoldSpectrogram(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        _setup()
+
+    def setUp(self):
+        self.in_channels = 2
+        self.in_frames = 20
+        self.in_num_blocks = 3
+        self.in_freqs = 4
+
+        self.block_size = (2, 4)
+        self.stride = (1, 2)
+        self.params = product(self.block_size, self.stride)
+
+    def get_instance(self, p: Tuple, unfold: bool) -> tu.CausalConv2d:
+        (block_size, stride) = p
+        if unfold:
+            instance = tu.UnfoldSpectrogram(
+                block_size=block_size,
+                stride=stride,
+            )
+        else:
+            instance = tu.FoldSpectrogram(
+                block_size=block_size,
+                stride=stride,
+                channels=self.in_channels,
+            )
+        return instance
+
+    def get_input(self, p: Tuple, unfold: bool) -> Tensor:
+        (block_size, stride) = p
+
+        if unfold:
+            x = torch.randn((1, self.in_channels, self.in_frames, self.in_freqs))
+        else:
+            x = torch.randn((1, self.in_channels * self.in_num_blocks, block_size, self.in_freqs))
+        return x
+
+    def test_unfold(self):
+        for p in self.params:
+            (block_size, stride) = p
+            with self.subTest(p=p):
+                unfold = self.get_instance(p, unfold=True)
+                x = self.get_input(p, unfold=True)
+                y = unfold(x)
+
+                n_blocks = (self.in_frames - (block_size - 1) - 1) / stride + 1
+                expected_shape = (1, self.in_channels * n_blocks, block_size, self.in_freqs)
+                self.assertTrue(y.shape, expected_shape)
+
+    def test_unfold_assertion(self):
+        x = torch.ones(1, 1, 11, 4)
+        unfold = tu.UnfoldSpectrogram(4, 2)
+        with self.assertRaises(AssertionError):
+            unfold(x)
+
+    def test_fold(self):
+        for p in self.params:
+            (block_size, stride) = p
+            with self.subTest(p=p):
+                fold = self.get_instance(p, unfold=False)
+                x = self.get_input(p, unfold=False)
+                y = fold(x)
+                self.assertEqual(y.shape[1], self.in_channels)
+                self.assertEqual(y.shape[3], self.in_freqs)
+
+    # TODO: finish test
+
+    def test_inversion(self):
+        import matplotlib.pyplot as plt
+
+        for p in self.params:
+            (block_size, stride) = p
+            with self.subTest(p=p):
+                unfold = self.get_instance(p, unfold=True)
+                fold = self.get_instance(p, unfold=False)
+                x = self.get_input(p, unfold=True)
+                y = unfold(x)
+                x_hat = fold(y)
+                e = (x - x_hat).abs().max().item()
+                self.assertLess(e, 1e-8)
+
+
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 class TestCausalConv2d(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
@@ -799,6 +886,7 @@ class TestDenseConvBlock(unittest.TestCase):
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
 
 class TestCausalSubConv2d(unittest.TestCase):
     @classmethod
