@@ -120,6 +120,31 @@ def get_default_dilation(
         dilation = [(d[0], 1) for d in dilation]
     return dilation
 
+def get_causal_longformer_mask(size_len: int, width: int) -> Tensor:
+    """
+    Obtain a causal mask inspired by the Longformer to use
+    within self attention layers.
+
+    https://arxiv.org/abs/2004.05150
+
+    Parameters
+    ----------
+    size_len : int
+        Length of the sequence
+    width : int
+        Number of previous neighbours to pay attention to
+
+    Returns
+    -------
+    Tensor
+        Attention mask
+    """
+    _diag = lambda i: torch.diag(torch.ones(size_len - i), -i)
+    mask = _diag(0)
+    for i in range(1, width):
+        mask += _diag(i)
+    return mask
+
 
 # utilitiy layers  = = = = = = = = = = = = = = = = = = =
 class LambdaLayer(Module):
@@ -1262,13 +1287,14 @@ class GruNormAct(Module):
         return y, h
 
 
-# attention variants  = = = = = = = = = = = = = = = = =
+# attention variants  = = = = = = = = = = = = = = = = = https://arxiv.org/abs/2004.05150
 class CausalSelfAttentionEncoder(Module):
     def __init__(
         self,
-        receptive_field: int,
-        stride: int,
         hidden_size: int,
+        sequence_len:int,
+        receptive_field: int,
+        depth:int,
         heads: int,
         dropout: float = 0.1,
     ) -> None:
