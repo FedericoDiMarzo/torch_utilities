@@ -184,6 +184,7 @@ class ModelTrainer(ABC):
                 data = self._remove_extra_dim(data)
                 self.train_step(data, epoch)
                 if i % self.log_every == 0 and i != 0:
+                    logger.info(f"batch [{i}/{len(self.train_ds)}]")
                     self._log_losses(is_training=True, epoch=epoch)
                     self._reset_running_losses()
                 #
