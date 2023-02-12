@@ -1,4 +1,5 @@
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
+from torch.optim.lr_scheduler import ExponentialLR
 from torch.utils.tensorboard import SummaryWriter
 from contextlib import suppress, nullcontext
 from torch.utils.data import DataLoader
@@ -88,7 +89,10 @@ class ModelTrainer(ABC):
         max_epochs : int, optional
             Max number of epochs, by default 100
         learning_rate : float, optional
-            Optimizer learning rate, by default 0.001
+            Optimizer learning rate starting value, by default 1e-5
+        learning_rate_decay : float, optional
+            Parameter gamma of pytorch ExponentialLR, by default 0 means no
+            learning rate scheduling
         overfit_mode : bool, optional
             Enables overfit mode, by default False
         weight_decay : float, optional
@@ -116,7 +120,8 @@ class ModelTrainer(ABC):
         # configuration attributes
         self.config_path = self.model_path / "config.yml"
         self.config = tu.Config(self.config_path)
-        self.learning_rate = self._from_config("learning_rate", float, 0.001)
+        self.learning_rate = self._from_config("learning_rate", float, 1e-5)
+        self.learning_rate_decay = self._from_config("learning_rate_decay", float, 0)
         self.weight_decay = self._from_config("weight_decay", float, 0)
         self.log_every = self._from_config("log_every", int, 100)
         self.max_epochs = self._from_config("max_epochs", int, 100)
@@ -134,7 +139,9 @@ class ModelTrainer(ABC):
         self.start_epoch = 0
         self.net = self.load_model()
         self.optim_state = None
+        self.lr_scheduler_state = None
         self.optimizer = self._setup_optimizer()
+        self.lr_scheduler = self._setup_lr_scheduler()
         self.running_losses = None
         self.running_losses_steps = 0
         self._reset_running_losses()
@@ -156,6 +163,7 @@ class ModelTrainer(ABC):
         """
         Trains a model.
         """
+        # logging
         logger.info(f"device selected: {self.device}")
         logger.info(f"model: {self.model_path.name}")
         logger.info(f"parameters: {self._get_model_parameters() / 1e3} K")
@@ -163,12 +171,15 @@ class ModelTrainer(ABC):
             logger.info("overfit mode on")
         if self.enable_profiling:
             logger.info("profiler on: stopping after one epoch")
-
-        # logging
+        if self.learning_rate_decay == 0:
+            logger.info("learning rate scheduler disabled")
+        else:
+            logger.info("learning rate scheduler enabled")
         logger.info("saving the model graph")
         self._log_graph()
         logger.info("saving the text of config.yaml")
         self._log_yaml()
+
         msg = "starting profilation" if self.enable_profiling else "starting training"
 
         logger.info(msg)  # - = - § >>
@@ -216,6 +227,11 @@ class ModelTrainer(ABC):
                     self._reset_running_losses()
                     logger.info("logging tensorboard valid data")
                     self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
+
+            # learning rate decay
+            if self.learning_rate_decay != 0:
+                self.lr_scheduler.step()
+                logger.info(f"learning rate updated: {self.lr_scheduler.get_last_lr()}")
 
             self.save_model(epoch)
             self.on_epoch_end(epoch)
@@ -382,12 +398,13 @@ class ModelTrainer(ABC):
         """
         m = self.model(self.config_path)
         m.to(self.device)
-        
+
         # load checkpoint if it exists
         if self._prev_train_exists():
-            epoch, model_state, optim_state = self._load_checkpoint()
+            epoch, model_state, optim_state, lr_scheduler_state = self._load_checkpoint()
             self.start_epoch = epoch
             self.optim_state = optim_state
+            self.lr_scheduler_state = lr_scheduler_state
             m.load_state_dict(model_state)
 
         return m
@@ -418,14 +435,14 @@ class ModelTrainer(ABC):
         checkpoints = list(self.checkpoints_dir.glob("*.ckpt"))
         return checkpoints
 
-    def _load_checkpoint(self) -> Tuple[int, Dict, Dict]:
+    def _load_checkpoint(self) -> Tuple[int, Dict, Dict, Dict]:
         """
         Loads the last checkpoint.
 
         Returns
         -------
         Tuple[int, Dict, Dict]
-            (epoch, model_state, optim_state)
+            (epoch, model_state, optim_state, lr_scheduler_state)
         """
         # choosing the last checkpoint
         checkpoints = self._get_checkpoints()
@@ -438,7 +455,8 @@ class ModelTrainer(ABC):
         epoch = chosen.epoch
         model_state = chosen.model_state
         optim_state = chosen.optim_state
-        return epoch, model_state, optim_state
+        lr_scheduler_state = chosen.lr_scheduler_state
+        return epoch, model_state, optim_state, lr_scheduler_state
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Model saving
@@ -458,6 +476,9 @@ class ModelTrainer(ABC):
             dict(
                 model_state=self.net.state_dict(),
                 optim_state=self.optimizer.state_dict(),
+                lr_scheduler_state=self.lr_scheduler.state_dict()
+                if self.learning_rate_decay != 0
+                else None,
                 epoch=epoch,
             ),
             checkpoint_path,
@@ -520,6 +541,23 @@ class ModelTrainer(ABC):
                 # ignore errors for optimizer mismatches
                 optim.load_state_dict(self.optim_state)
         return optim
+
+    def _setup_lr_scheduler(self) -> Union[ExponentialLR, None]:
+        """
+        Sets up the learning rate scheduler.
+
+        Returns
+        -------
+        Union[ExponentialLR, None]
+            Lerning rate scheduler
+        """
+        if self.learning_rate_decay != 0:
+            scheduler = ExponentialLR(self.optimizer, self.learning_rate_decay)
+            if self.lr_scheduler_state is not None:
+                scheduler.load_state_dict(self.lr_scheduler_state)
+        else:
+            return None
+        return scheduler
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #                Logging
