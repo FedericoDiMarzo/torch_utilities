@@ -120,6 +120,7 @@ def get_default_dilation(
         dilation = [(d[0], 1) for d in dilation]
     return dilation
 
+
 def get_causal_longformer_mask(size_len: int, width: int) -> Tensor:
     """
     Obtain a causal mask inspired by the Longformer to use
@@ -502,22 +503,17 @@ class GroupedLinear(Module):
         Parameters
         ----------
         x : Tensor
-            Input og shape (..., self.input_dim)
+            Input of shape (..., self.input_dim)
 
         Returns
         -------
         Tensor
-            _description_
+            Output of shape (..., self.hidden_size)
         """
-        # x: [..., I]
-        b, t = x.shape[:2]
-        # new_shape = list(x.shape)[:-1] + [self.groups, self.ws]
-        new_shape = (b, t, self.groups, self.ws)
-        x = x.view(new_shape)
-        # The better way, but not supported by torchscript
-        # x = x.unflatten(-1, (self.groups, self.ws))  # [..., G, I/G]
-        x = torch.einsum("btgi,gih->btgh", x, self.weight)  # [..., G, H/G]
-        x = x.flatten(2, 3)  # [B, T, H]
+        new_shape = (*x.shape[:-1], self.groups, self.ws)
+        x = x.reshape(new_shape)
+        x = torch.einsum("...gi,gih->...gh", x, self.weight)  # [..., G, H/G]
+        x = x.flatten(-2, -1)
         return x
 
     def __repr__(self):
@@ -1147,7 +1143,7 @@ class DenseConvBlock(Module):
         # inner modules
         _sample_norm = lambda i: (
             nn.Identity()
-            if (self.disable_layernorm or self.enable_weight_norm)
+            if (self.disable_layernorm or self.enable_weight_norm or i == (self.depth - 1))
             else nn.LayerNorm(
                 normalized_shape=self.feature_size,
                 eps=self.batchnorm_eps,
@@ -1292,9 +1288,9 @@ class CausalSelfAttentionEncoder(Module):
     def __init__(
         self,
         hidden_size: int,
-        sequence_len:int,
+        sequence_len: int,
         receptive_field: int,
-        depth:int,
+        depth: int,
         heads: int,
         dropout: float = 0.1,
     ) -> None:
