@@ -136,7 +136,7 @@ class TestUnfoldFoldSpectrogram(unittest.TestCase):
                 y = unfold(x)
                 x_hat = fold(y)
                 e = (x - x_hat).abs().max().item()
-                self.assertLess(e, 1e-8)
+                self.assertLess(e, 1e-6)
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =

@@ -1147,7 +1147,7 @@ class DenseConvBlock(Module):
         # inner modules
         _sample_norm = lambda i: (
             nn.Identity()
-            if (self.disable_layernorm or self.enable_weight_norm or i == (self.depth - 1))
+            if (self.disable_layernorm or self.enable_weight_norm)
             else nn.LayerNorm(
                 normalized_shape=self.feature_size,
                 eps=self.batchnorm_eps,
