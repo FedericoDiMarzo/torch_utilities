@@ -14,6 +14,7 @@ import numpy as np
 from abc import ABC
 import warnings
 import torch
+import math
 import abc
 
 set_module_root(".")
@@ -137,7 +138,7 @@ class ModelTrainer(ABC):
 
         # model and running_losses setup
         self.start_epoch = 0
-        self.net = self.load_model()
+        self.net = self._load_model()
         self.optim_state = None
         self.lr_scheduler_state = None
         self.optimizer = self._setup_optimizer()
@@ -193,7 +194,7 @@ class ModelTrainer(ABC):
             self.net.train()
             for i, data in enumerate(self.train_ds):
                 data = self._remove_extra_dim(data)
-                self.train_step(data, epoch)
+                self._train_step(data, epoch)
                 if i % self.log_every == 0 and i != 0:
                     logger.info(f"batch [{i}/{len(self.train_ds)}]")
                     self._log_losses(is_training=True, epoch=epoch)
@@ -221,7 +222,7 @@ class ModelTrainer(ABC):
                     self.net.eval()
                     for i, data in enumerate(self.valid_ds):
                         data = self._remove_extra_dim(data)
-                        self.valid_step(data, epoch)
+                        self._valid_step(data, epoch)
                     self._log_losses(is_training=False, epoch=epoch)
                     self._reset_running_losses()
                     logger.info("logging tensorboard valid data")
@@ -232,13 +233,14 @@ class ModelTrainer(ABC):
                 self.lr_scheduler.step()
                 logger.info(f"learning rate updated: {self.lr_scheduler.get_last_lr()}")
 
-            self.save_model(epoch)
+            self._save_model(epoch)
+            self._check_nan(epoch)
             self.on_epoch_end(epoch)
 
         logger.info(f"{self.model_path.name} training complete")  # - = - § >>
         self.on_train_end()
 
-    def train_step(self, data: List[Tensor], epoch: int) -> None:
+    def _train_step(self, data: List[Tensor], epoch: int) -> None:
         """
         Single step of a training loop.
 
@@ -274,7 +276,7 @@ class ModelTrainer(ABC):
         if self.enable_profiling:
             self.profiler.step()
 
-    def valid_step(self, data: List[Tensor], epoch) -> None:
+    def _valid_step(self, data: List[Tensor], epoch) -> None:
         """
         Single step of a validation loop.
 
@@ -386,7 +388,7 @@ class ModelTrainer(ABC):
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Model loading
     # = = = = = = = = = = = = = = = = = = = = = =
-    def load_model(self) -> nn.Module:
+    def _load_model(self) -> nn.Module:
         """
         Loads a model from its class and configuration file.
 
@@ -460,7 +462,7 @@ class ModelTrainer(ABC):
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Model saving
     # = = = = = = = = = = = = = = = = = = = = = =
-    def save_model(self, epoch: int) -> None:
+    def _save_model(self, epoch: int) -> None:
         """
         Saves the model in the checkpoints folder.
 
@@ -714,7 +716,6 @@ class ModelTrainer(ABC):
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #                Profiler
-    # = = = = = = = = = = = = = = = = = = = = = =
     def _get_profiler(self) -> torch.profiler.profile:
         """
         Return the profiler context manager.
@@ -823,3 +824,17 @@ class ModelTrainer(ABC):
             Value of the parameter
         """
         return self.config.get("training", param, _type, default)
+
+    def _check_nan(self) -> None:
+        """
+        Checks if the last loss is NaN.
+
+        Raises
+        ----------
+        RuntimeError
+            In case a NaN value is encountered
+        """
+        if math.isnan(self.last_total_loss):
+            err_msg = "NaN value encountered in last_total_loss"
+            logger.error(err_msg)
+            raise RuntimeError(err_msg)
