@@ -209,9 +209,8 @@ class ModelTrainer(ABC):
                 self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
                 self._log_outs(epoch)
 
-                self._stop_profiling()  # <- - profiler off
-
                 # leaving the training  ~ ~
+                self._stop_profiling()  # <- - profiler off
                 if self.enable_profiling:
                     logger.info(f"{self.model_path.name} profilation complete")
                     return
