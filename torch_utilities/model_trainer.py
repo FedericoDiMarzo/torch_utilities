@@ -234,8 +234,8 @@ class ModelTrainer(ABC):
                 logger.info(f"learning rate updated: {self.lr_scheduler.get_last_lr()}")
 
             self._save_model(epoch)
-            self._check_nan(epoch)
             self.on_epoch_end(epoch)
+            self._check_nan()
 
         logger.info(f"{self.model_path.name} training complete")  # - = - § >>
         self.on_train_end()
