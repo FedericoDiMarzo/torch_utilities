@@ -754,6 +754,7 @@ class CausalConv2dNormAct(Module):
         batchnorm_track_running_stats: bool = True,
         activation: Module = nn.ReLU(),
         residual_merge: Optional[Callable] = None,
+        merge_after_conv: bool = True,
         disable_batchnorm: bool = False,
         enable_weight_norm: bool = False,
         dtype=None,
@@ -790,6 +791,9 @@ class CausalConv2dNormAct(Module):
         residual_merge : Optional[Callable], optional
             If different da None, it indicates the merge operation using a skip connection
             from the output of the transposed conv to the output of the activation, by default None
+        merge_after_conv : bool, optional
+            If True one the input used in the residual_merge layer is taken after the CausalConv2d,
+            instead that from the input directly, by default True
         disable_batchnorm : bool, optional
             Disable the BatchNorm2d layer, by default False
         enable_weight_norm : bool, optional
@@ -814,6 +818,7 @@ class CausalConv2dNormAct(Module):
         self.batchnorm_track_running_stats = batchnorm_track_running_stats
         self.activation = activation or nn.Identity()
         self.residual_merge = residual_merge
+        self.merge_after_conv = merge_after_conv
         self.disable_batchnorm = disable_batchnorm
         self.enable_weight_norm = enable_weight_norm
         self.dtype = dtype
@@ -848,11 +853,13 @@ class CausalConv2dNormAct(Module):
             )
 
     def forward(self, x: Tensor) -> Tensor:
+        z = x
         x = self.conv(x)
         y = self.batchnorm(x)
         y = self.activation(y)
+        # TODO: test this feature
         if self.residual_merge is not None:
-            y = self.residual_merge(x, y)
+            y = self.residual_merge(x if self.merge_after_conv else z, y)
         return y
 
 
