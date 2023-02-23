@@ -245,19 +245,19 @@ def to_numpy(x: Tensor) -> np.ndarray:
     return x.cpu().detach().numpy()
 
 
-def split_complex(x: Tensor) -> Tensor:
+def split_complex(x: TensorOrArray) -> TensorOrArray:
     """
     Splits a complex Tensor in a float
     Tensor with the double of the channels.
 
     Parameters
     ----------
-    x : Tensor
+    x : TensorOrArray
         Complex input of shape (B, C, ...)
 
     Returns
     -------
-    Tensor
+    TensorOrArray
         Float output of shape (B, 2*C, ...)
     """
     module = get_np_or_torch(x)
@@ -265,18 +265,18 @@ def split_complex(x: Tensor) -> Tensor:
     return x
 
 
-def pack_complex(x: Tensor) -> Tensor:
+def pack_complex(x: TensorOrArray) -> TensorOrArray:
     """
-    Merges a 2*C channels float Tensor in a complex Tensor.
+    Merges a 2*C channels float TensorOrArray in a complex TensorOrArray.
 
     Parameters
     ----------
-    x : Tensor
+    x : TensorOrArray
         Float input of shape (B, 2*C, ...)
 
     Returns
     -------
-    Tensor
+    TensorOrArray
         Complex output of shape (B, C, ...)
     """
     c = x.shape[1]
