@@ -140,6 +140,30 @@ class TestUnfoldFoldSpectrogram(unittest.TestCase):
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+
+class TestResidualWrap(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        _setup()
+
+    def setUp(self):
+        self.x = torch.ones(1, 2, 10, 16)
+
+    def test_single_layer(self):
+        layer = tu.ResidualWrap(nn.Identity())
+        y = layer(self.x)
+        self.assertEqual(y.shape, self.x.shape)
+        self.assertLess((self.x * 2 - y).abs().max(), 1e-6)
+
+    def test_multiple_layers(self):
+        layer = tu.ResidualWrap(nn.Identity(), nn.Identity())
+        y = layer(self.x)
+        self.assertEqual(y.shape, self.x.shape)
+        self.assertLess((self.x * 2 - y).abs().max(), 1e-6)
+
+
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 class TestCausalConv2d(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

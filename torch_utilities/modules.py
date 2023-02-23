@@ -19,6 +19,7 @@ __all__ = [
     "ScaleChannels2d",
     "UnfoldSpectrogram",
     "FoldSpectrogram",
+    "ResidualWrap",
     # dense variants
     "GroupedLinear",
     # conv2d variants
@@ -444,6 +445,28 @@ class FoldSpectrogram(Module):
         y = torch.ones_like(x)
         y = F.unfold(y, (self.block_size, o[1]), stride=(self.stride, 1))
         y = F.fold(y, o, (self.block_size, o[1]), stride=(self.stride, 1))
+        return y
+
+
+class ResidualWrap(Module):
+    def __init__(self, *modules: List[Module]) -> None:
+        """
+        Given a series of layers F(x) it reparametrize
+        them as (x + F(x)).
+
+        F(x) and x shoud have compatible shapes.
+
+        Parameters
+        ----------
+        modules : List[Module]
+            Series of modules
+        """
+        super().__init__()
+        self.layers = nn.Sequential(*modules)
+
+    def forward(self, x: Tensor) -> Tensor:
+        y = self.layers(x)
+        y = x + y
         return y
 
 
