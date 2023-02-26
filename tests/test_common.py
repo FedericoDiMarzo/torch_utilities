@@ -71,6 +71,12 @@ class TestConfig(unittest.TestCase):
         expected = [nn.Identity, nn.ReLU, nn.Tanh, nn.SELU, nn.Sigmoid]
         self.assertListEqual(modules_types, expected)
 
+    def test_get_ray_tune_params(self):
+        params = self.config.get_ray_tune_params()
+        sampling_methods = set(params.keys())
+        params_names = ["weight_decay", "loss_weight_0", "depth", "learning_rate"]
+        self.assertEqual(sampling_methods, set(params_names))
+
 
 class TestGeneric(unittest.TestCase):
     @classmethod

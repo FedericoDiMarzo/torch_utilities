@@ -37,9 +37,7 @@ def generate_wavs(sample_rate: int = 16000, duration: float = 1):
     files = [f"{x}.wav" for x in ("mono", "stereo")]
     channels = [1, 2]
     for n, c in zip(files, channels):
-        x = np.stack(
-            [np.random.uniform(-1, 1, duration * sample_rate) for _ in range(c)]
-        )
+        x = np.stack([np.random.uniform(-1, 1, duration * sample_rate) for _ in range(c)])
         save_audio(data_dir / n, x, sample_rate)
 
 
@@ -57,16 +55,18 @@ def generate_yaml():
     """
     Generate a yaml dummy configuration.
     """
-    data = {
-        "section1": {
-            "param1": "test",
-            "param2": 42,
-            "param3": ["a", "b", "c"],
-        },
-        "section2": {
-            "param4": 12.43,
-        },
-    }
+    data = dict(
+        section1=dict(param1="test", param2=42, param3=["a", "b", "c"]),
+        section2=dict(param4=12.43),
+        ray_tune=dict(
+            uniform=dict(loss_weight_0=[0, 1]),
+            choice=dict(depth=[[1, 4, 10]]),
+            loguniform=dict(
+                learning_rate=[1e-5, 1e-3],
+                weight_decay=[1e-2, 1e-1],
+            ),
+        ),
+    )
 
     with open(get_test_data_dir() / "test.yml", "w") as f:
         yaml.dump(data, f)
