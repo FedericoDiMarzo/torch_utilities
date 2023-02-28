@@ -153,7 +153,13 @@ class Config:
         Dict
             Dictionary containing the ray tune parameters
         """
-        cfg = self.config[section]
+        try:
+            cfg = self.config[section]
+        except KeyError:
+            # no ray tune section
+            return {}
+        
+
         sampling_methods = cfg.keys()
         params = {}
 
