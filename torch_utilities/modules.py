@@ -466,7 +466,10 @@ class ResidualWrap(Module):
 
     def forward(self, x: Tensor) -> Tensor:
         y = self.layers(x)
-        y = x + y
+        # keeping the channels of the output
+        c_out = y.shape[1]
+        y = x[:,:c_out] + y[:,:c_out]
+        
         return y
 
 
