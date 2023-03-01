@@ -15,6 +15,7 @@ from torch_utilities.audio import invert_db, rms
 # export list
 __all__ = [
     "shuffle",
+    "dc_removal",
     "add_noise",
     "random_scaling",
     "random_overdrive",
@@ -63,6 +64,23 @@ _safe_div = lambda n, d, eps: n / (d + eps)
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
+def dc_removal(x:Tensor)->Tensor:
+    """
+    DC removal for each batch and channel.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input signal of shape (B, C, T)
+
+    Returns
+    -------
+    Tensor
+        Processed output without DC removal of shape (B, C, T)
+    """
+    m = x.mean(dim=2)
+    x -= m[..., None]
+    return x
 
 def add_noise(x: Tensor, n: Tensor, snr_range: Tuple[float, float]) -> Tuple[Tensor, Tensor]:
     """

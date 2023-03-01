@@ -60,6 +60,12 @@ class TestAugmentation(unittest.TestCase):
         y = aug.random_overdrive(x)
         self.assertAlmostEqual(y.max().item(), 1)
 
+    def test_dc_removal(self):
+        x = torch.ones((2, 3, 5))
+        y = aug.dc_removal(x)
+        m = y.mean()
+        self.assertLess(m, 1e-6)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
