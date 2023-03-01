@@ -1,4 +1,5 @@
 from pathimport import set_module_root
+from ray import tune
 from torch import nn
 import numpy as np
 import itertools
@@ -74,8 +75,23 @@ class TestConfig(unittest.TestCase):
     def test_get_ray_tune_params(self):
         params = self.config.get_ray_tune_params()
         sampling_methods = set(params.keys())
-        params_names = ["weight_decay", "loss_weight_0", "depth", "learning_rate"]
+        params_names = ["weight_decay", "loss_weight_0", "depth", "learning_rate", "list_choice"]
         self.assertEqual(sampling_methods, set(params_names))
+        self.assertEqual(type(params), tu.DotDict)
+
+        # random variable type
+        self.assertEqual(type(params.weight_decay), tune.search.sample.Float)
+        self.assertEqual(type(params.learning_rate), tune.search.sample.Float)
+        self.assertEqual(type(params.loss_weight_0), tune.search.sample.Float)
+        self.assertEqual(type(params.depth), tune.search.sample.Categorical)
+        self.assertEqual(type(params.list_choice), tune.search.sample.Categorical)
+
+        # type after sampling
+        self.assertEqual(type(params.weight_decay.sample()), float)
+        self.assertEqual(type(params.learning_rate.sample()), float)
+        self.assertEqual(type(params.loss_weight_0.sample()), float)
+        self.assertEqual(type(params.depth.sample()), int)
+        self.assertEqual(type(params.list_choice.sample()), list)
 
 
 class TestGeneric(unittest.TestCase):

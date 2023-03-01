@@ -60,7 +60,10 @@ def generate_yaml():
         section2=dict(param4=12.43),
         ray_tune=dict(
             uniform=dict(loss_weight_0=[0, 1]),
-            choice=dict(depth=[[1, 4, 10]]),
+            choice=dict(
+                depth=[[1, 4, 10]],
+                list_choice=[[[1, 2, 3], [0.1, 0.2, 0.3]]],
+            ),
             loguniform=dict(
                 learning_rate=[1e-5, 1e-3],
                 weight_decay=[1e-2, 1e-1],

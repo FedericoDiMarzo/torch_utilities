@@ -128,7 +128,7 @@ class Config:
 
         return param
 
-    def get_ray_tune_params(self, section: str = "ray_tune") -> Dict:
+    def get_ray_tune_params(self, section: str = "ray_tune") -> DotDict:
         """
         Gets the ray tune parameters from a configuration.
         The parameters should be written in the section specified
@@ -157,7 +157,7 @@ class Config:
             cfg = self.config[section]
         except KeyError:
             # no ray tune section
-            return {}
+            return DotDict({})
         
 
         sampling_methods = cfg.keys()
@@ -170,7 +170,7 @@ class Config:
             f = getattr(tune, sm)
             _parsetype = lambda x: x if type(x) in (list, tuple) else float(x)
             params = params | {p: f(*map(_parsetype, v)) for p, v in cfg[sm].items()}
-        return params
+        return DotDict(params)
 
 
 def get_np_or_torch(x: TensorOrArray):
