@@ -146,6 +146,7 @@ class ModelTrainer(ABC):
         self.disable_optimization = False
         self.running_losses = None
         self.running_losses_steps = 0
+        self.total_loss_name = "total"
         self._reset_running_losses()
 
         # extra stuff
@@ -627,7 +628,7 @@ class ModelTrainer(ABC):
             return
 
         tag_suffix = "train" if is_training else "valid"
-        losses_names = self.losses_names + ["total"]
+        losses_names = self.losses_names + self.total_loss_name
         total_loss = sum(self.running_losses)
         losses = self.running_losses + [total_loss]
         for loss, name in zip(losses, losses_names):
