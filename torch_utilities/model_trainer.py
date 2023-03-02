@@ -198,11 +198,9 @@ class ModelTrainer(ABC):
                 if i % self.log_every == 0 and i != 0:
                     logger.info(f"batch [{i}/{len(self.train_ds)}]")
                     self._log_losses(is_training=True, epoch=epoch)
-                    self._reset_running_losses()
                 #
             self._log_gradients(epoch)
             self._log_losses(is_training=True, epoch=epoch)
-            self._reset_running_losses()
 
             with torch.no_grad():
                 _log_data = lambda t: self.dummy_input_train if t else self.dummy_input_valid
@@ -224,7 +222,6 @@ class ModelTrainer(ABC):
                         data = self._remove_extra_dim(data)
                         self._valid_step(data, epoch)
                     self._log_losses(is_training=False, epoch=epoch)
-                    self._reset_running_losses()
                     logger.info("logging tensorboard valid data")
                     self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
 
