@@ -628,7 +628,7 @@ class ModelTrainer(ABC):
             return
 
         tag_suffix = "train" if is_training else "valid"
-        losses_names = self.losses_names + self.total_loss_name
+        losses_names = self.losses_names + [self.total_loss_name]
         total_loss = sum(self.running_losses)
         losses = self.running_losses + [total_loss]
         for loss, name in zip(losses, losses_names):
