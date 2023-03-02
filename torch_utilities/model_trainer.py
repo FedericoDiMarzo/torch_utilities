@@ -109,10 +109,10 @@ class ModelTrainer(ABC):
         # explicit attributes
         self.model_path = model_path
         self.model = model
-        self.train_ds = train_dl
-        self.valid_ds = valid_dl
+        self.train_dl = train_dl
+        self.valid_dl = valid_dl
         self.losses = losses
-        self.net_ins_indices = net_ins_indices
+        self.net_ins_indices = net_ins_indices or [0]
         self.losses_names = losses_names or self._default_losses_names()
         self.optimizer_class = optimizer_class
         self.gradient_clip_value = gradient_clip_value
@@ -143,6 +143,7 @@ class ModelTrainer(ABC):
         self.lr_scheduler_state = None
         self.optimizer = self._setup_optimizer()
         self.lr_scheduler = self._setup_lr_scheduler()
+        self.disable_optimization = False
         self.running_losses = None
         self.running_losses_steps = 0
         self._reset_running_losses()
@@ -192,11 +193,11 @@ class ModelTrainer(ABC):
 
             # training
             self.net.train()
-            for i, data in enumerate(self.train_ds):
+            for i, data in enumerate(self.train_dl):
                 data = self._remove_extra_dim(data)
                 self._train_step(data, epoch)
                 if i % self.log_every == 0 and i != 0:
-                    logger.info(f"batch [{i}/{len(self.train_ds)}]")
+                    logger.info(f"batch [{i}/{len(self.train_dl)}]")
                     self._log_losses(is_training=True, epoch=epoch)
                 #
             self._log_gradients(epoch)
@@ -218,7 +219,7 @@ class ModelTrainer(ABC):
                 if not self.overfit_mode:
                     # validation
                     self.net.eval()
-                    for i, data in enumerate(self.valid_ds):
+                    for i, data in enumerate(self.valid_dl):
                         data = self._remove_extra_dim(data)
                         self._valid_step(data, epoch)
                     self._log_losses(is_training=False, epoch=epoch)
@@ -251,20 +252,25 @@ class ModelTrainer(ABC):
         self.on_train_step_begin(epoch)
         data = [x.to(self.device) for x in data]
         net_ins = self._get_filtered_input(data)
-        self.optimizer.zero_grad()
+        if not self.disable_optimization:
+            self.optimizer.zero_grad()
         net_outs = self.net(*net_ins)
         _losses = self.apply_losses(data, net_outs)
         _losses = self._apply_losses_weights(_losses)
-        total_loss = sum(_losses)
-        total_loss.backward()
-        # gradient clipping ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-        if self.gradient_clip_value is not None:
-            nn.utils.clip_grad_value_(
-                self.net.parameters(),
-                clip_value=self.gradient_clip_value,
-            )
-        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-        self.optimizer.step()
+
+        # enable custom optimization schemes ~ ~ ~ ~ ~ ~
+        if not self.disable_optimization:
+            total_loss = sum(_losses)
+            total_loss.backward()
+            # gradient clipping
+            if self.gradient_clip_value is not None:
+                nn.utils.clip_grad_value_(
+                    self.net.parameters(),
+                    clip_value=self.gradient_clip_value,
+                )
+            self.optimizer.step()
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
         # for logging
         self._update_running_losses(_losses)
         self.on_train_step_end(epoch)
@@ -601,7 +607,7 @@ class ModelTrainer(ABC):
         List[Tensor]
             Dataset input
         """
-        ds = self.train_ds if is_training else self.valid_ds
+        ds = self.train_dl if is_training else self.valid_dl
         data = [x.to(self.device) for x in ds.dataset[[0, 1]]]
         return data
 
