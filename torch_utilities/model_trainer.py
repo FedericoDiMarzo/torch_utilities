@@ -253,8 +253,7 @@ class ModelTrainer(ABC):
         self.on_train_step_begin(epoch)
         data = [x.to(self.device) for x in data]
         net_ins = self._get_filtered_input(data)
-        if not self.disable_optimization:
-            self.optimizer.zero_grad()
+        self.optimizer.zero_grad()
         net_outs = self.net(*net_ins)
         _losses = self.apply_losses(data, net_outs)
         _losses = self._apply_losses_weights(_losses)
@@ -270,10 +269,11 @@ class ModelTrainer(ABC):
                     clip_value=self.gradient_clip_value,
                 )
             self.optimizer.step()
+            # for logging
+            self._update_running_losses(_losses)
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
-        # for logging
-        self._update_running_losses(_losses)
+
         self.on_train_step_end(epoch)
 
         # profiler update
