@@ -77,7 +77,8 @@ class TestConfig(unittest.TestCase):
         sampling_methods = set(params.keys())
         params_names = ["weight_decay", "loss_weight_0", "depth", "learning_rate", "list_choice"]
         self.assertEqual(sampling_methods, set(params_names))
-        self.assertEqual(type(params), tu.DotDict)
+        self.assertEqual(type(params), dict)
+        params = tu.DotDict(params)
 
         # random variable type
         self.assertEqual(type(params.weight_decay), tune.search.sample.Float)
@@ -157,6 +158,21 @@ class TestGeneric(unittest.TestCase):
                 y = tu.one_hot_quantization(x, s, 0, s)
                 x_hat = tu.invert_one_hot(y)
                 self.assertTrue(x.equal(x_hat))
+
+    @torch.set_grad_enabled(True)
+    def test_compute_gradient(self):
+        keep_graph = (False, True)
+        for k in keep_graph:
+            x = torch.ones((3, 2), requires_grad=True)
+            y = x**2
+            grad = tu.compute_gradient(x, y, keep_graph=k)
+            z = grad.sum()
+            self.assertLess(z.item() - 2 * 6, 1e-8)
+            if k:
+                z.backward()
+            else:
+                with self.assertRaises(RuntimeError):
+                    z.backward()
 
 
 if __name__ == "__main__":

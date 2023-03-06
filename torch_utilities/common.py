@@ -1,4 +1,5 @@
 from typing import Any, Callable, List, Tuple, Type, TypeVar, Union, Dict
+from torch import autograd as AG
 import torch.nn.functional as F
 from functools import partial
 from torch import nn, Tensor
@@ -32,6 +33,7 @@ __all__ = [
     "auto_device",
     "load_model",
     "get_submodules",
+    "compute_gradient",
     "get_gradients",
     "get_model_parameters",
     "quantize",
@@ -471,6 +473,33 @@ def get_gradients(model: nn.Module) -> Tensor:
     zipped = zip(w_grad, b_grad, g_grad, v_grad, *gru_w_ih, *gru_w_hh, *bias_w_ih, *bias_w_hh)
     grad = [sum(xs) for xs in zipped]
     grad = torch.FloatTensor(grad)
+    return grad
+
+
+def compute_gradient(x: Tensor, y: Tensor, keep_graph: bool = True) -> Tensor:
+    """
+    Computes the matrix-vector product between the Jacobian calculated from the
+    function with y as output and x as input and a vector of ones of the same
+    shape as y.
+
+    Parameters
+    ----------
+    x : Tensor
+        Input of the target function, must require grad
+    y : Tensor
+        Output of the target function
+    keep_graph : bool, optional
+        If True the result can be used in further autograd graphs, it can then be used
+        for higher degree derivative optimization (i.e. as an derivative optimization term in a loss
+        such in https://arxiv.org/abs/1704.00028), by default True
+
+    Returns
+    -------
+    Tensor
+        matrix-vector product between the Jacobian
+    """
+    ones = torch.ones_like(y)
+    grad = AG.grad(y, x, ones, retain_graph=keep_graph, create_graph=keep_graph)[0]
     return grad
 
 
