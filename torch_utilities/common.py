@@ -33,7 +33,7 @@ __all__ = [
     "auto_device",
     "load_model",
     "get_submodules",
-    "compute_gradient",
+    "compute_gradients",
     "get_gradients",
     "get_model_parameters",
     "quantize",
@@ -476,7 +476,7 @@ def get_gradients(model: nn.Module) -> Tensor:
     return grad
 
 
-def compute_gradient(x: Tensor, y: Tensor, keep_graph: bool = True) -> Tensor:
+def compute_gradients(x: Tensor, y: Tensor, keep_graph: bool = True) -> Tensor:
     """
     Computes the matrix-vector product between the Jacobian calculated from the
     function with y as output and x as input and a vector of ones of the same

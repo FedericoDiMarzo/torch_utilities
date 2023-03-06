@@ -160,12 +160,12 @@ class TestGeneric(unittest.TestCase):
                 self.assertTrue(x.equal(x_hat))
 
     @torch.set_grad_enabled(True)
-    def test_compute_gradient(self):
+    def test_compute_gradients(self):
         keep_graph = (False, True)
         for k in keep_graph:
             x = torch.ones((3, 2), requires_grad=True)
             y = x**2
-            grad = tu.compute_gradient(x, y, keep_graph=k)
+            grad = tu.compute_gradients(x, y, keep_graph=k)
             z = grad.sum()
             self.assertLess(z.item() - 2 * 6, 1e-8)
             if k:
