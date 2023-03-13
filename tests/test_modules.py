@@ -341,6 +341,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
         self.residual_merge = (None, sum_merge)
         self.disable_batchnorm = (False, True)
         self.enable_weight_norm = (False, True)
+        self.merge_after_conv = (False, True)
         self.dtype = (torch.float, torch.double)
         self.in_freqs = (32, 64)
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
@@ -355,6 +356,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             self.residual_merge,
             self.disable_batchnorm,
             self.enable_weight_norm,
+            self.merge_after_conv,
             self.dtype,
             self.in_freqs,
         )
@@ -371,6 +373,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             residual_merge,
             disable_batchnorm,
             enable_weight_norm,
+            merge_after_conv,
             dtype,
             in_freqs,
         ) = p
@@ -389,6 +392,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             residual_merge=residual_merge,
             disable_batchnorm=disable_batchnorm,
             enable_weight_norm=enable_weight_norm,
+            merge_after_conv=merge_after_conv,
             dtype=dtype,
         )
         return instance
@@ -405,6 +409,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             residual_merge,
             disable_batchnorm,
             enable_weight_norm,
+            merge_after_conv,
             dtype,
             in_freqs,
         ) = p
@@ -424,6 +429,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
                 residual_merge,
                 disable_batchnorm,
                 enable_weight_norm,
+                merge_after_conv,
                 dtype,
                 in_freqs,
             ) = p
@@ -432,9 +438,13 @@ class TestCausalConv2dNormAct(unittest.TestCase):
                 causal_conv_2d = conv.conv
                 self.assertEqual(type(causal_conv_2d), tu.CausalConv2d)
                 if enable_weight_norm:
+                    disable_batchnorm = True
                     self.assertEqual(causal_conv_2d._normalize, weight_norm)
                 if activation is None:
                     self.assertEqual(type(conv.activation), nn.Identity)
+                batchnorm = conv.batchnorm
+                expected_batchnorm = nn.Identity if disable_batchnorm else nn.BatchNorm2d
+                self.assertEqual(type(batchnorm), expected_batchnorm)
 
     def test_forward(self):
         for p in self.params:
@@ -449,11 +459,18 @@ class TestCausalConv2dNormAct(unittest.TestCase):
                 residual_merge,
                 disable_batchnorm,
                 enable_weight_norm,
+                merge_after_conv,
                 dtype,
                 in_freqs,
             ) = p
             if in_freqs % 2 == 1:
                 stride_f = 1
+                
+            if (not merge_after_conv) and (stride_f != 1):
+                # excluding cases where the merge is before the stride
+                # and the stride is different than 1
+                return
+             
             with self.subTest(p=p):
                 conv = self.get_instance(p)
                 x = self.get_input(p)

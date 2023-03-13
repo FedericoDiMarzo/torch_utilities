@@ -883,7 +883,6 @@ class CausalConv2dNormAct(Module):
         x = self.conv(x)
         y = self.batchnorm(x)
         y = self.activation(y)
-        # TODO: test this feature
         if self.residual_merge is not None:
             y = self.residual_merge(x if self.merge_after_conv else z, y)
         return y
