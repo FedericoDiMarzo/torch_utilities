@@ -7,14 +7,15 @@ from pathimport import set_module_root
 import matplotlib.pyplot as plt
 from torch.optim import Optimizer
 from torch import nn, Tensor
-from loguru import logger
 import torch_utilities as tu
+from loguru import logger
 from pathlib import Path
-import numpy as np
 from abc import ABC
+import numpy as np
 import warnings
 import torch
 import math
+import yaml
 import abc
 
 set_module_root(".")
@@ -34,7 +35,7 @@ class ModelTrainer(ABC):
         losses: List[Callable],
         net_ins_indices: Optional[List[int]] = None,
         losses_names: Optional[List[str]] = None,
-        save_buffer_maxlen: int = 5,
+        save_buffer_maxlen: int = 10,
         gradient_clip_value: Optional[float] = None,
         enable_profiling: bool = False,
     ) -> None:
@@ -133,11 +134,14 @@ class ModelTrainer(ABC):
 
         # other dirs
         self.checkpoints_dir = model_path / "checkpoints"
+        self.checkpoint_monitoring_file = self.checkpoints_dir / "ckpt.yml"
         self.logs_dir = model_path / "logs"
         [d.mkdir(exist_ok=True) for d in (self.checkpoints_dir, self.logs_dir)]
 
         # model and running_losses setup
         self.start_epoch = 0
+        self.save_buffer = []
+        self.save_buffer_maxlen = save_buffer_maxlen
         self.net = self._load_model()
         self.optim_state = None
         self.lr_scheduler_state = None
@@ -150,14 +154,41 @@ class ModelTrainer(ABC):
         self._reset_running_losses()
 
         # extra stuff
-        self.save_buffer = []
-        self.save_buffer_maxlen = save_buffer_maxlen
+        self.is_validation = False
         self.log_writer = SummaryWriter(self.logs_dir)
         self.figsize = (8, 6)
         self.dummy_input_train = self._get_dummy_data(True)
         self.dummy_input_valid = self._get_dummy_data(False)
-        self.last_total_loss = 1e10  # used to select the best checkpoints
+        self.last_total_loss = 1e10
+        self.last_computed_metric = -1e10  # used to select the best checkpoints
         self.profiler = self._get_profiler()  # null context manager if enable_profiling==False
+
+    # = = = = = = = = = = = = = = = = = = = = = =
+    #             Getters/Setters
+    # = = = = = = = = = = = = = = = = = = = = = =
+    def get_model(self) -> nn.Module:
+        """
+        Gets the model instance.
+
+        Returns
+        -------
+        nn.Module
+            Model instance
+        """
+        return self.net
+    
+    def is_training(self) -> bool:
+        """
+        Returns True if the train steps are running.
+
+        Returns
+        -------
+        bool
+            True if the train steps are running.
+        """
+        return not self.is_validation
+    
+    # TODO: get losses
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Training loop
@@ -194,20 +225,21 @@ class ModelTrainer(ABC):
 
             # training
             self.net.train()
+            self.is_validation = False
             for i, data in enumerate(self.train_dl):
                 data = self._remove_extra_dim(data)
                 self._train_step(data, epoch)
                 if i % self.log_every == 0 and i != 0:
                     logger.info(f"batch [{i}/{len(self.train_dl)}]")
-                    self._log_losses(is_training=True, epoch=epoch)
+                    self._log_losses(epoch=epoch)
                 #
             self._log_gradients(epoch)
-            self._log_losses(is_training=True, epoch=epoch)
+            self._log_losses(epoch=epoch)
 
+            _log_data = lambda t: self.dummy_input_train if t else self.dummy_input_valid
             with torch.no_grad():
-                _log_data = lambda t: self.dummy_input_train if t else self.dummy_input_valid
                 logger.info("logging tensorboard train data")
-                self.tensorboard_logs(_log_data(True), epoch=epoch, is_training=True)
+                self.tensorboard_logs(_log_data(True), epoch=epoch)
                 self._log_outs(epoch)
 
                 # leaving the training  ~ ~
@@ -220,18 +252,21 @@ class ModelTrainer(ABC):
                 if not self.overfit_mode:
                     # validation
                     self.net.eval()
+                    self.is_validation = True
                     for i, data in enumerate(self.valid_dl):
                         data = self._remove_extra_dim(data)
                         self._valid_step(data, epoch)
-                    self._log_losses(is_training=False, epoch=epoch)
+                    self._log_losses(epoch=epoch)
                     logger.info("logging tensorboard valid data")
-                    self.tensorboard_logs(_log_data(False), epoch=epoch, is_training=False)
+                    self.tensorboard_logs(_log_data(False), epoch=epoch)
 
             # learning rate decay
             if self.learning_rate_decay != 0:
                 self.lr_scheduler.step()
                 logger.info(f"learning rate updated: {self.lr_scheduler.get_last_lr()}")
 
+            metric_log_data = _log_data(self.is_training())
+            self.last_computed_metric = self.apply_metric(metric_log_data)
             self._save_model(epoch)
             self.on_epoch_end(epoch)
             self._check_nan()
@@ -272,7 +307,6 @@ class ModelTrainer(ABC):
             # for logging
             self._update_running_losses(_losses)
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-
 
         self.on_train_step_end(epoch)
 
@@ -322,6 +356,24 @@ class ModelTrainer(ABC):
             List of computed losses (not weighted)
         """
         pass
+
+    def apply_metric(self, data: List[Tensor]) -> float:
+        """
+        Defines the metric used to keep the best checkpoints.
+        The higher the better.
+
+        Parameters
+        ----------
+        data : List[Tensor]
+            List of Tensors loaded by the dataloader
+
+        Returns
+        -------
+        float
+            Value of the metric, the higher the better
+        """
+        # by default the metric is the inverse of the last_total_loss
+        return -float(self.last_total_loss)
 
     def _apply_losses_weights(
         self,
@@ -390,7 +442,7 @@ class ModelTrainer(ABC):
         pass
 
     # = = = = = = = = = = = = = = = = = = = = = =
-    #             Model loading
+    #         Model loading/saving
     # = = = = = = = = = = = = = = = = = = = = = =
     def _load_model(self) -> nn.Module:
         """
@@ -442,30 +494,26 @@ class ModelTrainer(ABC):
 
     def _load_checkpoint(self) -> Tuple[int, Dict, Dict, Dict]:
         """
-        Loads the last checkpoint.
+        Loads the best checkpoint.
 
         Returns
         -------
         Tuple[int, Dict, Dict]
             (epoch, model_state, optim_state, lr_scheduler_state)
         """
-        # choosing the last checkpoint
-        checkpoints = self._get_checkpoints()
-        chkp_idx = [int(x.name.split("_")[1].split(".ckpt")[0]) for x in checkpoints]
-        i = np.argmax(chkp_idx)
-        chosen = checkpoints[i]
+        # choosing the best checkpoint
+        self._load_checkpoint_monitoring()
+        best_checkpoint = self.save_buffer[0][0]
+        best_checkpoint = self.checkpoints_dir / best_checkpoint
 
         # loading and parsing
-        chosen = DotDict(torch.load(chosen, map_location=self.device))
-        epoch = chosen.epoch
-        model_state = chosen.model_state
-        optim_state = chosen.optim_state
-        lr_scheduler_state = chosen.lr_scheduler_state
+        best_checkpoint = DotDict(torch.load(best_checkpoint, map_location=self.device))
+        epoch = best_checkpoint.epoch + 1
+        model_state = best_checkpoint.model_state
+        optim_state = best_checkpoint.optim_state
+        lr_scheduler_state = best_checkpoint.lr_scheduler_state
         return epoch, model_state, optim_state, lr_scheduler_state
 
-    # = = = = = = = = = = = = = = = = = = = = = =
-    #             Model saving
-    # = = = = = = = = = = = = = = = = = = = = = =
     def _save_model(self, epoch: int) -> None:
         """
         Saves the model in the checkpoints folder.
@@ -492,20 +540,34 @@ class ModelTrainer(ABC):
 
     def _push_new_checkpoint(self, checkpoint_name: str) -> None:
         """
-        Pushes a new checkpoint into the save_buffer.
+        Pushes a new checkpoint into the save_buffer and keeps track
+        of the best ones.
 
         Parameters
         ----------
         checkpoint_name : str
             Name of the checkpoint
         """
-        # sorting by the lower loss
-        _order = lambda t: t[1]
-        self.save_buffer.append((checkpoint_name, float(self.last_total_loss)))
+        # sorting by the highest metric
+        # TODO: test it
+        _order = lambda t: -t[1]
+        self.save_buffer.append((checkpoint_name, float(self.last_computed_metric)))
         self.save_buffer = sorted(self.save_buffer, key=_order)
-        self.save_buffer = self.save_buffer[: self.save_buffer_maxlen + 1]
+        self.save_buffer = self.save_buffer[: self.save_buffer_maxlen]
 
         self._delete_worse_checkpoints()
+        self._save_checkpoint_monitoring()
+
+    def _save_checkpoint_monitoring(self) -> None:
+        """
+        Saves the state of the save_buffer.
+        """
+        with open(self.checkpoint_monitoring_file, "w") as f:
+            yaml.dump(self.save_buffer, f)
+
+    def _load_checkpoint_monitoring(self) -> None:
+        with open(self.checkpoint_monitoring_file) as f:
+            self.save_buffer = yaml.unsafe_load(f)
 
     def _delete_worse_checkpoints(self) -> None:
         """
@@ -579,7 +641,7 @@ class ModelTrainer(ABC):
         return self.log_writer
 
     @abc.abstractclassmethod
-    def tensorboard_logs(self, raw_data: List[Tensor], epoch: int, is_training: bool) -> None:
+    def tensorboard_logs(self, raw_data: List[Tensor], epoch: int) -> None:
         """
         Additional tensorboard logging.
 
@@ -589,8 +651,6 @@ class ModelTrainer(ABC):
             Dataset input
         epoch : int
             Current epoch
-        is_training : bool
-            Flag to separate train/valid logging
         """
         pass
 
@@ -612,14 +672,12 @@ class ModelTrainer(ABC):
         data = [x.to(self.device) for x in ds.dataset[[0, 1]]]
         return data
 
-    def _log_losses(self, is_training: bool, epoch: int) -> None:
+    def _log_losses(self, epoch: int) -> None:
         """
         Logs running_losses.
 
         Parameters
         ----------
-        is_training : bool
-            Flag to separate train/valid logging
         epoch : int
             Current epoch
         """
@@ -627,7 +685,7 @@ class ModelTrainer(ABC):
             # nothing to log
             return
 
-        tag_suffix = "train" if is_training else "valid"
+        tag_suffix = "train" if self.is_training() else "valid"
         losses_names = self.losses_names + [self.total_loss_name]
         total_loss = sum(self.running_losses)
         losses = self.running_losses + [total_loss]

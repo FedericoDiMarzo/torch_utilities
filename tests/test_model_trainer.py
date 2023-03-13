@@ -90,7 +90,7 @@ class ModelTrainerDummy(tu.ModelTrainer):
         loss_values = [loss(y_hat, y_true) for loss in self.losses]
         return loss_values
 
-    def tensorboard_logs(self, raw_data: List[Tensor], epoch: int, is_training: bool) -> None:
+    def tensorboard_logs(self, raw_data: List[Tensor], epoch: int) -> None:
         pass
 
     def on_train_begin(self) -> None:
