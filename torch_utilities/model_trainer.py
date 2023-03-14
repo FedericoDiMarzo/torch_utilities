@@ -250,6 +250,8 @@ class ModelTrainer(ABC):
             self.is_validation = False
             for i, data in enumerate(self.train_dl):
                 data = self._remove_extra_dim(data)
+                # in overfit mode dummy data is used instead of real data
+                data = self.dummy_input_train if self.overfit_mode else data
                 self._train_step(data, epoch)
                 if i % self.log_every == 0 and i != 0:
                     logger.info(f"batch [{i}/{len(self.train_dl)}]")
