@@ -176,7 +176,7 @@ class ModelTrainer(ABC):
             Model instance
         """
         return self.net
-    
+
     def is_training(self) -> bool:
         """
         Returns True if the train steps are running.
@@ -187,8 +187,30 @@ class ModelTrainer(ABC):
             True if the train steps are running.
         """
         return not self.is_validation
+
+    def get_losses(self) -> List[Callable]:
+        """
+        Gets the loss functions.
+
+        Returns
+        -------
+        List[Callable]
+            List of loss functions in the same order as
+            they're passed to the constructor
+        """
+        return self.losses
     
-    # TODO: get losses
+    def get_losses_weights(self) -> List[float]:
+        """
+        Gets the weight of losses.
+
+        Returns
+        -------
+        List[float]
+            List of loss weights in the same order as
+            they're passed to the constructor
+        """
+        return self.losses_weights
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Training loop
@@ -567,7 +589,7 @@ class ModelTrainer(ABC):
             self.save_buffer = yaml.unsafe_load(f)
             self._sort_checkpoints()
 
-    def _sort_checkpoints(self) ->None:
+    def _sort_checkpoints(self) -> None:
         """
         Sorts the save_buffer based on the metric value.
         """
