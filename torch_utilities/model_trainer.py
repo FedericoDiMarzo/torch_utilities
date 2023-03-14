@@ -221,7 +221,10 @@ class ModelTrainer(ABC):
         float
             Current learning rate
         """
-        return self.optimizer.lr
+        if self.learning_rate_decay == 0:
+            return self.learning_rate
+        else:
+            return self.lr_scheduler.get_last_lr()
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Training loop
