@@ -549,11 +549,8 @@ class ModelTrainer(ABC):
             Name of the checkpoint
         """
         # sorting by the highest metric
-        # TODO: test it
-        _order = lambda t: -t[1]
         self.save_buffer.append((checkpoint_name, float(self.last_computed_metric)))
-        self.save_buffer = sorted(self.save_buffer, key=_order)
-        self.save_buffer = self.save_buffer[: self.save_buffer_maxlen]
+        self._sort_checkpoints()
 
         self._delete_worse_checkpoints()
         self._save_checkpoint_monitoring()
@@ -568,6 +565,15 @@ class ModelTrainer(ABC):
     def _load_checkpoint_monitoring(self) -> None:
         with open(self.checkpoint_monitoring_file) as f:
             self.save_buffer = yaml.unsafe_load(f)
+            self._sort_checkpoints()
+
+    def _sort_checkpoints(self) ->None:
+        """
+        Sorts the save_buffer based on the metric value.
+        """
+        _order = lambda t: -t[1]
+        self.save_buffer = sorted(self.save_buffer, key=_order)
+        self.save_buffer = self.save_buffer[: self.save_buffer_maxlen]
 
     def _delete_worse_checkpoints(self) -> None:
         """
