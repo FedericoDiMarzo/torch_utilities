@@ -199,7 +199,7 @@ class ModelTrainer(ABC):
             they're passed to the constructor
         """
         return self.losses
-    
+
     def get_losses_weights(self) -> List[float]:
         """
         Gets the weight of losses.
@@ -211,6 +211,17 @@ class ModelTrainer(ABC):
             they're passed to the constructor
         """
         return self.losses_weights
+
+    def get_learning_rate(self) -> float:
+        """
+        Gets the current learning rate.
+
+        Returns
+        -------
+        float
+            Current learning rate
+        """
+        return self.optimizer.lr
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Training loop
