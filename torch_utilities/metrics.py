@@ -96,12 +96,13 @@ class DNSMOS:
 
     def __call__(self, x: TensorOrArray) -> Tuple[float, float, float]:
         """
-        Compute ovr, sig and bak from an input.
+        Compute ovr, sig and bak from an 16kHz input.
 
         Parameters
         ----------
         x : TensorOrArray
-            Input of shape (C, T), if multichannel, the first channel only is considered
+            Input of shape (C, T) sampled at 16kHz, 
+            if multichannel, the first channel only is considered
 
         Returns
         -------

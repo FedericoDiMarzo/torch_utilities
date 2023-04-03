@@ -1,8 +1,9 @@
-from itertools import product
-import unittest
 from pathimport import set_module_root
+from itertools import product
+import onnxruntime as ort
 from torch import Tensor
 import numpy as np
+import unittest
 import torch
 
 set_module_root("../torch_utils")
@@ -35,14 +36,20 @@ class TestDNSMOS(unittest.TestCase):
     def setUp(self):
         self.dnsmos = DNSMOS()
 
-    def test_compute_features(self):
+    def test_get_inference_session(self):
+        sess = self.dnsmos.get_inference_session()
+        self.assertEqual(type(sess), ort.InferenceSession)
+
+    def test_call(self):
         module = (np, torch)
-        for m in module:
-            with self.subTest(m=m):
-                B, C, T = (2, 1, 16000)
-                x = m.zeros((B, C, T))
-                y = self.dnsmos.compute_features(x)
-                self.assertEqual(y.shape[:2], (B, C))
+        channels = (1, 2)
+        length = (80000,)
+        for p in product(module, channels, length):
+            m, c, t = p
+            with self.subTest(p=p):
+                x = m.zeros((c, t))
+                scores = self.dnsmos(x)
+                self.assertEqual(len(scores), 3)
 
 
 if __name__ == "__main__":
