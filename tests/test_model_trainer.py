@@ -9,6 +9,7 @@ from loguru import logger
 from pathlib import Path
 import numpy as np
 import unittest
+import shutil
 import torch
 
 set_module_root("../torch_utils")
@@ -121,7 +122,7 @@ class TestModelTrainer(unittest.TestCase):
         _setup()
 
     def setUp(self):
-        self.model_path = (get_test_data_dir() / n for n in ("test_model", "test_model_overfit"))
+        self.model_path = [get_test_data_dir() / n for n in ("test_model", "test_model_overfit")]
         self.loader_type = (tu.HDF5Dataset, tu.HDF5OnlineDataset)
         self.optimizer = (Adam, Rprop)  # with and without weight decay setting
         self.n_losses = (4,)
@@ -135,13 +136,16 @@ class TestModelTrainer(unittest.TestCase):
         self.batch_size = 16
         self.clear_model_folders()
 
+    def tearDown(self):
+        self.clear_model_folders()
+
     def clear_model_folders(self):
         """
         Cleans the model folders.
         """
         for model in self.model_path:
             not_config = list(set(model.glob("*")) - set(model.glob("*.yml")))
-            [f.unlink for f in not_config]
+            [shutil.rmtree(f) for f in not_config]
 
     def get_model_trainer(self, params: Tuple, enable_profiling: bool = False) -> ModelTrainerDummy:
         """
@@ -253,9 +257,9 @@ class TestModelTrainer(unittest.TestCase):
         params = self.params[0], self.params[-1]
         for p in params:
             with self.subTest(p=p):
+                overfit = "overfit" in str(p[0])
                 trainer = self.get_model_trainer(p)
                 trainer.start_training()
-                overfit = "overfit" in str(p[0])
                 self.assertEqual(
                     [
                         trainer.on_train_begin_flag,
