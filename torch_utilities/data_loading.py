@@ -215,6 +215,7 @@ class HDF5OnlineDataset(Dataset):
         data_layouts: List[List[str]],
         batch_size: int = 16,
         total_items: int = 1024,
+        overfit_mode: bool = False,
     ) -> None:
         """
         Dataset based on online generation.
@@ -231,6 +232,8 @@ class HDF5OnlineDataset(Dataset):
             Batch size of each raw data, by default 16
         total_items : int, optional
             Total item in an epoch, by default 1024
+        overfit_mode : bool, optional
+            If True, always returns the first batch at every iteration
         """
         super(HDF5OnlineDataset).__init__()
         self.datasets_paths = dataset_paths
@@ -238,6 +241,7 @@ class HDF5OnlineDataset(Dataset):
         self.data_layouts = data_layouts
         self.batch_size = batch_size
         self.total_items = total_items
+        self.overfit_mode = overfit_mode
 
         # error handling
         err_msg = f"total_items ({total_items}) must be divisible by batch_size ({batch_size})"
@@ -245,6 +249,9 @@ class HDF5OnlineDataset(Dataset):
 
         # static datasets
         self.source_datasets = self._get_datasets()
+
+        # handling overfit mode
+        self.overfit_cache = None
 
     def __len__(self) -> int:
         return self.total_items // self.batch_size
@@ -292,10 +299,19 @@ class HDF5OnlineDataset(Dataset):
         return ds_outs
 
     def __getitem__(self, _) -> List[Tensor]:
+        if self.overfit_cache is not None:
+            # overfit cache enabled
+            return self.overfit_cache
+        
         outs = [self._get_rand_batch(ds) for ds in self.source_datasets]
         outs = itertools.chain.from_iterable(outs)
         outs = list(outs)
         outs = self.transform(outs)
+
+        if self.overfit_mode:
+            # caching for overfit mode
+            self._store_in_cache(outs)
+
         return outs
 
     def _get_datasets(self) -> List[HDF5Dataset]:
@@ -309,6 +325,17 @@ class HDF5OnlineDataset(Dataset):
         """
         ds = [HDF5Dataset(p, l) for p, l in zip(self.datasets_paths, self.data_layouts)]
         return ds
+
+    def _store_in_cache(self, data: List[Tensor]) -> None:
+        """
+        Stores the data in the overfit cache.
+
+        Parameters
+        ----------
+        data : List[Tensor]
+            Data to store in the cache
+        """
+        self.overfit_cache = data
 
 
 def get_dataset_statistics(
