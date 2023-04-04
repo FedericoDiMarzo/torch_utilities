@@ -1,5 +1,5 @@
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
-from torch.optim.lr_scheduler import ExponentialLR
+from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.tensorboard import SummaryWriter
 from contextlib import suppress, nullcontext
 from torch.utils.data import DataLoader
@@ -92,8 +92,8 @@ class ModelTrainer(ABC):
             Max number of epochs, by default 100
         learning_rate : float, optional
             Optimizer learning rate starting value, by default 1e-5
-        learning_rate_decay : float, optional
-            Parameter gamma of pytorch ExponentialLR, by default 0 means no
+        learning_rate_end : float, optional
+            Parameter eta_min of PyTorch CosineAnnealingLR, by default -1 means no
             learning rate scheduling
         overfit_mode : bool, optional
             Enables overfit mode, by default False
@@ -123,7 +123,7 @@ class ModelTrainer(ABC):
         self.config_path = self.model_path / "config.yml"
         self.config = tu.Config(self.config_path)
         self.learning_rate = self._from_config("learning_rate", float, 1e-5)
-        self.learning_rate_decay = self._from_config("learning_rate_decay", float, 0)
+        self.learning_rate_end = self._from_config("learning_rate_end", float, -1)
         self.weight_decay = self._from_config("weight_decay", float, 0)
         self.log_every = self._from_config("log_every", int, 100)
         self.max_epochs = self._from_config("max_epochs", int, 100)
@@ -221,10 +221,10 @@ class ModelTrainer(ABC):
         float
             Current learning rate
         """
-        if self.learning_rate_decay == 0:
+        if self.learning_rate_end < 0:
             return self.learning_rate
         else:
-            return self.lr_scheduler.get_last_lr()
+            return self.lr_scheduler.get_last_lr()[0]
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Training loop
@@ -241,7 +241,7 @@ class ModelTrainer(ABC):
             logger.info("overfit mode on")
         if self.enable_profiling:
             logger.info("profiler on: stopping after one epoch")
-        if self.learning_rate_decay == 0:
+        if self.learning_rate_end < 0:
             logger.info("learning rate scheduler disabled")
         else:
             logger.info("learning rate scheduler enabled")
@@ -299,7 +299,7 @@ class ModelTrainer(ABC):
                     self.tensorboard_logs(_log_data(False), epoch=epoch)
 
             # learning rate decay
-            if self.learning_rate_decay != 0:
+            if self.learning_rate_end >= 0:
                 self.lr_scheduler.step()
                 logger.info(f"learning rate updated: {self.lr_scheduler.get_last_lr()}")
 
@@ -568,7 +568,7 @@ class ModelTrainer(ABC):
                 model_state=self.net.state_dict(),
                 optim_state=self.optimizer.state_dict(),
                 lr_scheduler_state=self.lr_scheduler.state_dict()
-                if self.learning_rate_decay != 0
+                if self.learning_rate_end != 0
                 else None,
                 epoch=epoch,
             ),
@@ -653,17 +653,18 @@ class ModelTrainer(ABC):
                 optim.load_state_dict(self.optim_state)
         return optim
 
-    def _setup_lr_scheduler(self) -> Union[ExponentialLR, None]:
+    def _setup_lr_scheduler(self) -> Union[CosineAnnealingLR, None]:
         """
         Sets up the learning rate scheduler.
 
         Returns
         -------
-        Union[ExponentialLR, None]
+        Union[CosineAnnealingLR, None]
             Lerning rate scheduler
         """
-        if self.learning_rate_decay != 0:
-            scheduler = ExponentialLR(self.optimizer, self.learning_rate_decay)
+        if self.learning_rate_end != 0:
+            max_iter = self.max_epochs * len(self.train_dl)
+            scheduler = CosineAnnealingLR(self.optimizer, max_iter, self.learning_rate_end)
             if self.lr_scheduler_state is not None:
                 scheduler.load_state_dict(self.lr_scheduler_state)
         else:
