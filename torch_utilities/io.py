@@ -1,8 +1,9 @@
+from typing import Iterator, List, Tuple, Union
 from resampy import resample as resample_np
 from torchaudio.functional import resample
 from pathimport import set_module_root
-from typing import Iterator, List, Tuple, Union
 from multiprocess import Pool
+from itertools import islice
 from pathlib import Path
 from torch import Tensor
 import soundfile as sf
@@ -160,8 +161,11 @@ def load_audio_parallel_itr(
     Iterator[TensorOrArray]
         yields audios of shape (C, T)
     """
-    for i in range(0, len(file_paths), num_workers):
-        files_batch = file_paths[i : i + num_workers]
+    n_files = len(file_paths)
+    # transforming to generator
+    file_paths = (x for x in file_paths)
+    for i in range(0, n_files, num_workers):
+        files_batch = islice(file_paths, num_workers)
         cache = load_audio_parallel(files_batch, sample_rate, tensor, device, num_workers)
         for x in cache:
             yield x
