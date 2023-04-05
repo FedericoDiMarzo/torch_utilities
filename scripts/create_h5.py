@@ -19,6 +19,7 @@ def main():
     sr = args.sample_rate
     gbl = args.group_batch_len
     thr = args.trim_silence_threshold
+    w = args.num_workers
     mono = args.mono
     fade_direction = "right" if args.right_fade_only else "both"
     no_rand_trim = args.no_rand_trim
@@ -36,7 +37,7 @@ def main():
     # writing into the HDF5
     with h5py.File(dataset_path, "w") as ds:
         if args.pack_samples:
-            pack_samples_in_h5(ds, filepaths, sr, gbl, mono, length)
+            pack_samples_in_h5(ds, filepaths, sr, gbl, mono, length, w)
         else:
             isolated_samples_in_h5(
                 ds, filepaths, sr, gbl, mono, thr, length, fade_direction, no_rand_trim
@@ -50,6 +51,7 @@ def pack_samples_in_h5(
     group_batch_len: int,
     mono: bool,
     length: int,
+    num_workers:int,
 ) -> None:
     """
     Fill an HDF5 with multiple samples concatenated
@@ -77,7 +79,7 @@ def pack_samples_in_h5(
     channels = 1 if mono else load_audio(filepaths[0])[0].shape[0]
 
     filepaths = tqdm(filepaths)
-    itr = pack_audio_sequences(filepaths, length, sample_rate, channels)
+    itr = pack_audio_sequences(filepaths, length, sample_rate, channels,num_workers=num_workers)
     for i in itertools.count():
         xs = [x for x in itertools.islice(itr, group_batch_len)]
         if len(xs) < group_batch_len:
@@ -140,6 +142,7 @@ def isolated_samples_in_h5(
     for i in tqdm(range(groups)):
         selection = filepaths[i * group_batch_len : (i + 1) * group_batch_len]
         selection = [path.rstrip("\n") for path in selection]
+        # TODO: multiprocess
         tracks = [load_audio(path, sample_rate)[0] for path in selection]
         tracks_trimmed = [_transform(x) for x in tracks]
         if mono:
