@@ -131,6 +131,7 @@ class ModelTrainer(ABC):
         self.losses_weights = self._from_config(
             "losses_weights", np.array, np.ones(len(self.losses))
         )
+        self.losses_weights = self.losses_weights.astype(float)
 
         # other dirs
         self.checkpoints_dir = model_path / "checkpoints"
