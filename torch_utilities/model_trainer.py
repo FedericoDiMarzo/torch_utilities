@@ -1,5 +1,4 @@
 from typing import Any, Callable, Dict, List, Optional, Tuple, Type, Union
-from torch.optim.lr_scheduler import CosineAnnealingLR
 from torch.utils.tensorboard import SummaryWriter
 from contextlib import suppress, nullcontext
 from torch.utils.data import DataLoader
@@ -22,6 +21,8 @@ set_module_root(".")
 from torch_utilities.common import DotDict
 
 __all__ = ["ModelTrainer"]
+
+# TODO: split code
 
 
 class ModelTrainer(ABC):
@@ -92,9 +93,6 @@ class ModelTrainer(ABC):
             Max number of epochs, by default 100
         learning_rate : float, optional
             Optimizer learning rate starting value, by default 1e-5
-        learning_rate_end : float, optional
-            Parameter eta_min of PyTorch CosineAnnealingLR, by default -1 means no
-            learning rate scheduling
         overfit_mode : bool, optional
             Enables overfit mode, by default False
         weight_decay : float, optional
@@ -123,7 +121,6 @@ class ModelTrainer(ABC):
         self.config_path = self.model_path / "config.yml"
         self.config = tu.Config(self.config_path)
         self.learning_rate = self._from_config("learning_rate", float, 1e-5)
-        self.learning_rate_end = self._from_config("learning_rate_end", float, -1)
         self.weight_decay = self._from_config("weight_decay", float, 0)
         self.log_every = self._from_config("log_every", int, 100)
         self.max_epochs = self._from_config("max_epochs", int, 100)
@@ -145,9 +142,7 @@ class ModelTrainer(ABC):
         self.save_buffer_maxlen = save_buffer_maxlen
         self.net = self._load_model()
         self.optim_state = None
-        self.lr_scheduler_state = None
         self.optimizer = self._setup_optimizer()
-        self.lr_scheduler = self._setup_lr_scheduler()
         self.disable_optimization = False
         self.running_losses = None
         self.running_losses_steps = 0
@@ -222,10 +217,8 @@ class ModelTrainer(ABC):
         float
             Current learning rate
         """
-        if self.learning_rate_end < 0:
-            return self.learning_rate
-        else:
-            return self.lr_scheduler.get_last_lr()[0]
+        for param_group in self.optimizer.param_groups:
+            return param_group["lr"]
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Training loop
@@ -242,8 +235,6 @@ class ModelTrainer(ABC):
             logger.info("overfit mode on")
         if self.enable_profiling:
             logger.info("profiler on: stopping after one epoch")
-        if self.learning_rate_end < 0:
-            logger.info("learning rate scheduler disabled")
         else:
             logger.info("learning rate scheduler enabled")
         logger.info("saving the model graph")
@@ -298,11 +289,6 @@ class ModelTrainer(ABC):
                     self._log_losses(epoch=epoch)
                     logger.info("logging tensorboard valid data")
                     self.tensorboard_logs(_log_data(False), epoch=epoch)
-
-            # learning rate decay
-            if self.learning_rate_end >= 0:
-                self.lr_scheduler.step()
-                logger.info(f"learning rate updated: {self.lr_scheduler.get_last_lr()}")
 
             metric_log_data = _log_data(self.is_training())
             self.last_computed_metric = self.apply_metric(metric_log_data)
@@ -497,10 +483,9 @@ class ModelTrainer(ABC):
 
         # load checkpoint if it exists
         if self._prev_train_exists():
-            epoch, model_state, optim_state, lr_scheduler_state = self._load_checkpoint()
+            epoch, model_state, optim_state = self._load_checkpoint()
             self.start_epoch = epoch
             self.optim_state = optim_state
-            self.lr_scheduler_state = lr_scheduler_state
             m.load_state_dict(model_state)
 
         return m
@@ -538,7 +523,7 @@ class ModelTrainer(ABC):
         Returns
         -------
         Tuple[int, Dict, Dict]
-            (epoch, model_state, optim_state, lr_scheduler_state)
+            (epoch, model_state, optim_state)
         """
         # choosing the best checkpoint
         self._load_checkpoint_monitoring()
@@ -550,8 +535,7 @@ class ModelTrainer(ABC):
         epoch = best_checkpoint.epoch + 1
         model_state = best_checkpoint.model_state
         optim_state = best_checkpoint.optim_state
-        lr_scheduler_state = best_checkpoint.lr_scheduler_state
-        return epoch, model_state, optim_state, lr_scheduler_state
+        return epoch, model_state, optim_state
 
     def _save_model(self, epoch: int) -> None:
         """
@@ -568,9 +552,6 @@ class ModelTrainer(ABC):
             dict(
                 model_state=self.net.state_dict(),
                 optim_state=self.optimizer.state_dict(),
-                lr_scheduler_state=self.lr_scheduler.state_dict()
-                if self.learning_rate_end != 0
-                else None,
                 epoch=epoch,
             ),
             checkpoint_path,
@@ -653,24 +634,6 @@ class ModelTrainer(ABC):
                 # ignore errors for optimizer mismatches
                 optim.load_state_dict(self.optim_state)
         return optim
-
-    def _setup_lr_scheduler(self) -> Union[CosineAnnealingLR, None]:
-        """
-        Sets up the learning rate scheduler.
-
-        Returns
-        -------
-        Union[CosineAnnealingLR, None]
-            Lerning rate scheduler
-        """
-        if self.learning_rate_end != 0:
-            max_iter = self.max_epochs * len(self.train_dl)
-            scheduler = CosineAnnealingLR(self.optimizer, max_iter, self.learning_rate_end)
-            if self.lr_scheduler_state is not None:
-                scheduler.load_state_dict(self.lr_scheduler_state)
-        else:
-            return None
-        return scheduler
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #                Logging
