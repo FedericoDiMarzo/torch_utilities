@@ -10,7 +10,14 @@ import h5py
 import sys
 
 set_module_root("..", prefix=False)
-from torch_utilities import load_audio, random_trim, fade_sides, trim_silence, pack_audio_sequences
+from torch_utilities import (
+    load_audio,
+    random_trim,
+    fade_sides,
+    trim_silence,
+    pack_audio_sequences,
+    load_audio_parallel,
+)
 
 
 def main():
@@ -37,10 +44,27 @@ def main():
     # writing into the HDF5
     with h5py.File(dataset_path, "w") as ds:
         if args.pack_samples:
-            pack_samples_in_h5(ds, filepaths, sr, gbl, mono, length, w)
+            pack_samples_in_h5(
+                ds=ds,
+                filepaths=filepaths,
+                sample_rate=sr,
+                group_batch_len=gbl,
+                mono=mono,
+                length=length,
+                num_workers=w,
+            )
         else:
             isolated_samples_in_h5(
-                ds, filepaths, sr, gbl, mono, thr, length, fade_direction, no_rand_trim
+                ds=ds,
+                filepaths=filepaths,
+                sample_rate=sr,
+                group_batch_len=gbl,
+                mono=mono,
+                thr=thr,
+                length=length,
+                fade_direction=fade_direction,
+                no_rand_trim=no_rand_trim,
+                num_workers=w,
             )
 
 
@@ -51,7 +75,7 @@ def pack_samples_in_h5(
     group_batch_len: int,
     mono: bool,
     length: int,
-    num_workers:int,
+    num_workers: int,
 ) -> None:
     """
     Fill an HDF5 with multiple samples concatenated
@@ -73,13 +97,15 @@ def pack_samples_in_h5(
         Silence trimming threshold
     length : float
         Sequence length
+    num_workers : int
+        Number of parallel processes
     """
     # getting the number of channels
     filepaths = [Path(x) for x in filepaths]
     channels = 1 if mono else load_audio(filepaths[0])[0].shape[0]
 
     filepaths = tqdm(filepaths)
-    itr = pack_audio_sequences(filepaths, length, sample_rate, channels,num_workers=num_workers)
+    itr = pack_audio_sequences(filepaths, length, sample_rate, channels, num_workers=num_workers)
     for i in itertools.count():
         xs = [x for x in itertools.islice(itr, group_batch_len)]
         if len(xs) < group_batch_len:
@@ -101,6 +127,7 @@ def isolated_samples_in_h5(
     length: int,
     fade_direction: str,
     no_rand_trim: bool,
+    num_workers: int,
 ) -> None:
     """
     Fill an HDF5 with one sample per batch.
@@ -125,8 +152,9 @@ def isolated_samples_in_h5(
     fade_direction : str
         One between "both" and "right"
     no_rand_trim : bool
-        If True the samples are always taken from their beginning,
-        by default False
+        If True the samples are always taken from their beginning
+    num_workers : int
+        Number of parallel processes
     """
 
     # checking that group_batch_len divides the inputs files
@@ -142,8 +170,7 @@ def isolated_samples_in_h5(
     for i in tqdm(range(groups)):
         selection = filepaths[i * group_batch_len : (i + 1) * group_batch_len]
         selection = [path.rstrip("\n") for path in selection]
-        # TODO: multiprocess
-        tracks = [load_audio(path, sample_rate)[0] for path in selection]
+        tracks = load_audio_parallel(selection, sample_rate, num_workers=num_workers)
         tracks_trimmed = [_transform(x) for x in tracks]
         if mono:
             tracks = [x[:0] for x in tracks]
@@ -224,13 +251,13 @@ def parse_args() -> Dict:
         "--group_batch_len",
         default=32,
         type=int,
-        help="batch dimension of each group",
+        help="batch dimension of each group, by default 32",
     )
     argparser.add_argument(
         "--sample_rate",
         default=16000,
         type=int,
-        help="resample to the sample rate indicated",
+        help="resample to the sample rate indicated, by default 16kHz",
     )
     argparser.add_argument(
         "--multichannel",
@@ -273,7 +300,7 @@ def parse_args() -> Dict:
         "--num_workers",
         default=1,
         type=int,
-        help="parallel processes",
+        help="parallel processes, by default 1",
     )
 
     return argparser.parse_args()
