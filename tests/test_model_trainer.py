@@ -24,7 +24,7 @@ def _setup() -> None:
     tu.set_device("auto")
     torch.manual_seed(984)
     torch.set_grad_enabled(True)
-    logger.disable("torch_utils.model_trainer")
+    logger.disable("torch_utilities.model_trainer")
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = =
