@@ -43,7 +43,7 @@ class TestDNSMOS(unittest.TestCase):
     def test_call(self):
         module = (np, torch)
         channels = (1, 2)
-        length = (80000,)
+        length = (320000,)
         for p in product(module, channels, length):
             m, c, t = p
             with self.subTest(p=p):
