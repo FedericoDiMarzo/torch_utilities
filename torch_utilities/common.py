@@ -1,4 +1,4 @@
-from typing import Any, Callable, List, Tuple, Type, TypeVar, Union, Dict
+from typing import Any, Callable, Iterator, List, Tuple, Type, TypeVar, Union, Dict
 from torch import autograd as AG
 import torch.nn.functional as F
 from functools import partial
@@ -39,6 +39,7 @@ __all__ = [
     "quantize",
     "one_hot_quantization",
     "invert_one_hot",
+    "CosineScheduler",
 ]
 
 # = = = = types
@@ -595,3 +596,94 @@ def invert_one_hot(x: Tensor) -> Tensor:
     """
     x = torch.argmax(x, dim=1)
     return x
+
+
+class CosineScheduler:
+    def __init__(
+        self,
+        start_value: float,
+        final_value: float,
+        total_epochs: int,
+        iterations_per_epoch: int = 1,
+        warmup_epochs: int = 0,
+    ) -> None:
+        """
+        Implements a single cycle cosine scheduler.
+
+        Parameters
+        ----------
+        start_value : float
+            Initial value
+        final_value : float
+            Last value
+        total_epochs : int
+            Total number of epochs
+        iterations_per_epoch : int, optional
+            Iterations for each eopoch, by default 1
+        warmup_epochs : int, optional
+            Number of warmup epochs (linear rise to the start_value), by default 0
+        """
+        # TODO: tests
+        self.start_value = start_value
+        self.final_value = final_value
+        self.total_epochs = total_epochs
+        self.iterations_per_epoch = iterations_per_epoch
+        self.warmup_epochs = warmup_epochs
+
+        self.schedule = self._compute_schedule()
+        self.current_index = 0
+
+    def __iter__(self) -> Iterator[float]:
+        return iter(self.schedule.tolist())
+
+    def __next__(self) -> float:
+        value = self.schedule[self.current_index]
+        self.current_index += 1
+        return value
+
+    def reset(self) -> None:
+        """
+        Resets the scheduler state.
+        """
+        self.current_index = 0
+
+    def _compute_schedule(self) -> np.ndarray:
+        """
+        Computes the full schedule.
+
+        Returns
+        -------
+        np.ndarray
+            Schedule array
+        """
+        warmup_schedule = np.array([])
+        warmup_iters = self.warmup_epochs * self.iterations_per_epoch
+        if self.warmup_epochs > 0:
+            warmup_start = self.start_value / warmup_iters
+            warmup_schedule = np.linspace(warmup_start, self.start_value, warmup_iters)
+
+        iters_after_warmup = self.total_epochs * self.iterations_per_epoch - warmup_iters
+        cycle_lengths = [iters_after_warmup]
+
+        schedule_cycles = []
+
+        # supporting one single cycle
+        num_cycles = 1
+        for i in range(num_cycles):
+            iters = np.arange(cycle_lengths[i])
+            schedule = np.array(
+                [
+                    self.final_value
+                    + 0.5
+                    * (self.start_value - self.final_value)
+                    * (1 + np.cos(np.pi * i / (len(iters))))
+                    for i in iters
+                ]
+            )
+            schedule_cycles.append(schedule)
+
+        schedule = np.concatenate((warmup_schedule, *schedule_cycles))
+        schedule = schedule[: self.total_epochs * self.iterations_per_epoch]
+
+        assert len(schedule) == self.total_epochs * self.iterations_per_epoch
+        return schedule

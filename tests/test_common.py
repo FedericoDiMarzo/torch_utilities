@@ -1,3 +1,4 @@
+from typing import Tuple
 from pathimport import set_module_root
 from ray import tune
 from torch import nn
@@ -173,6 +174,48 @@ class TestGeneric(unittest.TestCase):
             else:
                 with self.assertRaises(RuntimeError):
                     z.backward()
+
+
+class TestCosineScheduler(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        _setup()
+
+    def setUp(self):
+        self.values = [(0, 1), (100, -100)]
+        self.total_epochs = (10, 21)
+        self.iterations_per_epochs = (1, 7)
+        self.warmup_epochs = (0, 3)
+        self.params = itertools.product(
+            self.values,
+            self.total_epochs,
+            self.iterations_per_epochs,
+            self.warmup_epochs,
+        )
+
+    def get_instance(self, params: Tuple) -> tu.CosineScheduler:
+        vs, e, it, we = params
+        scheduler = tu.CosineScheduler(*vs, e, it, we)
+        return scheduler
+
+    def test_compute_schedule(self) -> None:
+        for p in self.params:
+            vs, e, it, we = p
+            a, b = vs
+            with self.subTest(p=p):
+                scheduler = self.get_instance(p)
+                scheduling = scheduler.schedule
+                warmup_steps = we * it
+                # warmup
+                warmup_start = a if (warmup_steps == 0) else (a / warmup_steps)
+                self.assertLess(np.abs(warmup_start - scheduling[0]), 1e-12)
+                # start
+                self.assertLess(np.abs(scheduling[warmup_steps] - a), 1e-12)
+                # end
+                print(b)
+                print(scheduling[-1])
+                exit(-1)
+                self.assertLess(np.abs(scheduling[-1] - b), 1e-12)
 
 
 if __name__ == "__main__":
