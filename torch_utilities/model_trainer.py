@@ -220,6 +220,30 @@ class ModelTrainer(ABC):
         for param_group in self.optimizer.param_groups:
             return param_group["lr"]
 
+    def set_learning_rate(self, value: float) -> None:
+        """
+        Setter for learning_rate.
+
+        Parameters
+        ----------
+        value : float
+            New learning rate
+        """
+        for g in self.optimizer.param_groups:
+            g["lr"] = value
+
+    def set_weight_decay(self, value: float) -> None:
+        """
+        Setter for weight_decay.
+
+        Parameters
+        ----------
+        value : float
+            New learning rate
+        """
+        for g in self.optimizer.param_groups:
+            g["weight_decay"] = value
+
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Training loop
     # = = = = = = = = = = = = = = = = = = = = = =
