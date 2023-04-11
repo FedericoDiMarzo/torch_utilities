@@ -609,7 +609,7 @@ class ModelTrainer(ABC):
         """
         Loads the checkpoints.
         """
-        return load_checkpoints(self.checkpoint_monitoring_file)
+        self.save_buffer = load_checkpoints(self.checkpoint_monitoring_file)
 
     def _sort_checkpoints(self) -> None:
         """
