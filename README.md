@@ -5,13 +5,9 @@
 **Torch Utilities** is developed as a personal set of tools and is provided as-it-is, without any warranties or guarantees. The API and utilities may change in the future as the module continues to evolve. While effort is made to maintain compatibility with previous versions, users are advised to carefully consider the stability of the API before using **Torch Utilities** in production environments.
 
 ## Installation
-To install **Torch Utilities** clone it and install it with pip
+You can install **Torch Utilities** using pip
 ```bash
-# clone the repo
-git clone git@github.com:FedericoDiMarzo/torch_utilities.git
-
-# install it with pip
-pip install -e torch_utilities
+pip install torch_utilities
 ```
 
 A pypi package will be provided in the future when the API will be more stable.
