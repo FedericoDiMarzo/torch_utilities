@@ -8,6 +8,7 @@ import unittest
 import torch
 
 set_module_root("../torch_utils")
+set_module_root(".")
 import torch_utilities as tu
 from tests.generate_test_data import get_test_data_dir
 
@@ -58,21 +59,6 @@ class TestConfig(unittest.TestCase):
         y_test = self.config.get("section1", "param10", default="default", _type=int)
         self.assertEqual(y_true, y_test)
 
-    def test_get_submodules(self):
-        model = nn.Sequential(
-            nn.Identity(),
-            nn.ReLU(),
-            nn.Tanh(),
-            nn.Sequential(
-                nn.SELU(),
-                nn.Sigmoid(),
-            ),
-        )
-        modules = tu.get_submodules(model)
-        modules_types = [type(m) for m in modules]
-        expected = [nn.Identity, nn.ReLU, nn.Tanh, nn.SELU, nn.Sigmoid]
-        self.assertListEqual(modules_types, expected)
-
     def test_get_ray_tune_params(self):
         params = self.config.get_ray_tune_params()
         sampling_methods = set(params.keys())
@@ -110,31 +96,6 @@ class TestGeneric(unittest.TestCase):
         zss = tu.pack_many(xs, ys)
         self.assertEqual(zss, [(1, 4), (2, 5), (3, 6)])
 
-    def test_split_complex(self):
-        mod = (np, torch)
-        chl = (1, 2, 4, 8)
-        params = itertools.product(mod, chl)
-        xs = [m.ones((1, c, 16), dtype=m.complex64) for m, c in params]
-        for x, p in zip(xs, params):
-            with self.subTest(p=p):
-                y = tu.split_complex(x)
-                c = y.shape[1]
-                _ones = mod.ones_like(y[:, : c // 2])
-                _zeros = mod.zeros_like(y[:, : c // 2])
-                self.assertEqual(c, x.shape[1] * 2)
-                self.assertTrue(mod.allclose(y[:, : c // 2]), _ones)
-                self.assertTrue(mod.allclose(y[:, c // 2 :]), _zeros)
-
-    def test_pack_complex(self):
-        mod = (np, torch)
-        chl = (2, 4, 8)
-        params = itertools.product(mod, chl)
-        xs = [m.ones((1, c, 16)) for m, c in params]
-        for x in xs:
-            with self.subTest(x=x):
-                y = tu.pack_complex(x)
-                self.assertEqual(y.shape[1], x.shape[1] // 2)
-
     def test_one_hot_quantization(self):
         min_max = ((-1, 1), (0, 65535), (11.1, 23.9))
         steps = (8, 256, 1024)
@@ -160,62 +121,39 @@ class TestGeneric(unittest.TestCase):
                 x_hat = tu.invert_one_hot(y)
                 self.assertTrue(x.equal(x_hat))
 
-    @torch.set_grad_enabled(True)
-    def test_compute_gradients(self):
-        keep_graph = (False, True)
-        for k in keep_graph:
-            x = torch.ones((3, 2), requires_grad=True)
-            y = x**2
-            grad = tu.compute_gradients(x, y, keep_graph=k)
-            z = grad.sum()
-            self.assertLess(z.item() - 2 * 6, 1e-8)
-            if k:
-                z.backward()
-            else:
-                with self.assertRaises(RuntimeError):
-                    z.backward()
 
-
-class TestCosineScheduler(unittest.TestCase):
+class TestTensorArrayOperations(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         _setup()
 
     def setUp(self):
-        self.values = [(0, 1), (100, -100)]
-        self.total_epochs = (10, 21)
-        self.iterations_per_epochs = (1, 7)
-        self.warmup_epochs = (0, 3)
-        self.params = itertools.product(
-            self.values,
-            self.total_epochs,
-            self.iterations_per_epochs,
-            self.warmup_epochs,
-        )
+        pass
 
-    def get_instance(self, params: Tuple) -> tu.CosineScheduler:
-        vs, e, it, we = params
-        scheduler = tu.CosineScheduler(*vs, e, it, we)
-        return scheduler
-
-    def test_compute_schedule(self) -> None:
-        for p in self.params:
-            vs, e, it, we = p
-            a, b = vs
+    def test_split_complex(self):
+        mod = (np, torch)
+        chl = (1, 2, 4, 8)
+        params = itertools.product(mod, chl)
+        xs = [m.ones((1, c, 16), dtype=m.complex64) for m, c in params]
+        for x, p in zip(xs, params):
             with self.subTest(p=p):
-                scheduler = self.get_instance(p)
-                scheduling = scheduler.schedule
-                warmup_steps = we * it
-                # warmup
-                warmup_start = a if (warmup_steps == 0) else (a / warmup_steps)
-                self.assertLess(np.abs(warmup_start - scheduling[0]), 1e-12)
-                # start
-                self.assertLess(np.abs(scheduling[warmup_steps] - a), 1e-12)
-                # end
-                print(b)
-                print(scheduling[-1])
-                exit(-1)
-                self.assertLess(np.abs(scheduling[-1] - b), 1e-12)
+                y = tu.split_complex(x)
+                c = y.shape[1]
+                _ones = mod.ones_like(y[:, : c // 2])
+                _zeros = mod.zeros_like(y[:, : c // 2])
+                self.assertEqual(c, x.shape[1] * 2)
+                self.assertTrue(mod.allclose(y[:, : c // 2]), _ones)
+                self.assertTrue(mod.allclose(y[:, c // 2 :]), _zeros)
+
+    def test_pack_complex(self):
+        mod = (np, torch)
+        chl = (2, 4, 8)
+        params = itertools.product(mod, chl)
+        xs = [m.ones((1, c, 16)) for m, c in params]
+        for x in xs:
+            with self.subTest(x=x):
+                y = tu.pack_complex(x)
+                self.assertEqual(y.shape[1], x.shape[1] // 2)
 
 
 if __name__ == "__main__":

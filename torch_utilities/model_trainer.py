@@ -19,10 +19,9 @@ import abc
 
 set_module_root(".")
 from torch_utilities.common import DotDict
+from torch_utilities.pytorch import load_checkpoints, sort_checkpoints
 
 __all__ = ["ModelTrainer"]
-
-# TODO: split code
 
 
 class ModelTrainer(ABC):
@@ -607,16 +606,16 @@ class ModelTrainer(ABC):
             yaml.dump(self.save_buffer, f)
 
     def _load_checkpoint_monitoring(self) -> None:
-        with open(self.checkpoint_monitoring_file) as f:
-            self.save_buffer = yaml.unsafe_load(f)
-            self._sort_checkpoints()
+        """
+        Loads the checkpoints.
+        """
+        return load_checkpoints(self.checkpoint_monitoring_file)
 
     def _sort_checkpoints(self) -> None:
         """
         Sorts the save_buffer based on the metric value.
         """
-        _order = lambda t: -t[1]
-        self.save_buffer = sorted(self.save_buffer, key=_order)
+        self.save_buffer = sort_checkpoints(self.save_buffer)
         self.save_buffer = self.save_buffer[: self.save_buffer_maxlen]
 
     def _delete_worse_checkpoints(self) -> None:
