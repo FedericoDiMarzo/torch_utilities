@@ -1,18 +1,13 @@
-from resampy import resample as resample_np
-from torchaudio.functional import resample
 from pathimport import set_module_root
-from typing import Iterator, List, Tuple, Union
-from multiprocess import Pool
 import onnxruntime as ort
+from typing import Tuple
 from pathlib import Path
 from torch import Tensor
-import soundfile as sf
 import numpy as np
-import torchaudio
-import torch
+
 
 set_module_root(".")
-from torch_utilities.common import get_device, to_numpy, TensorOrArray
+from torch_utilities.common import to_numpy, TensorOrArray
 from torch_utilities.audio import MelFilterbank, stft
 
 # export list
@@ -66,7 +61,7 @@ class DNSMOS:
         session = ort.InferenceSession(str(self.model_path))
         return session
 
-    def get_polyfit_val(self,  ovr:float, sig:float, bak:float) -> Tuple[float, float, float]:
+    def get_polyfit_val(self, ovr: float, sig: float, bak: float) -> Tuple[float, float, float]:
         """
         Polynomial nonlinearity as in the original repo
 
@@ -101,7 +96,7 @@ class DNSMOS:
         Parameters
         ----------
         x : TensorOrArray
-            Input of shape (C, T) sampled at 16kHz, 
+            Input of shape (C, T) sampled at 16kHz,
             if multichannel, the first channel only is considered
 
         Returns

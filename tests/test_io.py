@@ -1,8 +1,8 @@
-from itertools import product
-import unittest
 from pathimport import set_module_root
+from itertools import product
 from torch import Tensor
 import numpy as np
+import unittest
 import torch
 
 set_module_root("../torch_utils")

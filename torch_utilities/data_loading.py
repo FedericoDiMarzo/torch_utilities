@@ -302,7 +302,7 @@ class HDF5OnlineDataset(Dataset):
         if self.overfit_cache is not None:
             # overfit cache enabled
             return self.overfit_cache
-        
+
         outs = [self._get_rand_batch(ds) for ds in self.source_datasets]
         outs = itertools.chain.from_iterable(outs)
         outs = list(outs)

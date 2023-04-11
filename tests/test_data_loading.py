@@ -1,6 +1,6 @@
+from pathimport import set_module_root
 from itertools import product
 from pathlib import Path
-from pathimport import set_module_root
 from torch import Tensor
 from typing import List
 import numpy as np

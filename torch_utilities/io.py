@@ -12,7 +12,8 @@ import torchaudio
 import torch
 
 set_module_root(".")
-from torch_utilities.common import get_device, to_numpy, TensorOrArray
+from torch_utilities.common import TensorOrArray
+from torch_utilities.pytorch import get_device
 
 # export list
 __all__ = [

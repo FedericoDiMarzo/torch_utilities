@@ -9,8 +9,9 @@ import numpy as np
 import torch
 
 set_module_root(".")
-from torch_utilities.common import get_device, get_np_or_torch, to_numpy, TensorOrArray
+from torch_utilities.common import get_np_or_torch, TensorOrArray, to_numpy
 from torch_utilities.io import load_audio, load_audio_parallel_itr
+from torch_utilities.pytorch import get_device
 
 
 # export list
@@ -741,13 +742,13 @@ def pack_audio_sequences(
     _sample_left = lambda x: x.shape[1] - sample_ptr
     _copy = lambda x: x.clone() if isinstance(x, Tensor) else x.copy()
 
-    # enables multiprocessing ~ ~ ~ ~ ~ 
+    # enables multiprocessing ~ ~ ~ ~ ~
     if num_workers > 1:
         xs = load_audio_parallel_itr(xs, sample_rate, tensor, num_workers=num_workers)
     else:
         xs = (load_audio(x, sample_rate, tensor)[0] for x in xs)
-    # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ 
-    
+    # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
     seq = _reset_seq()
     for x in xs:
         while _sample_left(x) > 0:

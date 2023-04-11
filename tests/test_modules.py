@@ -1,6 +1,6 @@
-from typing import Tuple, Type
 from pathimport import set_module_root
 from torch.nn.utils import weight_norm
+from typing import Tuple, Type
 from itertools import product
 from torch import Tensor
 from torch import nn
@@ -9,9 +9,9 @@ import unittest
 import torch
 
 set_module_root("../torch_utils")
+import torch_utilities as tu
 from torch_utilities import repeat_test, set_device
 from torch_utilities.modules import get_time_value, get_freq_value
-import torch_utilities as tu
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
