@@ -1315,8 +1315,8 @@ class GruNormAct(Module):
         return y, h
 
 
-# attention variants  = = = = = = = = = = = = = = = = = https://arxiv.org/abs/2004.05150
-class CausalSelfAttentionEncoder(Module):
+# attention variants  = = = = = = = = = = = = = = = = = 
+class SlidingSelfAttention(Module):
     def __init__(
         self,
         hidden_size: int,
@@ -1326,6 +1326,7 @@ class CausalSelfAttentionEncoder(Module):
         heads: int,
         dropout: float = 0.1,
     ) -> None:
+        # TODO: implement it
         super().__init__()
 
         # attributes
