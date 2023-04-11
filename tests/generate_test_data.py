@@ -103,6 +103,23 @@ training:
         f.write(txt)
 
 
+def generate_checkpoint_monitoring(filename: str, n: int) -> None:
+    """
+    Generates a dummy checkpoint monitoring list.
+
+    Parameters
+    ----------
+    filename : str
+        Filename
+    n : int
+        Number of checkpoints
+    """
+    _name = lambda i: f"checkpoint_{i}"
+    checkpoints = [(_name(i), float(i)) for i in range(n)]
+    with open(get_test_data_dir() / filename, "w") as f:
+        yaml.dump(checkpoints, f)
+
+
 def main():
     logger.info("generating test data")
     create_data_dir()
@@ -111,6 +128,7 @@ def main():
     generate_yaml()
     generate_test_model_config("test_model", False)
     generate_test_model_config("test_model", True)
+    generate_checkpoint_monitoring("dummy_ckpt.yml", 10)
     logger.info("generation complete")
 
 
