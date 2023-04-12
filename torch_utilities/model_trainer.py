@@ -36,8 +36,8 @@ class ModelTrainer(ABC):
         net_ins_indices: Optional[List[int]] = None,
         losses_names: Optional[List[str]] = None,
         save_buffer_maxlen: int = 10,
-        gradient_clip_value: Optional[float] = None,
         enable_profiling: bool = False,
+        reset_epoch: bool = False,
     ) -> None:
         """
         Abstract class to structure a model training.
@@ -78,12 +78,13 @@ class ModelTrainer(ABC):
             Names of the losses, by default ["loss0", "loss1", ...]
         save_buffer_maxlen : int, optional
             N best checkpoints saved (based on a lower total loss),
-            by default 5
-        gradient_clip_value : Optional[float]
-            Maximum gradient update value, by default no gradient clipping
+            by default 10
         enable_profiling : bool, optional
             If True runs one full run of the train dataset and
             logs to tensorboard the profiling information, by default False
+        reset_epoch : bool, optional
+            If set to True resets the epoch to 0 after loading the checkpoints,
+            by default False
 
 
         config.yml [training] parameters
@@ -101,6 +102,8 @@ class ModelTrainer(ABC):
         log_every : int, optional
             Frequency of the logs (over the dataset iterations),
             by default 100
+        gradient_clip_value : float, optional
+            Maximum gradient update value, by default no gradient clipping
         """
         self.device = tu.get_device()
 
@@ -113,8 +116,8 @@ class ModelTrainer(ABC):
         self.net_ins_indices = net_ins_indices or [0]
         self.losses_names = losses_names or self._default_losses_names()
         self.optimizer_class = optimizer_class
-        self.gradient_clip_value = gradient_clip_value
         self.enable_profiling = enable_profiling
+        self.reset_epoch = reset_epoch
 
         # configuration attributes
         self.config_path = self.model_path / "config.yml"
@@ -128,6 +131,9 @@ class ModelTrainer(ABC):
             "losses_weights", np.array, np.ones(len(self.losses))
         )
         self.losses_weights = self.losses_weights.astype(float)
+
+        gcv = self._from_config("gradient_clip_value", float, -1)
+        self.gradient_clip_value = gcv if (gcv > 0) else None
 
         # other dirs
         self.checkpoints_dir = model_path / "checkpoints"
@@ -159,7 +165,7 @@ class ModelTrainer(ABC):
         self.profiler = self._get_profiler()  # null context manager if enable_profiling==False
 
     # = = = = = = = = = = = = = = = = = = = = = =
-    #             Getters/Setters
+    #         Public getters/setters
     # = = = = = = = = = = = = = = = = = = = = = =
     def get_model(self) -> nn.Module:
         """
@@ -242,6 +248,17 @@ class ModelTrainer(ABC):
         """
         for g in self.optimizer.param_groups:
             g["weight_decay"] = value
+
+    def get_tensorboard_writer(self) -> SummaryWriter:
+        """
+        Getter to the tensorboard log writer
+
+        Returns
+        -------
+        SummaryWriter
+            tensorboard log writer
+        """
+        return self.log_writer
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #             Training loop
@@ -507,7 +524,7 @@ class ModelTrainer(ABC):
         # load checkpoint if it exists
         if self._prev_train_exists():
             epoch, model_state, optim_state = self._load_checkpoint()
-            self.start_epoch = epoch
+            self.start_epoch = 0 if self.reset_epoch else epoch
             self.optim_state = optim_state
             m.load_state_dict(model_state)
 
@@ -661,17 +678,6 @@ class ModelTrainer(ABC):
     # = = = = = = = = = = = = = = = = = = = = = =
     #                Logging
     # = = = = = = = = = = = = = = = = = = = = = =
-    def get_tensorboard_writer(self) -> SummaryWriter:
-        """
-        Getter to the tensorboard log writer
-
-        Returns
-        -------
-        SummaryWriter
-            tensorboard log writer
-        """
-        return self.log_writer
-
     @abc.abstractclassmethod
     def tensorboard_logs(self, raw_data: List[Tensor], epoch: int) -> None:
         """
@@ -810,6 +816,7 @@ class ModelTrainer(ABC):
 
     # = = = = = = = = = = = = = = = = = = = = = =
     #                Profiler
+    # = = = = = = = = = = = = = = = = = = = = = =
     def _get_profiler(self) -> torch.profiler.profile:
         """
         Return the profiler context manager.
