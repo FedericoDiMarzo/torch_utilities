@@ -31,6 +31,8 @@ __all__ = [
     "DenseConvBlock",
     # recurrent variants
     "GruNormAct",
+    # attention variants
+    "SlidingCausalMultiheadAttention",
 ]
 
 # private utility functions = = = = = = = = = = = = = =
@@ -122,7 +124,7 @@ def get_default_dilation(
     return dilation
 
 
-def get_causal_longformer_mask(size_len: int, width: int) -> Tensor:
+def get_causal_longformer_mask(sequence_len: int, receptive_field: int) -> Tensor:
     """
     Obtain a causal mask inspired by the Longformer to use
     within self attention layers.
@@ -131,19 +133,19 @@ def get_causal_longformer_mask(size_len: int, width: int) -> Tensor:
 
     Parameters
     ----------
-    size_len : int
+    sequence_len : int
         Length of the sequence
-    width : int
-        Number of previous neighbours to pay attention to
+    receptive_field : int
+        Number of previous frames to pay attention to
 
     Returns
     -------
     Tensor
-        Attention mask
+        Attention mask of shape (sequence_len, sequence_len)
     """
-    _diag = lambda i: torch.diag(torch.ones(size_len - i), -i)
+    _diag = lambda i: torch.diag(torch.ones(sequence_len - i), -i)
     mask = _diag(0)
-    for i in range(1, width):
+    for i in range(1, receptive_field):
         mask += _diag(i)
     return mask
 
@@ -322,7 +324,7 @@ class UnfoldSpectrogram(Module):
         Tensor
             Unfolded input of shape (B, C*num_blocks, block_size, F)
         """
-        assert self._input_shape_is_valid(x), r"x.shape[2] - block_size % stride != 0"
+        assert self._input_shape_is_valid(x), r"(x.shape[2] - block_size) % stride != 0"
         ch = x.shape[1]
         x = self._reshape_0(x)
         x = self._unfold(x)
@@ -468,8 +470,8 @@ class ResidualWrap(Module):
         y = self.layers(x)
         # keeping the channels of the output
         c_out = y.shape[1]
-        y = x[:,:c_out] + y[:,:c_out]
-        
+        y = x[:, :c_out] + y[:, :c_out]
+
         return y
 
 
@@ -1315,28 +1317,96 @@ class GruNormAct(Module):
         return y, h
 
 
-# attention variants  = = = = = = = = = = = = = = = = = 
-class SlidingSelfAttention(Module):
+# attention variants  = = = = = = = = = = = = = = = = =
+class SlidingCausalMultiheadAttention(Module):
     def __init__(
         self,
-        hidden_size: int,
+        channels: int,
         sequence_len: int,
-        receptive_field: int,
-        depth: int,
-        heads: int,
-        dropout: float = 0.1,
+        embed_dim: int,
+        stride: int,
+        num_heads: int,
+        dropout: float = 0.0,
+        bias: bool = True,
+        receptive_field: Optional[int] = None,
+        attn_mask: Optional[Tensor] = None,
     ) -> None:
-        # TODO: implement it
+        """
+        Causal multi head attention module applied on an
+        unfolded version of the input.
+
+        Parameters
+        ----------
+        channels : int
+            Number of input channels
+        embed_dim : int
+            Dimension of the embeddings (F)
+        sequence_len : int
+            Lenght of the sequence blocks resulting from the unfolding
+        stride : int
+            Hop size between the blocks
+        num_heads : int
+            Number of heads for the attention
+        dropout : float, optional
+            Dropout amount, by default 0.0
+        bias : bool, optional
+            Enables/disables the biases in the projections, by default True
+        receptive_field : Optional[int], optional
+            Used for the default causal Longformer mask, indicates the number of frames
+            employed in the computation of the attention, by default half of the sequence_len
+        attn_mask : Optional[Tensor], optional
+            Mask provided to the attention layer, by default a causal version of the Longformer
+            mask is provided https://arxiv.org/abs/2004.05150
+        """
         super().__init__()
 
         # attributes
-        self.receptive_field = receptive_field
+        self.channels = channels
+        self.embed_dim = embed_dim
+        self.num_heads = num_heads
+        self.sequence_len = sequence_len
         self.stride = stride
-        self.hidden_size = hidden_size
-        self.heads = heads
         self.dropout = dropout
+        self.bias = bias
+        self.receptive_field = receptive_field or (self.sequence_len // 2)
+        self.attn_mask = attn_mask or get_causal_longformer_mask(
+            self.sequence_len, self.receptive_field
+        )
 
         # inner modules
+        self.reshape_0 = lambda x: x.flatten(0, 1)
+        self.reshape_1 = lambda x, b: x.reshape(b, -1, x.shape[1], x.shape[2])
+
+        self.unfold = UnfoldSpectrogram(self.sequence_len, self.stride)
+        self.fold = FoldSpectrogram(self.sequence_len, self.stride, self.channels)
+
+        self.mh_attention = nn.MultiheadAttention(
+            embed_dim=self.embed_dim,
+            num_heads=self.num_heads,
+            dropout=self.dropout,
+            bias=self.bias,
+            batch_first=True,
+        )
+
+    def forward(self, x: Tensor) -> Tensor:
+        """
+        Parameters
+        ----------
+        x : Tensor
+            Input of shape (B, C, T, F)
+
+        Returns
+        -------
+        Tensor
+            Output of shape (B, C, T, F)
+        """
+        B = x.shape[0]
+        x = self.unfold(x)
+        x = self.reshape_0(x)
+        x = self.mh_attention(x, x, x, attn_mask=self.attn_mask)[0]
+        x = self.reshape_1(x, B)
+        x = self.fold(x)
+        return x
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = =

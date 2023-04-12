@@ -11,7 +11,7 @@ import torch
 set_module_root("../torch_utils")
 import torch_utilities as tu
 from torch_utilities import repeat_test, set_device
-from torch_utilities.modules import get_time_value, get_freq_value
+from torch_utilities.modules import get_time_value, get_freq_value, get_causal_longformer_mask
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
@@ -465,12 +465,12 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             ) = p
             if in_freqs % 2 == 1:
                 stride_f = 1
-                
+
             if (not merge_after_conv) and (stride_f != 1):
                 # excluding cases where the merge is before the stride
                 # and the stride is different than 1
                 return
-             
+
             with self.subTest(p=p):
                 conv = self.get_instance(p)
                 x = self.get_input(p)
@@ -1037,6 +1037,122 @@ class TestCausalSubConv2d(unittest.TestCase):
                 y = csc(x)
                 B, C, T, F = x.shape
                 self.assertEqual(y.shape, (B, out_channels, T, in_freqs * stride_f))
+
+
+# = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
+
+
+class TestSlidingCausalMultiheadAttention(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        _setup()
+
+    def setUp(self):
+        self.channels = (2,)
+        self.sequence_len = (10,)
+        self.embed_dim = (32, 64)
+        self.stride = (5, 2)
+        self.num_heads = (1,)
+        self.dropout = (0,)
+        self.bias = (True,)
+        self.receptive_field = (None,)
+        self.attn_mask = (None,)
+        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+        self.params = product(
+            self.channels,
+            self.sequence_len,
+            self.embed_dim,
+            self.stride,
+            self.num_heads,
+            self.dropout,
+            self.bias,
+            self.receptive_field,
+            self.attn_mask,
+        )
+
+    def get_instance(self, p: Tuple) -> tu.SlidingCausalMultiheadAttention:
+        (
+            channels,
+            sequence_len,
+            embed_dim,
+            stride,
+            num_heads,
+            dropout,
+            bias,
+            receptive_field,
+            attn_mask,
+        ) = p
+        instance = tu.SlidingCausalMultiheadAttention(
+            channels=channels,
+            sequence_len=sequence_len,
+            embed_dim=embed_dim,
+            stride=stride,
+            num_heads=num_heads,
+            dropout=dropout,
+            bias=bias,
+            receptive_field=receptive_field,
+            attn_mask=attn_mask,
+        )
+        return instance
+
+    def get_input(self, p: Tuple) -> Tensor:
+        (
+            channels,
+            sequence_len,
+            embed_dim,
+            stride,
+            num_heads,
+            dropout,
+            bias,
+            receptive_field,
+            attn_mask,
+        ) = p
+        x = _get_input(channels, embed_dim, None)
+        return x
+
+    def test_inner_modules(self):
+        for p in self.params:
+            (
+                channels,
+                sequence_len,
+                embed_dim,
+                stride,
+                num_heads,
+                dropout,
+                bias,
+                receptive_field,
+                attn_mask,
+            ) = p
+            with self.subTest(p=p):
+                att = self.get_instance(p)
+                self.assertEqual(type(att.mh_attention), nn.MultiheadAttention)
+                self.assertEqual(type(att.unfold), tu.UnfoldSpectrogram)
+                self.assertEqual(type(att.fold), tu.FoldSpectrogram)
+
+                # default attention mask
+                if attn_mask is None and receptive_field is None:
+                    expected = get_causal_longformer_mask(sequence_len, sequence_len // 2)
+                    max_err = (expected - att.attn_mask).abs().max()
+                    self.assertLess(max_err, 1e-12)
+
+    def test_forward(self):
+        for p in self.params:
+            (
+                channels,
+                sequence_len,
+                embed_dim,
+                stride,
+                num_heads,
+                dropout,
+                bias,
+                receptive_field,
+                attn_mask,
+            ) = p
+            with self.subTest(p=p):
+                att = self.get_instance(p)
+                x = self.get_input(p)
+                y = att(x)
+                self.assertEqual(x.shape, y.shape)
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
