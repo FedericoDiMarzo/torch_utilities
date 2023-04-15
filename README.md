@@ -10,8 +10,6 @@ You can install **Torch Utilities** using pip
 pip install torch_utilities
 ```
 
-A pypi package will be provided in the future when the API will be more stable.
-
 ## Running The Tests
 To verify the correctness of the code and run the tests, simply run the following line in a bash console:
 ```bash
