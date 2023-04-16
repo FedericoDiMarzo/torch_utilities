@@ -211,14 +211,14 @@ class Reparameterize(Module):
     def forward(self, mu: Tensor, logvar: Tensor) -> Tensor:
         """
         Reparameterization trick to sample
-        from N(mu, var) from N(0,1).
+        from N(mu, var) without breaking the gradient path.
 
         Parameters
         ----------
         mu : Tensor
             Mean of the latent normal
         logvar : Tensor
-            Standard deviation of the latent normal in log
+            Standard deviation of the latent normal in log scale
 
         Returns
         -------
