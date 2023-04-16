@@ -19,8 +19,9 @@ This will run a suite of tests to ensure that the module is functioning as expec
 
 
 ## Module Documentation
-To read the API documentation of the module run the following line.
+To read the API documentation of the module you need to clone the repository locally and run pdoc.
 ```bash
+git clone git@github.com:FedericoDiMarzo/torch_utilities.git
 pdoc --docformat numpy torch_utilities/torch_utilities
 ```
 The documentation will then be accessible at the address http://localhost:8080 .
