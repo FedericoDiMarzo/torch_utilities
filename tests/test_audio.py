@@ -11,6 +11,9 @@ set_module_root(".")
 import torch_utilities as tu
 from tests.generate_test_data import get_test_data_dir
 
+# TODO: debug
+import matplotlib.pyplot as plt
+
 
 def _setup() -> None:
     torch.manual_seed(984)
@@ -25,54 +28,84 @@ class TestSTFT(unittest.TestCase):
         _setup()
 
     def setUp(self):
-        module = (np, torch)  # 0
-        channels = (1, 4)  # 1
-        sample_rate = (8000, 16000, 24000, 48000)  # 2
-        hopsize_ms = (8, 10)  # 3
-        win_oversamp = (1, 2)  # 5
+        module = (np, torch)
+        channels = (1, 4)
+        sample_rate = (8000, 16000, 48000)
+        hopsize_ms = (4, 8)
+        ola_ratio = (2, 3, 4)
+        win_oversamp = (1, 2)
         self.params = product(
             module,
             channels,
             sample_rate,
             hopsize_ms,
+            ola_ratio,
             win_oversamp,
         )
-        self.params = [(*p[:4], 2 * p[3], p[4]) for p in self.params]
 
     def test_stft(self):
         for p in self.params:
-            mod = p[0]
+            (
+                mod,
+                channels,
+                sample_rate,
+                hopsize_ms,
+                ola_ratio,
+                win_oversamp,
+            ) = p
             with self.subTest(p=p):
-                x = mod.ones((p[1], p[2] * 1))
-                y = tu.stft(x, p[2], p[3], "hann", p[4], p[5])
-                bins = int(p[2] * p[4] * p[5] / 2000 + 1)
+                x = mod.ones((channels, sample_rate * 1))
+                win_len_ms = hopsize_ms * ola_ratio
+                y = tu.stft(x, sample_rate, hopsize_ms, "hamming", win_len_ms, win_oversamp)
+                bins = int(sample_rate * win_len_ms * win_oversamp / 2000 + 1)
                 self.assertEqual(y.shape[-1], bins)
 
     def test_istft(self):
         for p in self.params:
-            mod = p[0]
+            (
+                mod,
+                channels,
+                sample_rate,
+                hopsize_ms,
+                ola_ratio,
+                win_oversamp,
+            ) = p
             with self.subTest(p=p):
-                bins = int(p[2] * p[4] * p[5] / 2000 + 1)
-                x = mod.ones((p[1], int(p[2] * 0.05), bins)) + 0j
-                y = tu.istft(x, p[2], p[3], "hann", p[4], p[5])
+                win_len_ms = hopsize_ms * ola_ratio
+                bins = int(sample_rate * win_len_ms * win_oversamp / 2000 + 1)
+                x = mod.ones((channels, int(sample_rate * 0.05), bins)) + 0j
+                y = tu.istft(x, sample_rate, hopsize_ms, "hann", win_len_ms, win_oversamp)
 
     def test_inversion(self):
         for p in self.params:
-            mod = p[0]
+            (
+                mod,
+                channels,
+                sample_rate,
+                hopsize_ms,
+                ola_ratio,
+                win_oversamp,
+            ) = p
             with self.subTest(p=p):
                 if mod == np:
-                    x = np.random.normal(size=(p[1], p[2] * 1))
+                    x = np.random.normal(size=(channels, sample_rate * 1))
                 else:
-                    x = torch.randn((p[1], p[2] * 1))
+                    x = torch.randn((channels, sample_rate * 1))
 
-                y = tu.stft(x, p[2], p[3], "hann", p[4], p[5])
-                x_hat = tu.istft(y, p[2], p[3], "hann", p[4], p[5])
+                win_len_ms = hopsize_ms * ola_ratio
+                y = tu.stft(x, sample_rate, hopsize_ms, "hann", win_len_ms, win_oversamp)
+                x_hat = tu.istft(y, sample_rate, hopsize_ms, "hann", win_len_ms, win_oversamp)
                 x = x[0, : x_hat.shape[1]]
                 x_hat = x_hat[0, : x.shape[0]]
                 err = mod.abs(x - x_hat).max()
                 with suppress(Exception):
                     err = err.item()
                 self.assertAlmostEqual(err, 0, places=5)
+                # # TODO: debug
+                # plt.plot(x)
+                # plt.plot(x_hat)
+                # plt.show()
+                pass
 
 
 class TestMelFilterbank(unittest.TestCase):

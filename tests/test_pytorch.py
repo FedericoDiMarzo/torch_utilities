@@ -1,6 +1,6 @@
 from pathimport import set_module_root
-from typing import Tuple
-from torch import nn
+from typing import Iterable, Tuple
+from torch import Tensor, nn
 import numpy as np
 import itertools
 import unittest
