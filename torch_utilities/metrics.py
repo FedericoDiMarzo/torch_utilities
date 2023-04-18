@@ -106,9 +106,6 @@ class DNSMOS:
         """
         assert len(x.shape) == 2, "the shape of x should be (C, T)"
 
-        # # Mel transform
-        # x = self.stft(x)
-        # x = self.mel_fb(x)
         if isinstance(x, Tensor):
             x = to_numpy(x)
         x = x.astype("float32")
