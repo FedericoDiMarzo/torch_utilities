@@ -19,6 +19,7 @@ __all__ = [
     "compute_gradients",
     "get_gradients",
     "get_model_parameters",
+    "freeze_model",
     "quantize",
     "one_hot_quantization",
     "invert_one_hot",
@@ -221,6 +222,20 @@ def get_model_parameters(model: nn.Module) -> int:
         Total number of parameters
     """
     return sum(p.numel() for p in model.parameters())
+
+
+# TODO: tests
+def freeze_model(model: nn.Module) -> None:
+    """
+    Freezed the weights of a target module.
+
+    Parameters
+    ----------
+    model : nn.Module
+        Model to freeze
+    """
+    for p in model.parameters():
+        p.requires_grad = False
 
 
 def quantize(x: Tensor, steps: int, min: float = -1, max: float = 1) -> Tensor:
