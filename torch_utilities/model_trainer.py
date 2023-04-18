@@ -482,10 +482,10 @@ class ModelTrainer(ABC):
     # = = = = = = = = = = = = = = = = = = = = = =
     #               Callbacks
     # = = = = = = = = = = = = = = = = = = = = = =
-    def on_train_begin(self: int) -> None:
+    def on_train_begin(self) -> None:
         pass
 
-    def on_train_end(self: int) -> None:
+    def on_train_end(self) -> None:
         pass
 
     def on_epoch_begin(self, epoch: int) -> None:
