@@ -12,8 +12,7 @@ import torchaudio
 import torch
 
 set_module_root(".")
-from torch_utilities.common import TensorOrArray
-from torch_utilities.pytorch import get_device
+from torch_utilities.common import TensorOrArray, get_device
 
 # export list
 __all__ = [
@@ -21,6 +20,7 @@ __all__ = [
     "save_audio",
     "load_audio_parallel",
     "load_audio_parallel_itr",
+    "pack_audio_sequences",
 ]
 
 
@@ -170,3 +170,85 @@ def load_audio_parallel_itr(
         cache = load_audio_parallel(files_batch, sample_rate, tensor, device, num_workers)
         for x in cache:
             yield x
+
+
+def pack_audio_sequences(
+    xs: List[Path],
+    length: float,
+    sample_rate: int,
+    channels: int = 1,
+    tensor: bool = False,
+    delete_last: bool = True,
+    num_workers: int = 1,
+) -> Iterator[TensorOrArray]:
+    """
+    Reads from a list of audio filepaths and generate temporal sequences
+    of a certain length.
+
+    Parameters
+    ----------
+    xs : List[Path]
+        List of audio filepaths
+    length : float
+        Length of the sequences is seconds
+    sample_rate : int
+        Resample at this sample frequency
+    channels : int, optional
+        Number of channels of the sequences, by default 1
+    tensor : bool, optional
+        If False returns a numpy ndarray else a torch Tensor, by default False
+    delete_last : bool, optional
+        If True the last sequence is discarded (since it's typically not complete),
+        by default True
+    num_workers : int, optional
+        Number of parallel processes
+
+    Yields
+    ------
+    Iterator[TensorOrArray]
+        Audio sequence of shape
+        (length, C, T)
+    """
+    # length in samples
+    length = int(length * sample_rate)
+
+    # the container of the sequences to be generated
+    _zeros = torch.zeros if tensor else np.zeros
+    _reset_seq = lambda: _zeros((channels, length))
+
+    # point to the last index consumed
+    sample_ptr = 0
+    seq_ptr = 0
+
+    # utilities
+    _seq_left = lambda: length - seq_ptr
+    _sample_left = lambda x: x.shape[1] - sample_ptr
+    _copy = lambda x: x.clone() if isinstance(x, Tensor) else x.copy()
+
+    # enables multiprocessing ~ ~ ~ ~ ~
+    if num_workers > 1:
+        xs = load_audio_parallel_itr(xs, sample_rate, tensor, num_workers=num_workers)
+    else:
+        xs = (load_audio(x, sample_rate, tensor)[0] for x in xs)
+    # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
+
+    seq = _reset_seq()
+    for x in xs:
+        while _sample_left(x) > 0:
+            # copying into the sequence
+            delta = min(_seq_left(), _sample_left(x))
+            seq[:, seq_ptr : seq_ptr + delta] = x[:channels, sample_ptr : sample_ptr + delta]
+            seq_ptr += delta
+            sample_ptr += delta
+
+            if _seq_left() == 0:
+                # sequence complete
+                yield _copy(seq)
+                seq = _reset_seq()
+                seq_ptr = 0
+
+        # sample consumed
+        sample_ptr = 0
+
+    if not delete_last:
+        yield _copy(seq)

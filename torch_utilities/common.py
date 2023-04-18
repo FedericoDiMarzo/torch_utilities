@@ -1,4 +1,5 @@
-from typing import Any, List, Tuple, Type, TypeVar, Union, Dict
+from typing import Any, Callable, List, Tuple, Type, TypeVar, Union, Dict
+from functools import partial
 from numpy import ndarray
 from pathlib import Path
 from torch import Tensor
@@ -12,6 +13,10 @@ __all__ = [
     # types
     "OneOrPair",
     "TensorOrArray",
+    # pytorch devices
+    "get_device",
+    "set_device",
+    "auto_device",
     # generic utilities
     "DotDict",
     "Config",
@@ -41,6 +46,68 @@ OneOrPair = Union[T, Tuple[T, T]]
 Can be a torch Tensor or numpy ndarray.
 """
 TensorOrArray = Union[Tensor, ndarray]
+
+
+# = = = = handling pytorch devices
+def get_device() -> str:
+    """
+    Gets the first CUDA device available or CPU
+    if no CUDA device is available.
+
+    Returns
+    -------
+    str
+        Device id
+    """
+    return "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def set_device(device: str, dtype: str = "Float") -> None:
+    """
+    Sets the default pytorch tensor
+    to 'torch.{device}.FloatTensor'
+
+    if device == "auto" it's inferred from get_device()
+
+    Parameters
+    ----------
+    device : str
+        Name of the device or "auto"
+    dtype : str, optional
+        Type of the tensor, by default "Float"
+    """
+    if device == "auto":
+        device = get_device()
+    if device == "cpu":
+        torch.set_default_tensor_type(f"torch.{dtype}Tensor")
+    else:
+        torch.set_default_tensor_type(f"torch.{device}.{dtype}Tensor")
+
+
+def auto_device(dtype: str = "Float") -> Callable:
+    def _auto_device(f: Callable) -> Callable:
+        """
+        Decorator to set the pytorch device to auto.
+
+        Parameters
+        ----------
+        f : Callable
+            Function to decorate
+        dtype : str, optional
+            Type of the tensor, by default "Float"
+
+        Returns
+        -------
+        Callable
+            Decorated function
+        """
+        set_device("auto", dtype)
+        return f
+
+    return _auto_device
+
+
+auto_device = partial(auto_device)
 
 # = = = = generic utilities
 

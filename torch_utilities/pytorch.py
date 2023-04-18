@@ -1,23 +1,17 @@
-from typing import Any, Callable, Iterator, List, Dict, Tuple
+from typing import Iterator, List, Dict, Tuple
 from pathimport import set_module_root
 from torch import autograd as AG
 import torch.nn.functional as F
-from functools import partial
 from torch import nn, Tensor
 from pathlib import Path
-from torch import Tensor
 import numpy as np
 import torch
 import yaml
 
-
 # export list
 __all__ = [
     # pytorch utilities
-    "get_device",
     "enable_anomaly_detection",
-    "set_device",
-    "auto_device",
     "load_model",
     "load_checkpoints",
     "sort_checkpoints",
@@ -32,17 +26,8 @@ __all__ = [
 ]
 
 
-def get_device() -> str:
-    """
-    Gets the first CUDA device available or CPU
-    if no CUDA device is available.
-
-    Returns
-    -------
-    str
-        Device id
-    """
-    return "cuda" if torch.cuda.is_available() else "cpu"
+set_module_root(".")
+from torch_utilities.common import get_device
 
 
 def enable_anomaly_detection():
@@ -52,54 +37,6 @@ def enable_anomaly_detection():
     from torch import autograd
 
     autograd.anomaly_mode.set_detect_anomaly(True)
-
-
-def set_device(device: str, dtype: str = "Float") -> None:
-    """
-    Sets the default pytorch tensor
-    to 'torch.{device}.FloatTensor'
-
-    if device == "auto" it's inferred from get_device()
-
-    Parameters
-    ----------
-    device : str
-        Name of the device or "auto"
-    dtype : str, optional
-        Type of the tensor, by default "Float"
-    """
-    if device == "auto":
-        device = get_device()
-    if device == "cpu":
-        torch.set_default_tensor_type(f"torch.{dtype}Tensor")
-    else:
-        torch.set_default_tensor_type(f"torch.{device}.{dtype}Tensor")
-
-
-def auto_device(dtype: str = "Float") -> Callable:
-    def _auto_device(f: Callable) -> Callable:
-        """
-        Decorator to set the pytorch device to auto.
-
-        Parameters
-        ----------
-        f : Callable
-            Function to decorate
-        dtype : str, optional
-            Type of the tensor, by default "Float"
-
-        Returns
-        -------
-        Callable
-            Decorated function
-        """
-        set_device("auto", dtype)
-        return f
-
-    return _auto_device
-
-
-auto_device = partial(auto_device)
 
 
 def load_model(
@@ -131,7 +68,7 @@ def load_model(
     config = model_path / "config.yml"
     model_state = torch.load(best_checkpoint, map_location=get_device())
     model_state = model_state["model_state"]
-    
+
     # initializing the model
     model = model_class(config, *model_args, **model_kwargs)
     model.load_state_dict(model_state)

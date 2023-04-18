@@ -9,9 +9,7 @@ import numpy as np
 import torch
 
 set_module_root(".")
-from torch_utilities.common import get_np_or_torch, TensorOrArray, to_numpy
-from torch_utilities.io import load_audio, load_audio_parallel_itr
-from torch_utilities.pytorch import get_device
+from torch_utilities.common import get_np_or_torch, TensorOrArray, to_numpy, get_device
 
 
 # export list
@@ -30,7 +28,6 @@ __all__ = [
     "random_trim",
     "trim_silence",
     "interleave",
-    "pack_audio_sequences",
 ]
 
 
@@ -204,20 +201,32 @@ def _stft_istft_core(
         transform = torch.istft
         x = _transpose(x)
 
-    y = transform(
-        x,
-        n_fft=n_fft,
-        hop_length=hopsize,
-        window=_window,
-        return_complex=is_stft,
-        center=True,
-    )
+    try:
+        y = transform(
+            x,
+            n_fft=n_fft,
+            hop_length=hopsize,
+            window=_window,
+            return_complex=is_stft,
+            center=True,
+        )
+    except RuntimeError as e:
+        # TODO: pytorch bug
+        # for some reason, few configurations do not pass the NOLA check even if
+        # they should pass it. This seems to be a bug related to PyTorch
+        err_msg = "The configuration you provided does not satisfies PyTorch NOLA check"
+        raise RuntimeError(str(e) + "\n" + err_msg)
 
     if is_stft:
         # reshaping
         y = _transpose(y)
         # compensating for center==True
         y = y[:, 1:]
+    else:
+        # compensating for ola ratio
+        # it's still not clear where this shift comes from
+        ola_shift = (win_len // hopsize - 2) * (hopsize // 2)
+        y = y[:, ola_shift:]
 
     if in_type == np.ndarray:
         # converting to numpy
@@ -687,85 +696,3 @@ def interleave(*xs: List[TensorOrArray]) -> Tensor:
         y[..., i::stride] = x
 
     return y
-
-
-def pack_audio_sequences(
-    xs: List[Path],
-    length: float,
-    sample_rate: int,
-    channels: int = 1,
-    tensor: bool = False,
-    delete_last: bool = True,
-    num_workers: int = 1,
-) -> Iterator[TensorOrArray]:
-    """
-    Reads from a list of audio filepaths and generate temporal sequences
-    of a certain length.
-
-    Parameters
-    ----------
-    xs : List[Path]
-        List of audio filepaths
-    length : float
-        Length of the sequences is seconds
-    sample_rate : int
-        Resample at this sample frequency
-    channels : int, optional
-        Number of channels of the sequences, by default 1
-    tensor : bool, optional
-        If False returns a numpy ndarray else a torch Tensor, by default False
-    delete_last : bool, optional
-        If True the last sequence is discarded (since it's typically not complete),
-        by default True
-    num_workers : int, optional
-        Number of parallel processes
-
-    Yields
-    ------
-    Iterator[TensorOrArray]
-        Audio sequence of shape
-        (length, C, T)
-    """
-    # length in samples
-    length = int(length * sample_rate)
-
-    # the container of the sequences to be generated
-    _zeros = torch.zeros if tensor else np.zeros
-    _reset_seq = lambda: _zeros((channels, length))
-
-    # point to the last index consumed
-    sample_ptr = 0
-    seq_ptr = 0
-
-    # utilities
-    _seq_left = lambda: length - seq_ptr
-    _sample_left = lambda x: x.shape[1] - sample_ptr
-    _copy = lambda x: x.clone() if isinstance(x, Tensor) else x.copy()
-
-    # enables multiprocessing ~ ~ ~ ~ ~
-    if num_workers > 1:
-        xs = load_audio_parallel_itr(xs, sample_rate, tensor, num_workers=num_workers)
-    else:
-        xs = (load_audio(x, sample_rate, tensor)[0] for x in xs)
-    # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-
-    seq = _reset_seq()
-    for x in xs:
-        while _sample_left(x) > 0:
-            # copying into the sequence
-            delta = min(_seq_left(), _sample_left(x))
-            seq[:, seq_ptr : seq_ptr + delta] = x[:channels, sample_ptr : sample_ptr + delta]
-            seq_ptr += delta
-            sample_ptr += delta
-
-            if _seq_left() == 0:
-                # sequence complete
-                yield _copy(seq)
-                seq = _reset_seq()
-                seq_ptr = 0
-
-        # sample consumed
-        sample_ptr = 0
-
-    if not delete_last:
-        yield _copy(seq)
