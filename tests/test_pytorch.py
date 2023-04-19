@@ -72,6 +72,13 @@ class TestPyTorch(unittest.TestCase):
         self.assertEqual(checkpoints[0][0], "b")
         self.assertEqual(checkpoints[1][0], "a")
 
+    @torch.set_grad_enabled(True)
+    def test_freeze_model(self):
+        module = nn.Conv2d(2, 2, 1)
+        self.assertTrue(all(p.requires_grad for p in module.parameters()))
+        tu.freeze_model(module)
+        self.assertFalse(all(p.requires_grad for p in module.parameters()))
+
 
 class TestCosineScheduler(unittest.TestCase):
     @classmethod

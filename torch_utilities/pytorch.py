@@ -224,7 +224,6 @@ def get_model_parameters(model: nn.Module) -> int:
     return sum(p.numel() for p in model.parameters())
 
 
-# TODO: tests
 def freeze_model(model: nn.Module) -> None:
     """
     Freezed the weights of a target module.
