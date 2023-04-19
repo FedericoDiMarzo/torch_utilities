@@ -155,6 +155,20 @@ class TestTensorArrayOperations(unittest.TestCase):
                 y = tu.pack_complex(x)
                 self.assertEqual(y.shape[1], x.shape[1] // 2)
 
+    def test_phase(self):
+        mod = (np, torch)
+        for m in mod:
+            with self.subTest(m=m):
+                phase = np.array([0, 1, 0.2])
+                phase = np.exp(1j * phase)
+                if m == torch:
+                    phase = torch.from_numpy(phase)
+                x = m.ones_like(phase)
+                x = x * phase
+                phase_hat = tu.phase(x)
+                err_max = m.max(m.abs(phase - phase_hat))
+                self.assertLess(err_max, 1e-12)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

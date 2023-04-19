@@ -28,6 +28,7 @@ __all__ = [
     "to_numpy",
     "split_complex",
     "pack_complex",
+    "phase",
 ]
 
 # = = = = types
@@ -359,3 +360,23 @@ def pack_complex(x: TensorOrArray) -> TensorOrArray:
     c = x.shape[1]
     x = x[:, : c // 2] + 1j * x[:, c // 2 :]
     return x
+
+
+def phase(x: TensorOrArray) -> TensorOrArray:
+    """
+    Computes the phase of a complex signal x
+    as in: phase(x) = exp{j*angle(x)}
+
+    Parameters
+    ----------
+    x : TensorOrArray
+        Input complex signal
+
+    Returns
+    -------
+    TensorOrArray
+        Elementwise phase
+    """
+    module = get_np_or_torch(x)
+    y = module.exp(1j * module.angle(x))
+    return y
