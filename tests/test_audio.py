@@ -11,9 +11,6 @@ set_module_root(".")
 import torch_utilities as tu
 from tests.generate_test_data import get_test_data_dir
 
-# TODO: debug
-import matplotlib.pyplot as plt
-
 
 def _setup() -> None:
     torch.manual_seed(984)
@@ -101,11 +98,6 @@ class TestSTFT(unittest.TestCase):
                 with suppress(Exception):
                     err = err.item()
                 self.assertAlmostEqual(err, 0, places=5)
-                # # TODO: debug
-                # plt.plot(x)
-                # plt.plot(x_hat)
-                # plt.show()
-                pass
 
 
 class TestMelFilterbank(unittest.TestCase):
