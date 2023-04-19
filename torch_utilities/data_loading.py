@@ -238,7 +238,6 @@ class HDF5OnlineDataset(Dataset):
         super(HDF5OnlineDataset).__init__()
         self.datasets_paths = dataset_paths
         self.data_layouts = data_layouts
-        self.data_layouts = data_layouts
         self.batch_size = batch_size
         self.total_items = total_items
         self.overfit_mode = overfit_mode
