@@ -934,22 +934,25 @@ class TestCausalSubConv2d(unittest.TestCase):
         self.in_channels = (2,)
         self.out_channels = (3,)
         self.kernel_size = (4, (5, 3))
-        self.stride_f = (1, 2, 4)
+        self.stride = (1, 2, 4)
         self.dilation = (1, (2, 3))
         self.bias = (False,)
         self.separable = (False, True)
         self.enable_weight_norm = (False, True)
+        self.upsampling_dim = ("time",)
+        # self.upsampling_dim = ("freq", "time")
         self.in_freqs = (16,)
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
         self.params = product(
             self.in_channels,
             self.out_channels,
             self.kernel_size,
-            self.stride_f,
+            self.stride,
             self.dilation,
             self.bias,
             self.separable,
             self.enable_weight_norm,
+            self.upsampling_dim,
             self.in_freqs,
         )
 
@@ -958,21 +961,23 @@ class TestCausalSubConv2d(unittest.TestCase):
             in_channels,
             out_channels,
             kernel_size,
-            stride_f,
+            stride,
             dilation,
             bias,
             separable,
             enable_weight_norm,
+            upsampling_dim,
             in_freqs,
         ) = p
         instance = tu.CausalSubConv2d(
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
-            stride_f=stride_f,
+            stride=stride,
             dilation=dilation,
             bias=bias,
             separable=separable,
+            upsampling_dim=upsampling_dim,
             enable_weight_norm=enable_weight_norm,
         )
         return instance
@@ -982,11 +987,12 @@ class TestCausalSubConv2d(unittest.TestCase):
             in_channels,
             out_channels,
             kernel_size,
-            stride_f,
+            stride,
             dilation,
             bias,
             separable,
             enable_weight_norm,
+            upsampling_dim,
             in_freqs,
         ) = p
         x = _get_input(in_channels, in_freqs, None)
@@ -998,16 +1004,17 @@ class TestCausalSubConv2d(unittest.TestCase):
                 in_channels,
                 out_channels,
                 kernel_size,
-                stride_f,
+                stride,
                 dilation,
                 bias,
                 separable,
                 enable_weight_norm,
+                upsampling_dim,
                 in_freqs,
             ) = p
             with self.subTest(p=p):
                 csc = self.get_instance(p)
-                self.assertEqual(len(csc.layers), stride_f)
+                self.assertEqual(len(csc.layers), stride)
                 for layer in csc.layers:
                     self.assertEqual(layer.in_channels, in_channels)
                     self.assertEqual(layer.out_channels, out_channels)
@@ -1024,11 +1031,12 @@ class TestCausalSubConv2d(unittest.TestCase):
                 in_channels,
                 out_channels,
                 kernel_size,
-                stride_f,
+                stride,
                 dilation,
                 bias,
                 separable,
                 enable_weight_norm,
+                upsampling_dim,
                 in_freqs,
             ) = p
             with self.subTest(p=p):
@@ -1036,7 +1044,12 @@ class TestCausalSubConv2d(unittest.TestCase):
                 x = self.get_input(p)
                 y = csc(x)
                 B, C, T, F = x.shape
-                self.assertEqual(y.shape, (B, out_channels, T, in_freqs * stride_f))
+                expected_shape = (
+                    (B, out_channels, T, in_freqs * stride)
+                    if upsampling_dim == "freq"
+                    else (B, out_channels, T * stride, in_freqs)
+                )
+                self.assertEqual(y.shape, expected_shape)
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =

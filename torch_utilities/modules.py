@@ -696,11 +696,12 @@ class CausalSubConv2d(Module):
         in_channels: int,
         out_channels: int,
         kernel_size: OneOrPair[int],
-        stride_f: int = 1,
+        stride: int = 1,
         dilation: OneOrPair[int] = 1,
         bias: bool = True,
         separable: bool = False,
         enable_weight_norm: bool = False,
+        upsampling_dim: str = "freq",
         dtype=None,
     ) -> None:
         """
@@ -708,30 +709,37 @@ class CausalSubConv2d(Module):
         Dense CNN With Self-Attention for Time-Domain Speech Enhancement
         paper (https://ieeexplore.ieee.org/document/9372863).
 
-        Many convolutions are interleaved to upsample a signal over frequency.
+        Many convolutions are interleaved to upsample a signal over frequency or time.
 
         Parameters
         ----------
         Same parameters as Conv2d plus
 
-        stride_f : int
+        stride : int
             Defines how many interleaved convolutions are present
         separable : bool, optional
             Enable separable convolution (depthwise + pointwise), by default False
         enable_weight_norm : bool, optional
             Enables weight normalization, by default False
+        upsampling_dim : str, optional
+            One between ["freq", "time"]
         """
         super().__init__()
+
+        # error handling
+        err_msg = 'upsampling_dim should be one between ["freq", "time"]'
+        assert upsampling_dim in ["freq", "time"], err_msg
 
         # attributes
         self.in_channels = in_channels
         self.out_channels = out_channels
         self.kernel_size = kernel_size
-        self.stride_f = stride_f
+        self.stride = stride
         self.dilation = dilation
         self.bias = bias
         self.separable = separable
         self.enable_weight_norm = enable_weight_norm
+        self.upsampling_dim = upsampling_dim
         self.dtype = dtype
 
         # inner modules
@@ -747,7 +755,8 @@ class CausalSubConv2d(Module):
             enable_weight_norm=enable_weight_norm,
             dtype=dtype,
         )
-        self.layers = nn.Sequential(*[_conv() for _ in range(self.stride_f)])
+        self.layers = nn.Sequential(*[_conv() for _ in range(self.stride)])
+        self.transpose = lambda x: x.transpose(2, 3)
 
     def forward(self, x: Tensor) -> Tensor:
         """
@@ -759,10 +768,16 @@ class CausalSubConv2d(Module):
         Returns
         -------
         Tensor
-            Output of shape (B, C, T, F * stride_f)
+            Output of shape (B, C, T, F * stride) -> if upsampling_dim == "freq"
+            Output of shape (B, C, T * stride, F) -> if upsampling_dim == "time"
         """
         xs = [conv(x) for conv in self.layers]
-        x = interleave(*xs)
+        if self.upsampling_dim == "time":
+            xs = [self.transpose(x) for x in xs]
+            x = interleave(*xs)
+            x = self.transpose(x)
+        else:
+            x = interleave(*xs)
         return x
 
 
