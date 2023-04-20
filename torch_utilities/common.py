@@ -29,9 +29,11 @@ __all__ = [
     "split_complex",
     "pack_complex",
     "phase",
+    # math utilities
+    "factorize",
 ]
 
-# = = = = types
+#  types
 
 """ 
 Generic variable
@@ -49,7 +51,7 @@ Can be a torch Tensor or numpy ndarray.
 TensorOrArray = Union[Tensor, ndarray]
 
 
-# = = = = handling pytorch devices
+#  handling pytorch devices
 def get_device() -> str:
     """
     Gets the first CUDA device available or CPU
@@ -110,7 +112,7 @@ def auto_device(dtype: str = "Float") -> Callable:
 
 auto_device = partial(auto_device)
 
-# = = = = generic utilities
+# generic utilities
 
 
 class DotDict(dict):
@@ -380,3 +382,52 @@ def phase(x: TensorOrArray) -> TensorOrArray:
     module = get_np_or_torch(x)
     y = module.exp(1j * module.angle(x))
     return y
+
+
+# math utilities
+
+
+def factorize(n:int)->List[int]:
+    """
+    Factorize an integer number.
+    Implementation based on Pollard's rho algorithm.
+
+    Parameters
+    ----------
+    n : int
+        Number to factorize
+
+    Returns
+    -------
+    List[int]
+        List of factors in increasing order
+    """
+    factors = []
+
+    def get_factor(n):
+        x_fixed = 2
+        cycle_size = 2
+        x = 2
+        factor = 1
+
+        while factor == 1:
+            for count in range(cycle_size):
+                if factor > 1:
+                    break
+                x = (x * x + 1) % n
+                factor = np.gcd(x - x_fixed, n)
+
+            cycle_size *= 2
+            x_fixed = x
+
+        return factor
+
+    while n > 1:
+        next = get_factor(n)
+        factors.append(next)
+        n //= next
+
+    return factors
+
+
+pass
