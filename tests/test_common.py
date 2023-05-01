@@ -1,7 +1,7 @@
-from typing import Tuple
 from pathimport import set_module_root
+from functools import reduce
+from operator import mul
 from ray import tune
-from torch import nn
 import numpy as np
 import itertools
 import unittest
@@ -168,6 +168,13 @@ class TestTensorArrayOperations(unittest.TestCase):
                 phase_hat = tu.phase(x)
                 err_max = m.max(m.abs(phase - phase_hat))
                 self.assertLess(err_max, 1e-12)
+
+    def test_factorize(self):
+        expected = [(3, 7, 11), (3, 17)]
+        for exp in expected:
+            x = reduce(mul, exp)
+            y = tu.factorize(x)
+            self.assertEqual(y, exp)
 
 
 if __name__ == "__main__":

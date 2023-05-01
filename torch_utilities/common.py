@@ -386,7 +386,6 @@ def phase(x: TensorOrArray) -> TensorOrArray:
 
 # math utilities
 
-
 def factorize(n:int)->List[int]:
     """
     Factorize an integer number.
@@ -427,6 +426,7 @@ def factorize(n:int)->List[int]:
         factors.append(next)
         n //= next
 
+    factors = sorted(factors)
     return factors
 
 
