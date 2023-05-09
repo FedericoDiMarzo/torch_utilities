@@ -393,8 +393,10 @@ def plot_dataset_statistics(
     iterations: int,
     n_hist_bins: int = 100,
     labels: Optional[List[str]] = None,
+    save_path:Optional[Path] = None,
     figsize: Tuple[int, int] = (8, 6),
     verbose: bool = False,
+
 ) -> List[Tuple[np.ndarray, np.ndarray, float, float, float, float]]:
     """
     Plots the statistics for the data obtained
@@ -410,11 +412,14 @@ def plot_dataset_statistics(
         Number of histogram bins
     labels : Optional[List[str]]
         Names of the dataset outputs
+    save_path : Optional[Path]
+        If specified saves the plots in the specified folder
     figsize : Tuple[int, int], optional
         Size of the plot, by default (8, 6)
     verbose : bool, optional
         If True shows a progress bar for the iterations,
         by default False
+    
 
     Returns
     -------
@@ -432,9 +437,13 @@ def plot_dataset_statistics(
         verbose,
     )
 
-    if labels == None:
-        # default labels
+    # default labels
+    if labels is None:
         labels = [f"feature_{i}" for i in range(len(all_stats))]
+
+    # optional save path
+    if save_path is not None:
+        save_path = Path(save_path)
 
     for stats, name in zip(all_stats, labels):
         hist_vals, hist_bins, min, max, mean, var = stats
@@ -446,7 +455,10 @@ def plot_dataset_statistics(
         plt.ylim([0, hist_vals.max()])
         plt.legend()
         plt.grid()
-        plt.show()
+        if save_path is not None:
+            plt.savefig(save_path / f"{name}.png")
+        else:
+            plt.show()
         plt.close()
 
     return all_stats
