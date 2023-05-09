@@ -53,7 +53,7 @@ def get_time_value(param):
     scalar
         Temporal parameter
     """
-    if isinstance(param, tuple):
+    if type(param) in (tuple, list):
         return param[0]
     else:
         return param
@@ -74,7 +74,7 @@ def get_freq_value(param):
     scalar
         Temporal parameter
     """
-    if isinstance(param, tuple):
+    if type(param) in (tuple, list):
         return param[1]
     else:
         return param
@@ -634,7 +634,7 @@ class CausalConv2d(Module):
             depthwise = self._normalize(
                 nn.Conv2d(
                     in_channels=self.in_channels,
-                    out_channels=self.out_channels,
+                    out_channels=self.in_channels,
                     kernel_size=self.kernel_size,
                     stride=(1, stride_f),
                     dilation=self.dilation,
@@ -646,7 +646,7 @@ class CausalConv2d(Module):
             )
             pointwise = self._normalize(
                 nn.Conv2d(
-                    in_channels=self.out_channels,
+                    in_channels=self.in_channels,
                     out_channels=self.out_channels,
                     kernel_size=1,
                     bias=False,
