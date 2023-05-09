@@ -386,10 +386,12 @@ def phase(x: TensorOrArray) -> TensorOrArray:
 
 # math utilities
 
-def factorize(n:int)->List[int]:
+
+def factorize(n: int) -> List[int]:
     """
     Factorize an integer number.
-    Implementation based on Pollard's rho algorithm.
+    Implementation based on
+    https://stackoverflow.com/questions/16007204/factorizing-a-number-in-python
 
     Parameters
     ----------
@@ -401,33 +403,21 @@ def factorize(n:int)->List[int]:
     List[int]
         List of factors in increasing order
     """
-    factors = []
 
     def get_factor(n):
-        x_fixed = 2
-        cycle_size = 2
-        x = 2
-        factor = 1
-
-        while factor == 1:
-            for count in range(cycle_size):
-                if factor > 1:
+        j = 2
+        while n > 1:
+            for i in range(j, int(np.sqrt(n + 0.05)) + 1):
+                if n % i == 0:
+                    n //= i
+                    j = i
+                    yield i
                     break
-                x = (x * x + 1) % n
-                factor = np.gcd(x - x_fixed, n)
+            else:
+                if n > 1:
+                    yield int(n)
+                    break
 
-            cycle_size *= 2
-            x_fixed = x
-
-        return factor
-
-    while n > 1:
-        next = get_factor(n)
-        factors.append(next)
-        n //= next
-
+    factors = list(get_factor(n))
     factors = sorted(factors)
     return factors
-
-
-pass
