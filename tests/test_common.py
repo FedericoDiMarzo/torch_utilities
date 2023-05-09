@@ -170,11 +170,12 @@ class TestTensorArrayOperations(unittest.TestCase):
                 self.assertLess(err_max, 1e-12)
 
     def test_factorize(self):
-        expected = [(3, 7, 11), (3, 17)]
+        expected = [[3, 7, 11], [3, 17], [2, 2, 2, 7]]
         for exp in expected:
-            x = reduce(mul, exp)
-            y = tu.factorize(x)
-            self.assertEqual(y, exp)
+            with self.subTest(exp=exp):
+                x = reduce(mul, exp)
+                y = tu.factorize(x)
+                self.assertEqual(y, exp)
 
 
 if __name__ == "__main__":
