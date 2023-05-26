@@ -686,7 +686,7 @@ class CausalConv2d(Module):
         elif pad_f % 2 == 0:
             pad = nn.ConstantPad2d((half_pad_f, half_pad_f, 0, 0), 0)
         else:
-            pad = nn.ConstantPad2d((half_pad_f, half_pad_f + 1, 0, 0), 0)
+            pad = nn.ConstantPad2d((half_pad_f + 1, half_pad_f, 0, 0), 0)
         return pad
 
 
