@@ -14,7 +14,6 @@ from torch_utilities.common import to_numpy, split_complex
 
 # export list
 __all__ = [
-    "WeakShufflingSampler",
     "HDF5Dataset",
     "get_hdf5_dataloader",
     "HDF5OnlineDataset",
