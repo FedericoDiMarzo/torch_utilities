@@ -1,7 +1,6 @@
-from typing import Iterator, List, Tuple, Union
+from typing import Iterator, List, Tuple
 from resampy import resample as resample_np
 from torchaudio.functional import resample
-from pathimport import set_module_root
 from multiprocess import Pool
 from itertools import islice
 from pathlib import Path
@@ -11,7 +10,7 @@ import numpy as np
 import torchaudio
 import torch
 
-set_module_root(".")
+
 from torch_utilities.common import TensorOrArray, get_device
 
 # export list
@@ -130,7 +129,10 @@ def load_audio_parallel(
         _load = lambda x: load_audio(x, sample_rate, False)[0]
         xs = pool.map(_load, file_paths)
     if tensor:
-        xs = [Tensor(x).to(device=get_device() if device == "auto" else device) for x in xs]
+        xs = [
+            Tensor(x).to(device=get_device() if device == "auto" else device)
+            for x in xs
+        ]
     return xs
 
 
@@ -167,7 +169,9 @@ def load_audio_parallel_itr(
     file_paths = (x for x in file_paths)
     for i in range(0, n_files, num_workers):
         files_batch = islice(file_paths, num_workers)
-        cache = load_audio_parallel(files_batch, sample_rate, tensor, device, num_workers)
+        cache = load_audio_parallel(
+            files_batch, sample_rate, tensor, device, num_workers
+        )
         for x in cache:
             yield x
 
@@ -237,7 +241,9 @@ def pack_audio_sequences(
         while _sample_left(x) > 0:
             # copying into the sequence
             delta = min(_seq_left(), _sample_left(x))
-            seq[:, seq_ptr : seq_ptr + delta] = x[:channels, sample_ptr : sample_ptr + delta]
+            seq[:, seq_ptr : seq_ptr + delta] = x[
+                :channels, sample_ptr : sample_ptr + delta
+            ]
             seq_ptr += delta
             sample_ptr += delta
 

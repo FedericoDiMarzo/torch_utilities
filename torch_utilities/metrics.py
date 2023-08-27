@@ -1,4 +1,3 @@
-from pathimport import set_module_root
 import onnxruntime as ort
 from typing import Tuple
 from pathlib import Path
@@ -6,7 +5,6 @@ from torch import Tensor
 import numpy as np
 
 
-set_module_root(".")
 from torch_utilities.common import to_numpy, TensorOrArray
 from torch_utilities.audio import MelFilterbank, stft
 
@@ -61,7 +59,9 @@ class DNSMOS:
         session = ort.InferenceSession(str(self.model_path))
         return session
 
-    def get_polyfit_val(self, ovr: float, sig: float, bak: float) -> Tuple[float, float, float]:
+    def get_polyfit_val(
+        self, ovr: float, sig: float, bak: float
+    ) -> Tuple[float, float, float]:
         """
         Polynomial nonlinearity as in the original repo
 

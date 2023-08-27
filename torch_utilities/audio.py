@@ -1,14 +1,12 @@
-from pathlib import Path
 from torchaudio.functional import melscale_fbanks
-from pathimport import set_module_root
-from typing import Iterator, Optional, List
+from typing import Optional, List
 import torch.nn.functional as F
 from random import randrange
 from torch import Tensor
 import numpy as np
 import torch
 
-set_module_root(".")
+
 from torch_utilities.common import get_np_or_torch, TensorOrArray, to_numpy, get_device
 
 
@@ -177,7 +175,9 @@ def _stft_istft_core(
         window += "_window"
         win_fun = getattr(torch, window)
     except AttributeError:
-        allowed_win = [w + "_window" for w in ["hann", "hamming", "bartlett", "blackman", "kaiser"]]
+        allowed_win = [
+            w + "_window" for w in ["hann", "hamming", "bartlett", "blackman", "kaiser"]
+        ]
         err_msg = "choose a window between:\n" + ", ".join(allowed_win)
         raise AttributeError(err_msg)
 
@@ -551,7 +551,9 @@ def _win_to_sides(
     return x
 
 
-def fade_sides(x: TensorOrArray, fade_len: int = 100, direction: str = "both") -> TensorOrArray:
+def fade_sides(
+    x: TensorOrArray, fade_len: int = 100, direction: str = "both"
+) -> TensorOrArray:
     """
     Apply an half of an Hanning window to the
     sides of the input, in order to obtain a fade in/out.

@@ -1,8 +1,7 @@
-from pathimport import set_module_root
 import torch.nn.functional as F
 from torch import Tensor
 
-set_module_root(".")
+
 from torch_utilities.common import split_complex, pack_complex
 from torch_utilities.audio import stft, istft
 

@@ -1,13 +1,12 @@
 from typing import Callable, List, Optional, Tuple
 from torch.nn.utils import weight_norm
-from pathimport import set_module_root
 import torch.nn.functional as F
 from torch import nn, Tensor
 from torch.nn import Module
 import numpy as np
 import torch
 
-set_module_root(".")
+
 from torch_utilities.audio import interleave
 from torch_utilities.common import OneOrPair
 
@@ -195,7 +194,9 @@ class Lookahead(Module):
 
         # inner modules
         if self.maintain_shape:
-            self.lookahead_pad = nn.ConstantPad2d((0, 0, -self.lookahead, self.lookahead), 0)
+            self.lookahead_pad = nn.ConstantPad2d(
+                (0, 0, -self.lookahead, self.lookahead), 0
+            )
         else:
             self.lookahead_pad = nn.ConstantPad2d((0, 0, -self.lookahead, 0), 0)
 
@@ -296,19 +297,27 @@ class UnfoldSpectrogram(Module):
         # inner modules ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
         # (B, C, T, F) -> (B*C, 1, T, F)
-        self._reshape_0 = lambda x: x.view(x.shape[0] * x.shape[1], *x.shape[2:])[:, None, :, :]
+        self._reshape_0 = lambda x: x.view(x.shape[0] * x.shape[1], *x.shape[2:])[
+            :, None, :, :
+        ]
 
         # (B*C, 1, T, F) -> (B*C, F*block_size, num_blocks)
-        self._unfold = lambda x: F.unfold(x, (self.block_size, x.shape[3]), stride=(self.stride, 1))
+        self._unfold = lambda x: F.unfold(
+            x, (self.block_size, x.shape[3]), stride=(self.stride, 1)
+        )
 
         # (B*C, F*block_size, num_blocks) -> (B*C, 1, F, block_size, num_blocks)
-        self._reshape_1 = lambda x: x.view(x.shape[0], 1, -1, self.block_size, x.shape[2])
+        self._reshape_1 = lambda x: x.view(
+            x.shape[0], 1, -1, self.block_size, x.shape[2]
+        )
 
         # (B*C, 1, F, block_size, num_blocks) -> (B*C, 1, num_blocks, block_size, F)
         self._reshape_2 = lambda x: x.permute(0, 1, 4, 3, 2)
 
         # (B*C, 1, num_blocks, block_size, F) -> (B, C*num_blocks, block_size, F)
-        self._reshape_3 = lambda x, ch: x.reshape(-1, ch * x.shape[2], self.block_size, x.shape[4])
+        self._reshape_3 = lambda x, ch: x.reshape(
+            -1, ch * x.shape[2], self.block_size, x.shape[4]
+        )
 
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
@@ -393,10 +402,14 @@ class FoldSpectrogram(Module):
         self._reshape_1 = lambda x: x.permute(0, 1, 4, 3, 2)
 
         # (B*C, 1, F, block_size, num_blocks) -> (B*C, F*block_size, num_blocks)
-        self._reshape_2 = lambda x: x.reshape(x.shape[0], x.shape[2] * self.block_size, x.shape[4])
+        self._reshape_2 = lambda x: x.reshape(
+            x.shape[0], x.shape[2] * self.block_size, x.shape[4]
+        )
 
         # (B*C, F*block_size, num_blocks) -> (B*C, 1, T, F)
-        self._fold = lambda x, o: F.fold(x, o, (self.block_size, o[1]), stride=(self.stride, 1))
+        self._fold = lambda x, o: F.fold(
+            x, o, (self.block_size, o[1]), stride=(self.stride, 1)
+        )
 
         # (B*C, 1, T, F) -> (B, C, T, F)
         self._reshape_3 = lambda x: x.view(-1, self.channels, *x.shape[2:])
@@ -425,7 +438,9 @@ class FoldSpectrogram(Module):
         x /= divisor
         return x
 
-    def _get_normalization_tensor(self, x: Tensor, out_sizes: Tuple[int, int]) -> Tensor:
+    def _get_normalization_tensor(
+        self, x: Tensor, out_sizes: Tuple[int, int]
+    ) -> Tensor:
         """
         Obtain the normalization tensor for perfect fold/unfold inversion.
         https://pytorch.org/docs/stable/generated/torch.nn.Unfold.html?highlight=unfold#torch.nn.Unfold
@@ -504,8 +519,12 @@ class GroupedLinear(Module):
         self.groups = groups
 
         # error handling
-        assert input_dim % groups == 0, f"Input size {input_dim} not divisible by {groups}"
-        assert output_dim % groups == 0, f"Hidden size {output_dim} not divisible by {groups}"
+        assert (
+            input_dim % groups == 0
+        ), f"Input size {input_dim} not divisible by {groups}"
+        assert (
+            output_dim % groups == 0
+        ), f"Hidden size {output_dim} not divisible by {groups}"
 
         # weights
         self.register_parameter(
@@ -665,7 +684,9 @@ class CausalConv2d(Module):
         """
         Calculates the causal padding.
         """
-        kernel_size_t, dilation_t = map(get_time_value, (self.kernel_size, self.dilation))
+        kernel_size_t, dilation_t = map(
+            get_time_value, (self.kernel_size, self.dilation)
+        )
         causal_pad = get_causal_conv_padding(kernel_size_t, dilation_t)
         return causal_pad
 
@@ -678,7 +699,9 @@ class CausalConv2d(Module):
         Module
             Frequency padding module
         """
-        kernel_size_f, dilation_f = map(get_freq_value, (self.kernel_size, self.dilation))
+        kernel_size_f, dilation_f = map(
+            get_freq_value, (self.kernel_size, self.dilation)
+        )
         pad_f = dilation_f * (kernel_size_f - 1) + 1 - self.stride_f
         half_pad_f = pad_f // 2
         if self.padding_f is not None:
@@ -1192,7 +1215,11 @@ class DenseConvBlock(Module):
         # inner modules
         _sample_norm = lambda i: (
             nn.Identity()
-            if (self.disable_layernorm or self.enable_weight_norm or i == (self.depth - 1))
+            if (
+                self.disable_layernorm
+                or self.enable_weight_norm
+                or i == (self.depth - 1)
+            )
             else nn.LayerNorm(
                 normalized_shape=self.feature_size,
                 eps=self.batchnorm_eps,
@@ -1219,7 +1246,9 @@ class DenseConvBlock(Module):
         )
 
         kernels = [self.kernel_size] * self.depth
-        layers = [_block(i, k, d) for i, (k, d) in enumerate(zip(kernels, self.dilation))]
+        layers = [
+            _block(i, k, d) for i, (k, d) in enumerate(zip(kernels, self.dilation))
+        ]
 
         self.layers = nn.Sequential(*layers)
 
