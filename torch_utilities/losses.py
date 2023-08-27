@@ -33,7 +33,9 @@ def ccmse_loss(c: float = 0.3) -> Tensor:
         """
         y_hat, y_true = [pack_complex(y) for y in (y_hat, y_true)]
 
-        _f = lambda x, y, z, w: (((x.abs() ** c) * z - (y.abs() ** c) * w).abs() ** 2).mean()
+        _f = lambda x, y, z, w: (
+            ((x.abs() ** c) * z - (y.abs() ** c) * w).abs() ** 2
+        ).mean()
         l1 = _f(y_hat, y_true, 1, 1)
         l2 = _f(y_hat, y_true, phase(y_hat), phase(y_true))
         loss = l1 + l2

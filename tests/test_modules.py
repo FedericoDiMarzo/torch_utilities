@@ -112,7 +112,9 @@ class TestUnfoldFoldSpectrogram(unittest.TestCase):
         if unfold:
             x = torch.randn((1, self.in_channels, self.in_frames, self.in_freqs))
         else:
-            x = torch.randn((1, self.in_channels * self.in_num_blocks, block_size, self.in_freqs))
+            x = torch.randn(
+                (1, self.in_channels * self.in_num_blocks, block_size, self.in_freqs)
+            )
         return x
 
     def test_unfold(self):
@@ -281,7 +283,9 @@ class TestCausalConv2d(unittest.TestCase):
             with self.subTest(p=p):
                 conv = self.get_instance(p)
                 self.assertEqual(type(conv.layers), nn.Sequential)
-                padding_layer = nn.Identity if padding_f is not None else nn.ConstantPad2d
+                padding_layer = (
+                    nn.Identity if padding_f is not None else nn.ConstantPad2d
+                )
                 if separable:
                     self.assertEqual(type(conv.layers[0]), nn.ConstantPad2d)
                     self.assertEqual(type(conv.layers[1]), padding_layer)
@@ -337,7 +341,9 @@ class TestCausalConv2d(unittest.TestCase):
                     out_freqs = in_freqs // stride_f
                 else:
                     # manual padding
-                    out_freqs = in_freqs + 2 * padding_f - dilation_f * (kernel_f - 1) - 1
+                    out_freqs = (
+                        in_freqs + 2 * padding_f - dilation_f * (kernel_f - 1) - 1
+                    )
                     out_freqs = int(out_freqs / stride_f + 1)
 
                 expected_shape = (batch_size, out_channels, frames, out_freqs)
@@ -465,7 +471,9 @@ class TestCausalConv2dNormAct(unittest.TestCase):
                 if activation is None:
                     self.assertEqual(type(conv.activation), nn.Identity)
                 batchnorm = conv.batchnorm
-                expected_batchnorm = nn.Identity if disable_batchnorm else nn.BatchNorm2d
+                expected_batchnorm = (
+                    nn.Identity if disable_batchnorm else nn.BatchNorm2d
+                )
                 self.assertEqual(type(batchnorm), expected_batchnorm)
 
     def test_forward(self):
@@ -682,7 +690,8 @@ class TestCausalSmoothedTConv(unittest.TestCase):
                         self.assertEqual(c.enable_weight_norm, enable_weight_norm)
                         self.assertTrue(
                             c.kernel_size == post_conv_kernel_size
-                            or c.kernel_size == (post_conv_kernel_size, post_conv_kernel_size)
+                            or c.kernel_size
+                            == (post_conv_kernel_size, post_conv_kernel_size)
                         )
                         if post_conv_dilation is None:
                             k_t = get_time_value(c.kernel_size)
@@ -908,16 +917,24 @@ class TestDenseConvBlock(unittest.TestCase):
                 dcb = self.get_instance(p)
                 layers = dcb.layers
                 for i, seq in enumerate(layers):
-                    expected_layernorm = nn.Identity if disable_layernorm else nn.LayerNorm
-                    expected_layernorm = nn.Identity if i == (depth - 1) else expected_layernorm
-                    expected_activation = nn.Identity if activation is None else type(activation)
+                    expected_layernorm = (
+                        nn.Identity if disable_layernorm else nn.LayerNorm
+                    )
+                    expected_layernorm = (
+                        nn.Identity if i == (depth - 1) else expected_layernorm
+                    )
+                    expected_activation = (
+                        nn.Identity if activation is None else type(activation)
+                    )
                     self.assertEqual(type(seq), nn.Sequential)
                     self.assertEqual(type(seq[0]), CausalConv2dNormAct)
                     self.assertEqual(type(seq[1]), expected_layernorm)
                     self.assertEqual(type(seq[2]), expected_activation)
                     self.assertEqual(seq[0].in_channels, (i + 1) * channels)
                     self.assertEqual(seq[0].out_channels, channels)
-                    self.assertEqual(seq[0].stride_f, 1 if i != (depth - 1) else final_stride)
+                    self.assertEqual(
+                        seq[0].stride_f, 1 if i != (depth - 1) else final_stride
+                    )
                     self.assertTrue(seq[0].disable_batchnorm)
                     self.assertEqual(seq[0].enable_weight_norm, enable_weight_norm)
 
@@ -1166,7 +1183,9 @@ class TestSlidingCausalMultiheadAttention(unittest.TestCase):
 
                 # default attention mask
                 if attn_mask is None and receptive_field is None:
-                    expected = get_causal_longformer_mask(sequence_len, sequence_len // 2)
+                    expected = get_causal_longformer_mask(
+                        sequence_len, sequence_len // 2
+                    )
                     max_err = (expected - att.attn_mask).abs().max()
                     self.assertLess(max_err, 1e-12)
 
