@@ -21,7 +21,8 @@ def _get_model_dir() -> Path:
     Path
         Path to the directory
     """
-    path = Path(__file__).parent.parent / "resources" / "models"
+    # TODO: fix sdist
+    path = Path(__file__).parent / "resources" / "models"
     return path
 
 
