@@ -1,5 +1,4 @@
 from typing import Dict, List
-from pathimport import set_module_root
 from argparse import ArgumentParser
 from loguru import logger
 from pathlib import Path
@@ -9,7 +8,7 @@ import itertools
 import h5py
 import sys
 
-set_module_root("..", prefix=False)
+
 from torch_utilities import (
     load_audio,
     random_trim,
@@ -105,7 +104,9 @@ def pack_samples_in_h5(
     channels = 1 if mono else load_audio(filepaths[0])[0].shape[0]
 
     filepaths = tqdm(filepaths)
-    itr = pack_audio_sequences(filepaths, length, sample_rate, channels, num_workers=num_workers)
+    itr = pack_audio_sequences(
+        filepaths, length, sample_rate, channels, num_workers=num_workers
+    )
     for i in itertools.count():
         xs = [x for x in itertools.islice(itr, group_batch_len)]
         if len(xs) < group_batch_len:
@@ -241,7 +242,9 @@ def parse_args() -> Dict:
     Dict
         Parsed arguments
     """
-    desc = "Converts a list of absolute wav paths passed through stdin to an HDF5 dataset."
+    desc = (
+        "Converts a list of absolute wav paths passed through stdin to an HDF5 dataset."
+    )
     argparser = ArgumentParser(description=desc)
     argparser.add_argument(
         "dataset_name",

@@ -1,4 +1,3 @@
-from pathimport import set_module_root
 from typing import Iterable, Tuple
 from torch import Tensor
 import numpy as np
@@ -6,7 +5,6 @@ import itertools
 import unittest
 import torch
 
-set_module_root("../torch_utils")
 import torch_utilities as tu
 from torch_utilities.features import STFT, ISTFT
 
@@ -56,7 +54,9 @@ class TestStftIstft(unittest.TestCase):
             pack_niquist,
         ) = p
         stft = STFT(sample_rate, hopsize_ms, overlap_ratio, win_oversamp, pack_niquist)
-        istft = ISTFT(sample_rate, hopsize_ms, overlap_ratio, win_oversamp, pack_niquist)
+        istft = ISTFT(
+            sample_rate, hopsize_ms, overlap_ratio, win_oversamp, pack_niquist
+        )
         return stft, istft
 
     def test_inversion(self):

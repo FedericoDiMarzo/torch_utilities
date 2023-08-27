@@ -1,4 +1,3 @@
-from pathimport import set_module_root
 from argparse import ArgumentParser
 from loguru import logger
 from pathlib import Path
@@ -9,7 +8,7 @@ import random
 import torch
 import h5py
 
-set_module_root("..", prefix=False)
+
 from torch_utilities import save_audio
 
 
