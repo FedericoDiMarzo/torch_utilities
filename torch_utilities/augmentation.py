@@ -1,14 +1,10 @@
-from typing import Optional, Tuple, Union
-from pathimport import set_module_root
 import torchaudio.functional as F
-from julius import fft_conv1d
-from random import randrange
 from torch import Tensor
+from typing import Tuple
 import numpy as np
 import torch
 
 
-set_module_root(".")
 from torch_utilities.audio import invert_db, rms
 
 
@@ -64,7 +60,8 @@ _safe_div = lambda n, d, eps: n / (d + eps)
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
-def dc_removal(x:Tensor)->Tensor:
+
+def dc_removal(x: Tensor) -> Tensor:
     """
     DC removal for each batch and channel.
 
@@ -82,7 +79,10 @@ def dc_removal(x:Tensor)->Tensor:
     x -= m[..., None]
     return x
 
-def add_noise(x: Tensor, n: Tensor, snr_range: Tuple[float, float]) -> Tuple[Tensor, Tensor]:
+
+def add_noise(
+    x: Tensor, n: Tensor, snr_range: Tuple[float, float]
+) -> Tuple[Tensor, Tensor]:
     """
     Add noise at various SNRs.
 

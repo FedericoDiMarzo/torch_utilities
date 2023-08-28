@@ -1,4 +1,3 @@
-from pathimport import set_module_root
 from argparse import ArgumentParser
 from typing import Dict, List
 from loguru import logger
@@ -8,7 +7,6 @@ import numpy as np
 import torch
 
 
-set_module_root("..", prefix=False)
 from torch_utilities import HDF5OnlineDataset
 import torch_utilities.augmentation as aug
 import torch_utilities as tu

@@ -1,4 +1,3 @@
-from pathimport import set_module_root
 from itertools import product
 from pathlib import Path
 from torch import Tensor
@@ -7,7 +6,6 @@ import numpy as np
 import unittest
 import torch
 
-set_module_root("../torch_utils")
 from tests.generate_test_data import get_test_data_dir
 import torch_utilities as tu
 
@@ -34,7 +32,7 @@ class TestHDF5DataLoader(unittest.TestCase):
 
     def test_weak_shuffling_len(self):
         batch_size = 16
-        sampler = tu.WeakShufflingSampler(self.dataset, batch_size)
+        sampler = tu.data_loading.WeakShufflingSampler(self.dataset, batch_size)
         self.assertEqual(len(sampler), batch_size)
 
     def test_hdf5dataset_cache(self):

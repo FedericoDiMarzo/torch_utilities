@@ -1,4 +1,3 @@
-from pathimport import set_module_root
 from typing import Iterable, Tuple
 from torch import Tensor, nn
 import numpy as np
@@ -6,8 +5,6 @@ import itertools
 import unittest
 import torch
 
-set_module_root("../torch_utils")
-set_module_root(".")
 import torch_utilities as tu
 from tests.generate_test_data import get_test_data_dir
 
@@ -62,7 +59,10 @@ class TestPyTorch(unittest.TestCase):
         checkpoints = tu.load_checkpoints(checkpoint_file)
         self.assertEqual(len(checkpoints), 10)
         [self.assertEqual(x[0], f"checkpoint_{9-i}") for i, x in enumerate(checkpoints)]
-        [self.assertLess(np.abs(x[1] - 9 + i), 1e-12) for i, x in enumerate(checkpoints)]
+        [
+            self.assertLess(np.abs(x[1] - 9 + i), 1e-12)
+            for i, x in enumerate(checkpoints)
+        ]
 
     def test_sort_checkpoints(self):
         names = ("a", "b")

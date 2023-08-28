@@ -1,5 +1,4 @@
 from typing import Iterator, List, Dict, Tuple
-from pathimport import set_module_root
 from torch import autograd as AG
 import torch.nn.functional as F
 from torch import nn, Tensor
@@ -27,7 +26,6 @@ __all__ = [
 ]
 
 
-set_module_root(".")
 from torch_utilities.common import get_device
 
 
@@ -174,7 +172,9 @@ def get_gradients(model: nn.Module) -> Tensor:
     bias_w_ih = [f(f"bias_ih_l{i}") for i in range(max_gru)]
     bias_w_hh = [f(f"bias_hh_l{i}") for i in range(max_gru)]
     # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-    zipped = zip(w_grad, b_grad, g_grad, v_grad, *gru_w_ih, *gru_w_hh, *bias_w_ih, *bias_w_hh)
+    zipped = zip(
+        w_grad, b_grad, g_grad, v_grad, *gru_w_ih, *gru_w_hh, *bias_w_ih, *bias_w_hh
+    )
     grad = [sum(xs) for xs in zipped]
     grad = torch.FloatTensor(grad)
     return grad
@@ -262,7 +262,9 @@ def quantize(x: Tensor, steps: int, min: float = -1, max: float = 1) -> Tensor:
     return x
 
 
-def one_hot_quantization(x: Tensor, steps: int, min: float = -1, max: float = 1) -> Tensor:
+def one_hot_quantization(
+    x: Tensor, steps: int, min: float = -1, max: float = 1
+) -> Tensor:
     """
     Quantize a real signal and applies a one-hot vector transform.
 
@@ -377,7 +379,9 @@ class CosineScheduler:
             warmup_start = self.start_value / warmup_iters
             warmup_schedule = np.linspace(warmup_start, self.start_value, warmup_iters)
 
-        iters_after_warmup = self.total_epochs * self.iterations_per_epoch - warmup_iters
+        iters_after_warmup = (
+            self.total_epochs * self.iterations_per_epoch - warmup_iters
+        )
         cycle_lengths = [iters_after_warmup]
 
         schedule_cycles = []

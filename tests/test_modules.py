@@ -1,4 +1,3 @@
-from pathimport import set_module_root
 from torch.nn.utils import weight_norm
 from typing import Tuple, Type
 from itertools import product
@@ -8,10 +7,28 @@ import numpy as np
 import unittest
 import torch
 
-set_module_root("../torch_utils")
 import torch_utilities as tu
 from torch_utilities import repeat_test, set_device
-from torch_utilities.modules import get_time_value, get_freq_value, get_causal_longformer_mask
+from torch_utilities.modules import (
+    get_causal_longformer_mask,
+    get_time_value,
+    get_freq_value,
+    LambdaLayer,
+    Lookahead,
+    Reparameterize,
+    ScaleChannels2d,
+    UnfoldSpectrogram,
+    FoldSpectrogram,
+    ResidualWrap,
+    GroupedLinear,
+    CausalConv2d,
+    CausalSubConv2d,
+    CausalConv2dNormAct,
+    CausalSmoothedTConv,
+    DenseConvBlock,
+    GruNormAct,
+    SlidingCausalMultiheadAttention,
+)
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
@@ -32,7 +49,7 @@ def _get_input(in_channels: int, in_freqs: int, dtype: Type) -> Tuple:
 
 _get_f = lambda x: x if isinstance(x, int) else x[1]
 
-sum_merge = tu.LambdaLayer(lambda x, y: x + y)
+sum_merge = LambdaLayer(lambda x, y: x + y)
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
@@ -46,12 +63,12 @@ class TestLookahead(unittest.TestCase):
         self.x = torch.zeros(1, 2, 10, 16)
 
     def test_no_maintain_shape(self):
-        lookahead = tu.Lookahead(4)
+        lookahead = Lookahead(4)
         y = lookahead(self.x)
         self.assertEqual(y.shape, (1, 2, 6, 16))
 
     def test_maintain_shape(self):
-        lookahead = tu.Lookahead(4, maintain_shape=True)
+        lookahead = Lookahead(4, maintain_shape=True)
         y = lookahead(self.x)
         self.assertEqual(y.shape, self.x.shape)
 
@@ -74,15 +91,15 @@ class TestUnfoldFoldSpectrogram(unittest.TestCase):
         self.stride = (1, 2)
         self.params = product(self.block_size, self.stride)
 
-    def get_instance(self, p: Tuple, unfold: bool) -> tu.CausalConv2d:
+    def get_instance(self, p: Tuple, unfold: bool) -> CausalConv2d:
         (block_size, stride) = p
         if unfold:
-            instance = tu.UnfoldSpectrogram(
+            instance = UnfoldSpectrogram(
                 block_size=block_size,
                 stride=stride,
             )
         else:
-            instance = tu.FoldSpectrogram(
+            instance = FoldSpectrogram(
                 block_size=block_size,
                 stride=stride,
                 channels=self.in_channels,
@@ -95,7 +112,9 @@ class TestUnfoldFoldSpectrogram(unittest.TestCase):
         if unfold:
             x = torch.randn((1, self.in_channels, self.in_frames, self.in_freqs))
         else:
-            x = torch.randn((1, self.in_channels * self.in_num_blocks, block_size, self.in_freqs))
+            x = torch.randn(
+                (1, self.in_channels * self.in_num_blocks, block_size, self.in_freqs)
+            )
         return x
 
     def test_unfold(self):
@@ -107,12 +126,17 @@ class TestUnfoldFoldSpectrogram(unittest.TestCase):
                 y = unfold(x)
 
                 n_blocks = (self.in_frames - (block_size - 1) - 1) / stride + 1
-                expected_shape = (1, self.in_channels * n_blocks, block_size, self.in_freqs)
+                expected_shape = (
+                    1,
+                    self.in_channels * n_blocks,
+                    block_size,
+                    self.in_freqs,
+                )
                 self.assertTrue(y.shape, expected_shape)
 
     def test_unfold_assertion(self):
         x = torch.ones(1, 1, 11, 4)
-        unfold = tu.UnfoldSpectrogram(4, 2)
+        unfold = UnfoldSpectrogram(4, 2)
         with self.assertRaises(AssertionError):
             unfold(x)
 
@@ -151,13 +175,13 @@ class TestResidualWrap(unittest.TestCase):
         self.x = torch.ones(1, 2, 10, 16)
 
     def test_single_layer(self):
-        layer = tu.ResidualWrap(nn.Identity())
+        layer = ResidualWrap(nn.Identity())
         y = layer(self.x)
         self.assertEqual(y.shape, self.x.shape)
         self.assertLess((self.x * 2 - y).abs().max(), 1e-6)
 
     def test_multiple_layers(self):
-        layer = tu.ResidualWrap(nn.Identity(), nn.Identity())
+        layer = ResidualWrap(nn.Identity(), nn.Identity())
         y = layer(self.x)
         self.assertEqual(y.shape, self.x.shape)
         self.assertLess((self.x * 2 - y).abs().max(), 1e-6)
@@ -196,7 +220,7 @@ class TestCausalConv2d(unittest.TestCase):
             self.in_freqs,
         )
 
-    def get_instance(self, p: Tuple) -> tu.CausalConv2d:
+    def get_instance(self, p: Tuple) -> CausalConv2d:
         (
             in_channels,
             out_channels,
@@ -210,7 +234,7 @@ class TestCausalConv2d(unittest.TestCase):
             dtype,
             in_freqs,
         ) = p
-        instance = tu.CausalConv2d(
+        instance = CausalConv2d(
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
@@ -259,7 +283,9 @@ class TestCausalConv2d(unittest.TestCase):
             with self.subTest(p=p):
                 conv = self.get_instance(p)
                 self.assertEqual(type(conv.layers), nn.Sequential)
-                padding_layer = nn.Identity if padding_f is not None else nn.ConstantPad2d
+                padding_layer = (
+                    nn.Identity if padding_f is not None else nn.ConstantPad2d
+                )
                 if separable:
                     self.assertEqual(type(conv.layers[0]), nn.ConstantPad2d)
                     self.assertEqual(type(conv.layers[1]), padding_layer)
@@ -315,7 +341,9 @@ class TestCausalConv2d(unittest.TestCase):
                     out_freqs = in_freqs // stride_f
                 else:
                     # manual padding
-                    out_freqs = in_freqs + 2 * padding_f - dilation_f * (kernel_f - 1) - 1
+                    out_freqs = (
+                        in_freqs + 2 * padding_f - dilation_f * (kernel_f - 1) - 1
+                    )
                     out_freqs = int(out_freqs / stride_f + 1)
 
                 expected_shape = (batch_size, out_channels, frames, out_freqs)
@@ -361,7 +389,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             self.in_freqs,
         )
 
-    def get_instance(self, p: Tuple) -> tu.CausalConv2dNormAct:
+    def get_instance(self, p: Tuple) -> CausalConv2dNormAct:
         (
             in_channels,
             out_channels,
@@ -381,7 +409,7 @@ class TestCausalConv2dNormAct(unittest.TestCase):
         if in_freqs % 2 == 1:
             stride_f = 1
 
-        instance = tu.CausalConv2dNormAct(
+        instance = CausalConv2dNormAct(
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
@@ -436,14 +464,16 @@ class TestCausalConv2dNormAct(unittest.TestCase):
             with self.subTest(p=p):
                 conv = self.get_instance(p)
                 causal_conv_2d = conv.conv
-                self.assertEqual(type(causal_conv_2d), tu.CausalConv2d)
+                self.assertEqual(type(causal_conv_2d), CausalConv2d)
                 if enable_weight_norm:
                     disable_batchnorm = True
                     self.assertEqual(causal_conv_2d._normalize, weight_norm)
                 if activation is None:
                     self.assertEqual(type(conv.activation), nn.Identity)
                 batchnorm = conv.batchnorm
-                expected_batchnorm = nn.Identity if disable_batchnorm else nn.BatchNorm2d
+                expected_batchnorm = (
+                    nn.Identity if disable_batchnorm else nn.BatchNorm2d
+                )
                 self.assertEqual(type(batchnorm), expected_batchnorm)
 
     def test_forward(self):
@@ -490,7 +520,7 @@ class TestReparameterize(unittest.TestCase):
         _setup()
 
     def setUp(self):
-        self.reparam = tu.Reparameterize()
+        self.reparam = Reparameterize()
         self.eps = 1e-1
 
     @repeat_test(5)
@@ -517,7 +547,7 @@ class TestScaleChannels2d(unittest.TestCase):
         _setup()
 
     def setUp(self):
-        self.scale = tu.ScaleChannels2d(2)
+        self.scale = ScaleChannels2d(2)
 
     def set_weights(self, weights: list):
         w = self.scale.scale.weight.data
@@ -570,7 +600,7 @@ class TestCausalSmoothedTConv(unittest.TestCase):
             self.in_freqs,
         )
 
-    def get_instance(self, p: Tuple) -> tu.CausalSmoothedTConv:
+    def get_instance(self, p: Tuple) -> CausalSmoothedTConv:
         (
             in_channels,
             out_channels,
@@ -587,7 +617,7 @@ class TestCausalSmoothedTConv(unittest.TestCase):
             in_freqs,
         ) = p
 
-        instance = tu.CausalSmoothedTConv(
+        instance = CausalSmoothedTConv(
             in_channels=in_channels,
             out_channels=out_channels,
             post_conv_kernel_size=post_conv_kernel_size,
@@ -653,14 +683,15 @@ class TestCausalSmoothedTConv(unittest.TestCase):
                 self.assertEqual(type(pconv), nn.Sequential)
                 self.assertEqual(len(pconv), post_conv_count)
                 for i, c in enumerate(pconv):
-                    if isinstance(c, tu.CausalConv2d) and not separable:
+                    if isinstance(c, CausalConv2d) and not separable:
                         self.assertEqual(c.in_channels, out_channels)
                         self.assertEqual(c.out_channels, out_channels)
                         self.assertEqual(c.separable, separable)
                         self.assertEqual(c.enable_weight_norm, enable_weight_norm)
                         self.assertTrue(
                             c.kernel_size == post_conv_kernel_size
-                            or c.kernel_size == (post_conv_kernel_size, post_conv_kernel_size)
+                            or c.kernel_size
+                            == (post_conv_kernel_size, post_conv_kernel_size)
                         )
                         if post_conv_dilation is None:
                             k_t = get_time_value(c.kernel_size)
@@ -723,11 +754,11 @@ class TestGroupedLinear(unittest.TestCase):
         for p in params:
             with self.subTest(p=p):
                 with self.assertRaises(AssertionError):
-                    tu.GroupedLinear(p[0], p[1], groups=8)
+                    GroupedLinear(p[0], p[1], groups=8)
 
     def test_no_groups(self):
         x = torch.rand((1, 10, 32))
-        gl = tu.GroupedLinear(32, 64, 1)
+        gl = GroupedLinear(32, 64, 1)
         lin = nn.Linear(32, 64, bias=False)
         gl.weight.data = torch.ones_like(gl.weight.data)
         lin.weight.data = torch.ones_like(lin.weight.data)
@@ -762,7 +793,7 @@ class TestGruNormAct(unittest.TestCase):
         for p in self.params:
             in_size, h_size, merge, act, batchnorm = p
             with self.subTest(p=p):
-                gru = tu.GruNormAct(
+                gru = GruNormAct(
                     input_size=in_size,
                     hidden_size=h_size,
                     residual_merge=merge,
@@ -780,7 +811,7 @@ class TestGruNormAct(unittest.TestCase):
             in_size, h_size, merge, act, batchnorm = p
             with self.subTest(p=p):
                 x = self.get_input(in_size)
-                gru = tu.GruNormAct(
+                gru = GruNormAct(
                     input_size=in_size,
                     hidden_size=h_size,
                     residual_merge=merge,
@@ -823,7 +854,7 @@ class TestDenseConvBlock(unittest.TestCase):
             self.feature_size,
         )
 
-    def get_instance(self, p: Tuple) -> tu.DenseConvBlock:
+    def get_instance(self, p: Tuple) -> DenseConvBlock:
         (
             channels,
             kernel_size,
@@ -837,7 +868,7 @@ class TestDenseConvBlock(unittest.TestCase):
             feature_size,
         ) = p
         disable_layernorm = disable_layernorm or enable_weight_norm
-        instance = tu.DenseConvBlock(
+        instance = DenseConvBlock(
             channels=channels,
             kernel_size=kernel_size,
             feature_size=feature_size,
@@ -886,16 +917,24 @@ class TestDenseConvBlock(unittest.TestCase):
                 dcb = self.get_instance(p)
                 layers = dcb.layers
                 for i, seq in enumerate(layers):
-                    expected_layernorm = nn.Identity if disable_layernorm else nn.LayerNorm
-                    expected_layernorm = nn.Identity if i == (depth - 1) else expected_layernorm
-                    expected_activation = nn.Identity if activation is None else type(activation)
+                    expected_layernorm = (
+                        nn.Identity if disable_layernorm else nn.LayerNorm
+                    )
+                    expected_layernorm = (
+                        nn.Identity if i == (depth - 1) else expected_layernorm
+                    )
+                    expected_activation = (
+                        nn.Identity if activation is None else type(activation)
+                    )
                     self.assertEqual(type(seq), nn.Sequential)
-                    self.assertEqual(type(seq[0]), tu.CausalConv2dNormAct)
+                    self.assertEqual(type(seq[0]), CausalConv2dNormAct)
                     self.assertEqual(type(seq[1]), expected_layernorm)
                     self.assertEqual(type(seq[2]), expected_activation)
                     self.assertEqual(seq[0].in_channels, (i + 1) * channels)
                     self.assertEqual(seq[0].out_channels, channels)
-                    self.assertEqual(seq[0].stride_f, 1 if i != (depth - 1) else final_stride)
+                    self.assertEqual(
+                        seq[0].stride_f, 1 if i != (depth - 1) else final_stride
+                    )
                     self.assertTrue(seq[0].disable_batchnorm)
                     self.assertEqual(seq[0].enable_weight_norm, enable_weight_norm)
 
@@ -956,7 +995,7 @@ class TestCausalSubConv2d(unittest.TestCase):
             self.in_freqs,
         )
 
-    def get_instance(self, p: Tuple) -> tu.CausalSubConv2d:
+    def get_instance(self, p: Tuple) -> CausalSubConv2d:
         (
             in_channels,
             out_channels,
@@ -969,7 +1008,7 @@ class TestCausalSubConv2d(unittest.TestCase):
             upsampling_dim,
             in_freqs,
         ) = p
-        instance = tu.CausalSubConv2d(
+        instance = CausalSubConv2d(
             in_channels=in_channels,
             out_channels=out_channels,
             kernel_size=kernel_size,
@@ -1083,7 +1122,7 @@ class TestSlidingCausalMultiheadAttention(unittest.TestCase):
             self.attn_mask,
         )
 
-    def get_instance(self, p: Tuple) -> tu.SlidingCausalMultiheadAttention:
+    def get_instance(self, p: Tuple) -> SlidingCausalMultiheadAttention:
         (
             channels,
             sequence_len,
@@ -1095,7 +1134,7 @@ class TestSlidingCausalMultiheadAttention(unittest.TestCase):
             receptive_field,
             attn_mask,
         ) = p
-        instance = tu.SlidingCausalMultiheadAttention(
+        instance = SlidingCausalMultiheadAttention(
             channels=channels,
             sequence_len=sequence_len,
             embed_dim=embed_dim,
@@ -1139,12 +1178,14 @@ class TestSlidingCausalMultiheadAttention(unittest.TestCase):
             with self.subTest(p=p):
                 att = self.get_instance(p)
                 self.assertEqual(type(att.mh_attention), nn.MultiheadAttention)
-                self.assertEqual(type(att.unfold), tu.UnfoldSpectrogram)
-                self.assertEqual(type(att.fold), tu.FoldSpectrogram)
+                self.assertEqual(type(att.unfold), UnfoldSpectrogram)
+                self.assertEqual(type(att.fold), FoldSpectrogram)
 
                 # default attention mask
                 if attn_mask is None and receptive_field is None:
-                    expected = get_causal_longformer_mask(sequence_len, sequence_len // 2)
+                    expected = get_causal_longformer_mask(
+                        sequence_len, sequence_len // 2
+                    )
                     max_err = (expected - att.attn_mask).abs().max()
                     self.assertLess(max_err, 1e-12)
 

@@ -1,14 +1,10 @@
-from pathimport import set_module_root
 from functools import reduce
 from operator import mul
-from ray import tune
 import numpy as np
 import itertools
 import unittest
 import torch
 
-set_module_root("../torch_utils")
-set_module_root(".")
 import torch_utilities as tu
 from tests.generate_test_data import get_test_data_dir
 
@@ -58,28 +54,6 @@ class TestConfig(unittest.TestCase):
         y_true = "default"
         y_test = self.config.get("section1", "param10", default="default", _type=int)
         self.assertEqual(y_true, y_test)
-
-    def test_get_ray_tune_params(self):
-        params = self.config.get_ray_tune_params()
-        sampling_methods = set(params.keys())
-        params_names = ["weight_decay", "loss_weight_0", "depth", "learning_rate", "list_choice"]
-        self.assertEqual(sampling_methods, set(params_names))
-        self.assertEqual(type(params), dict)
-        params = tu.DotDict(params)
-
-        # random variable type
-        self.assertEqual(type(params.weight_decay), tune.search.sample.Float)
-        self.assertEqual(type(params.learning_rate), tune.search.sample.Float)
-        self.assertEqual(type(params.loss_weight_0), tune.search.sample.Float)
-        self.assertEqual(type(params.depth), tune.search.sample.Categorical)
-        self.assertEqual(type(params.list_choice), tune.search.sample.Categorical)
-
-        # type after sampling
-        self.assertEqual(type(params.weight_decay.sample()), float)
-        self.assertEqual(type(params.learning_rate.sample()), float)
-        self.assertEqual(type(params.loss_weight_0.sample()), float)
-        self.assertEqual(type(params.depth.sample()), int)
-        self.assertEqual(type(params.list_choice.sample()), list)
 
 
 class TestGeneric(unittest.TestCase):

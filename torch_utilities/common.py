@@ -3,7 +3,6 @@ from functools import partial
 from numpy import ndarray
 from pathlib import Path
 from torch import Tensor
-from ray import tune
 import numpy as np
 import torch
 import yaml
@@ -183,49 +182,6 @@ class Config:
             return default
 
         return param
-
-    def get_ray_tune_params(self, section: str = "ray_tune") -> Dict:
-        """
-        Gets the ray tune parameters from a configuration.
-        The parameters should be written in the section specified
-        and be divided by sampling method.
-
-        E.g.
-        ray_tune:
-            uniform:
-                param_0: [0, 5]
-            randn:
-                param_1: [0, 1]
-
-
-        Parameters
-        ----------
-        section : str, optional
-            The parent section where the parameter space is defined,
-            by default "ray_tune"
-
-        Returns
-        -------
-        Dict
-            Dictionary containing the ray tune parameters
-        """
-        try:
-            cfg = self.config[section]
-        except KeyError:
-            # no ray tune section
-            return {}
-
-        sampling_methods = cfg.keys()
-        params = {}
-
-        # adding each hyperparameters parsing the
-        # values passed to the corrispondent tune
-        # sampling function f
-        for sm in sampling_methods:
-            f = getattr(tune, sm)
-            _parsetype = lambda x: x if type(x) in (list, tuple) else float(x)
-            params = params | {p: f(*map(_parsetype, v)) for p, v in cfg[sm].items()}
-        return params
 
 
 def get_np_or_torch(x: TensorOrArray):

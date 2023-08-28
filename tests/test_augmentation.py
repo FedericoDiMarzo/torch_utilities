@@ -1,9 +1,6 @@
-from pathimport import set_module_root
-import numpy as np
-import unittest
 import torch
-
-set_module_root("../torch_utils")
+import unittest
+import numpy as np
 import torch_utilities as tu
 import torch_utilities.augmentation as aug
 from torch_utilities.audio import invert_db

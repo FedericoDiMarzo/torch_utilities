@@ -1,11 +1,9 @@
-from pathimport import set_module_root
 from itertools import product
 import onnxruntime as ort
 import numpy as np
 import unittest
 import torch
 
-set_module_root("../torch_utils")
 from torch_utilities.metrics import DNSMOS
 import torch_utilities as tu
 

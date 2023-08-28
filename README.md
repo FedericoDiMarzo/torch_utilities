@@ -5,15 +5,16 @@
 **Torch Utilities** is developed as a personal set of tools and is provided as-it-is, without any warranties or guarantees. The API and utilities may change in the future as the module continues to evolve. While effort is made to maintain compatibility with previous versions, users are advised to carefully consider the stability of the API before using **Torch Utilities** in production environments.
 
 ## Installation
-You can install **Torch Utilities** using pip
+You can install **Torch Utilities** using pip.
 ```bash
 pip install torch_utilities
 ```
 
 ## Running The Tests
-To verify the correctness of the code and run the tests, simply run the following line in a bash console:
+To verify the correctness of the code and run the tests, you can execute the following script.
 ```bash
-python torch_utilities/scripts/run_tests.py
+chmod +x scripts/*.sh
+./scripts/run_tests.sh
 ```
 This will run a suite of tests to ensure that the module is functioning as expected. If any tests fail, it may indicate that there is a bug in the code or that some aspect of the API has changed. In such cases, we encourage you to open an issue on the repository so that we can help resolve the problem.
 
