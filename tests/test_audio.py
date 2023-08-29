@@ -51,9 +51,7 @@ class TestSTFT(unittest.TestCase):
             with self.subTest(p=p):
                 x = mod.ones((channels, sample_rate * 1))
                 win_len_ms = hopsize_ms * ola_ratio
-                y = tu.stft(
-                    x, sample_rate, hopsize_ms, "hamming", win_len_ms, win_oversamp
-                )
+                y = tu.stft(x, sample_rate, hopsize_ms, "hamming", win_len_ms, win_oversamp)
                 bins = int(sample_rate * win_len_ms * win_oversamp / 2000 + 1)
                 self.assertEqual(y.shape[-1], bins)
 
@@ -71,9 +69,7 @@ class TestSTFT(unittest.TestCase):
                 win_len_ms = hopsize_ms * ola_ratio
                 bins = int(sample_rate * win_len_ms * win_oversamp / 2000 + 1)
                 x = mod.ones((channels, int(sample_rate * 0.05), bins)) + 0j
-                y = tu.istft(
-                    x, sample_rate, hopsize_ms, "hann", win_len_ms, win_oversamp
-                )
+                y = tu.istft(x, sample_rate, hopsize_ms, "hann", win_len_ms, win_oversamp)
 
     def test_inversion(self):
         for p in self.params:
@@ -92,12 +88,8 @@ class TestSTFT(unittest.TestCase):
                     x = torch.randn((channels, sample_rate * 1))
 
                 win_len_ms = hopsize_ms * ola_ratio
-                y = tu.stft(
-                    x, sample_rate, hopsize_ms, "hann", win_len_ms, win_oversamp
-                )
-                x_hat = tu.istft(
-                    y, sample_rate, hopsize_ms, "hann", win_len_ms, win_oversamp
-                )
+                y = tu.stft(x, sample_rate, hopsize_ms, "hann", win_len_ms, win_oversamp)
+                x_hat = tu.istft(y, sample_rate, hopsize_ms, "hann", win_len_ms, win_oversamp)
                 x = x[0, : x_hat.shape[1]]
                 x_hat = x_hat[0, : x.shape[0]]
                 err = mod.abs(x - x_hat).max()
@@ -136,9 +128,7 @@ class TestMelFilterbank(unittest.TestCase):
                 n_mel=n_mel,
             ):
                 filterbank = tu.MelFilterbank(sample_rate, n_freq, n_mel)
-                x = np.ones(
-                    (1, channels, int(sample_rate * 0.1), n_freq), dtype=complex
-                )
+                x = np.ones((1, channels, int(sample_rate * 0.1), n_freq), dtype=complex)
                 x = x if module == np else torch.from_numpy(x).to(tu.get_device())
                 y = filterbank(x)
                 self.assertEqual(y.shape, (1, channels, int(sample_rate * 0.1), n_mel))
@@ -342,9 +332,7 @@ class TestAudio(unittest.TestCase):
         tensor = (False, True)
         delete_last = (False, True)
         num_workers = (1, 4)
-        params = product(
-            channels, length, sample_rate, tensor, delete_last, num_workers
-        )
+        params = product(channels, length, sample_rate, tensor, delete_last, num_workers)
         n_files = 6
         for p in params:
             (c, l, sr, t, d, w) = p
@@ -355,6 +343,16 @@ class TestAudio(unittest.TestCase):
                 for i, seq in enumerate(itr):
                     self.assertEqual(seq.shape, (c, int(sr * l)))
                 self.assertEqual(i + 1 if d else i, int(n_files / l))
+
+    def test_trim_as_shortest(self):
+        mod = (np, torch)
+        for m in mod:
+            with self.subTest(p=m):
+                x = m.ones((1, 100, 1))
+                y = m.ones((1, 50, 1))
+                x, y = tu.trim_as_shortest(x, y, dim=1)
+                self.assertEqual(x.shape, (1, 50, 1))
+                self.assertEqual(y.shape, (1, 50, 1))
 
 
 if __name__ == "__main__":

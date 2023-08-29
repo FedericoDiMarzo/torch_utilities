@@ -26,6 +26,7 @@ __all__ = [
     "random_trim",
     "trim_silence",
     "interleave",
+    "trim_as_shortest",
 ]
 
 
@@ -674,6 +675,7 @@ def trim_silence(
 
 
 def interleave(*xs: List[TensorOrArray]) -> Tensor:
+    # TODO: add support for dimension selection
     """
     Interleaves many input tensors in one over the last dimension.
 
@@ -698,3 +700,29 @@ def interleave(*xs: List[TensorOrArray]) -> Tensor:
         y[..., i::stride] = x
 
     return y
+
+
+def trim_as_shortest(*xs: List[TensorOrArray], dim: int = -1) -> List[TensorOrArray]:
+    """
+    Trims all the inputs to the same length of the shortest one.
+
+    Parameters
+    ----------
+    xs : List[TensorOrArray]
+        Input signals of the same shape
+
+    dim : int, optional
+        Dimension along which the trimming is applied, by default -1
+
+    Returns
+    -------
+    List[TensorOrArray]
+        Trimmed signals
+    """
+    min_len = min([x.shape[dim] for x in xs])
+    _t = lambda x, d : x.transpose(d, -1) if type(x) == Tensor else np.swapaxes(x, d, -1)
+        
+    xs = [_t(x, dim) for x in xs]
+    xs = [x[..., :min_len] for x in xs]
+    xs = [_t(x, dim) for x in xs]
+    return xs
