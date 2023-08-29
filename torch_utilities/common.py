@@ -341,7 +341,7 @@ def phase(x: TensorOrArray) -> TensorOrArray:
     return y
 
 
-def transpose(x: TensorOrArray, dim1: int = 0, dim2: int = 1) -> TensorOrArray:
+def transpose(x: TensorOrArray, dim1: int, dim2: int) -> TensorOrArray:
     """
     Transpose a tensor over two dimensions.
 
@@ -350,9 +350,9 @@ def transpose(x: TensorOrArray, dim1: int = 0, dim2: int = 1) -> TensorOrArray:
     x : TensorOrArray
         Input tensor
     dim1 : int, optional
-        First dimension to transpose, by default 0
+        First dimension to transpose
     dim2 : int, optional
-        Second dimension to transpose, by default 1
+        Second dimension to transpose
 
     Returns
     -------
