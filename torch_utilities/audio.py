@@ -716,7 +716,7 @@ def trim_as_shortest(*xs: List[TensorOrArray], dim: int = -1) -> List[TensorOrAr
         Trimmed signals
     """
     min_len = min([x.shape[dim] for x in xs])
-    xs = [transpose(x, dim) for x in xs]
+    xs = [transpose(x, dim, -1) for x in xs]
     xs = [x[..., :min_len] for x in xs]
-    xs = [transpose(x, dim) for x in xs]
+    xs = [transpose(x, dim, -1) for x in xs]
     return xs
