@@ -28,6 +28,7 @@ __all__ = [
     "split_complex",
     "pack_complex",
     "phase",
+    "transpose",
     # math utilities
     "factorize",
 ]
@@ -338,6 +339,27 @@ def phase(x: TensorOrArray) -> TensorOrArray:
     module = get_np_or_torch(x)
     y = module.exp(1j * module.angle(x))
     return y
+
+
+def transpose(x: TensorOrArray, dim1: int = 0, dim2: int = 1) -> TensorOrArray:
+    """
+    Transpose a tensor over two dimensions.
+
+    Parameters
+    ----------
+    x : TensorOrArray
+        Input tensor
+    dim1 : int, optional
+        First dimension to transpose, by default 0
+    dim2 : int, optional
+        Second dimension to transpose, by default 1
+
+    Returns
+    -------
+    TensorOrArray
+        Transposed tensor
+    """
+    return x.transpose(dim1, dim2) if type(x) == Tensor else np.swapaxes(x, dim1, dim2)
 
 
 # math utilities
