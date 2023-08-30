@@ -7,7 +7,7 @@ import numpy as np
 import torch
 
 
-from torch_utilities.common import get_np_or_torch, TensorOrArray, to_numpy, get_device
+from torch_utilities.common import get_np_or_torch, TensorOrArray, to_numpy, get_device, transpose
 
 
 # export list
@@ -26,6 +26,7 @@ __all__ = [
     "random_trim",
     "trim_silence",
     "interleave",
+    "trim_as_shortest",
 ]
 
 
@@ -175,9 +176,7 @@ def _stft_istft_core(
         window += "_window"
         win_fun = getattr(torch, window)
     except AttributeError:
-        allowed_win = [
-            w + "_window" for w in ["hann", "hamming", "bartlett", "blackman", "kaiser"]
-        ]
+        allowed_win = [w + "_window" for w in ["hann", "hamming", "bartlett", "blackman", "kaiser"]]
         err_msg = "choose a window between:\n" + ", ".join(allowed_win)
         raise AttributeError(err_msg)
 
@@ -551,9 +550,7 @@ def _win_to_sides(
     return x
 
 
-def fade_sides(
-    x: TensorOrArray, fade_len: int = 100, direction: str = "both"
-) -> TensorOrArray:
+def fade_sides(x: TensorOrArray, fade_len: int = 100, direction: str = "both") -> TensorOrArray:
     """
     Apply an half of an Hanning window to the
     sides of the input, in order to obtain a fade in/out.
@@ -698,3 +695,27 @@ def interleave(*xs: List[TensorOrArray]) -> Tensor:
         y[..., i::stride] = x
 
     return y
+
+
+def trim_as_shortest(*xs: List[TensorOrArray], dim: int = -1) -> List[TensorOrArray]:
+    """
+    Trims all the inputs to the same length of the shortest one.
+
+    Parameters
+    ----------
+    xs : List[TensorOrArray]
+        Input signals of the same shape
+
+    dim : int, optional
+        Dimension along which the trimming is applied, by default -1
+
+    Returns
+    -------
+    List[TensorOrArray]
+        Trimmed signals
+    """
+    min_len = min([x.shape[dim] for x in xs])
+    xs = [transpose(x, dim, -1) for x in xs]
+    xs = [x[..., :min_len] for x in xs]
+    xs = [transpose(x, dim, -1) for x in xs]
+    return xs
