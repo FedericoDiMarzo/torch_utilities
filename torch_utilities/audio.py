@@ -7,7 +7,13 @@ import numpy as np
 import torch
 
 
-from torch_utilities.common import get_np_or_torch, TensorOrArray, to_numpy, get_device, transpose
+from torch_utilities.common import (
+    get_np_or_torch,
+    TensorOrArray,
+    to_numpy,
+    get_device,
+    transpose,
+)
 
 
 # export list
@@ -176,7 +182,9 @@ def _stft_istft_core(
         window += "_window"
         win_fun = getattr(torch, window)
     except AttributeError:
-        allowed_win = [w + "_window" for w in ["hann", "hamming", "bartlett", "blackman", "kaiser"]]
+        allowed_win = [
+            w + "_window" for w in ["hann", "hamming", "bartlett", "blackman", "kaiser"]
+        ]
         err_msg = "choose a window between:\n" + ", ".join(allowed_win)
         raise AttributeError(err_msg)
 
@@ -550,7 +558,9 @@ def _win_to_sides(
     return x
 
 
-def fade_sides(x: TensorOrArray, fade_len: int = 100, direction: str = "both") -> TensorOrArray:
+def fade_sides(
+    x: TensorOrArray, fade_len: int = 100, direction: str = "both"
+) -> TensorOrArray:
     """
     Apply an half of an Hanning window to the
     sides of the input, in order to obtain a fade in/out.
