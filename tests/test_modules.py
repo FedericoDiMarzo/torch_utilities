@@ -151,17 +151,17 @@ class TestUnfoldFoldSpectrogram(unittest.TestCase):
                 self.assertEqual(y.shape[1], self.in_channels)
                 self.assertEqual(y.shape[3], self.in_freqs)
 
-    # def test_inversion(self):
-    #     for p in self.params:
-    #         (block_size, stride) = p
-    #         with self.subTest(p=p):
-    #             unfold = self.get_instance(p, unfold=True)
-    #             fold = self.get_instance(p, unfold=False)
-    #             x = self.get_input(p, unfold=True)
-    #             y = unfold(x)
-    #             x_hat = fold(y)
-    #             e = (x - x_hat).abs().max().item()
-    #             self.assertLess(e, 1e-6)
+    def test_inversion(self):
+        for p in self.params:
+            (block_size, stride) = p
+            with self.subTest(p=p):
+                unfold = self.get_instance(p, unfold=True)
+                fold = self.get_instance(p, unfold=False)
+                x = self.get_input(p, unfold=True)
+                y = unfold(x)
+                x_hat = fold(y)
+                e = (x - x_hat).abs().max().item()
+                self.assertLess(e, 1e-6)
 
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
