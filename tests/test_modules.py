@@ -113,7 +113,7 @@ class TestUnfoldFoldSpectrogram(unittest.TestCase):
             x = torch.randn((1, self.in_channels, self.in_frames, self.in_freqs))
         else:
             x = torch.randn(
-                (1, self.in_channels * self.in_num_blocks, block_size, self.in_freqs)
+                (1, self.in_channels, self.in_num_blocks, block_size, self.in_freqs)
             )
         return x
 
@@ -128,7 +128,8 @@ class TestUnfoldFoldSpectrogram(unittest.TestCase):
                 n_blocks = (self.in_frames - (block_size - 1) - 1) / stride + 1
                 expected_shape = (
                     1,
-                    self.in_channels * n_blocks,
+                    self.in_channels,
+                    n_blocks,
                     block_size,
                     self.in_freqs,
                 )
