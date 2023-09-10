@@ -314,9 +314,9 @@ class UnfoldSpectrogram(Module):
         # (B*C, 1, F, block_size, num_blocks) -> (B*C, 1, num_blocks, block_size, F)
         self._reshape_2 = lambda x: x.permute(0, 1, 4, 3, 2)
 
-        # (B*C, 1, num_blocks, block_size, F) -> (B, C*num_blocks, block_size, F)
+        # (B*C, 1, num_blocks, block_size, F) -> (B, C, num_blocks, block_size, F)
         self._reshape_3 = lambda x, ch: x.reshape(
-            -1, ch * x.shape[2], self.block_size, x.shape[4]
+            -1, ch, x.shape[2], self.block_size, x.shape[4]
         )
 
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
@@ -331,7 +331,7 @@ class UnfoldSpectrogram(Module):
         Returns
         -------
         Tensor
-            Unfolded input of shape (B, C*num_blocks, block_size, F)
+            Unfolded input of shape (B, C, num_blocks, block_size, F)
         """
         assert self._input_shape_is_valid(x), r"(x.shape[2] - block_size) % stride != 0"
         ch = x.shape[1]
@@ -393,16 +393,19 @@ class FoldSpectrogram(Module):
 
         # inner modules ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
+        # (B, C, num_blocks, block_size, F) -> (B, C*num_blocks, block_size, F)
+        self._reshape_0 = lambda x: x.view(x.shape[0], -1, *x.shape[3:])
+
         # (B, C*num_blocks, block_size, F) -> (B*C, 1, num_blocks, block_size, F)
-        self._reshape_0 = lambda x: x.reshape(
+        self._reshape_1 = lambda x: x.reshape(
             -1, 1, x.shape[1] // self.channels, self.block_size, x.shape[3]
         )
 
         # (B*C, 1, num_blocks, block_size, F) -> (B*C, 1, F, block_size, num_blocks)
-        self._reshape_1 = lambda x: x.permute(0, 1, 4, 3, 2)
+        self._reshape_2 = lambda x: x.permute(0, 1, 4, 3, 2)
 
         # (B*C, 1, F, block_size, num_blocks) -> (B*C, F*block_size, num_blocks)
-        self._reshape_2 = lambda x: x.reshape(
+        self._reshape_3 = lambda x: x.reshape(
             x.shape[0], x.shape[2] * self.block_size, x.shape[4]
         )
 
@@ -412,7 +415,7 @@ class FoldSpectrogram(Module):
         )
 
         # (B*C, 1, T, F) -> (B, C, T, F)
-        self._reshape_3 = lambda x: x.view(-1, self.channels, *x.shape[2:])
+        self._reshape_4 = lambda x: x.view(-1, self.channels, *x.shape[2:])
 
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
@@ -421,19 +424,20 @@ class FoldSpectrogram(Module):
         Parameters
         ----------
         x : Tensor
-            Input of shape (B, C*num_blocks, block_size, F)
+            Input of shape (B, C, num_blocks, block_size, F)
 
         Returns
         -------
         Tensor
             Folded input of shape (B, C, T, F)
         """
-        out_sizes = self._get_out_size(x)
         x = self._reshape_0(x)
+        out_sizes = self._get_out_size(x)
         x = self._reshape_1(x)
         x = self._reshape_2(x)
-        x = self._fold(x, out_sizes)
         x = self._reshape_3(x)
+        x = self._fold(x, out_sizes)
+        x = self._reshape_4(x)
         divisor = self._get_normalization_tensor(x, out_sizes)
         x /= divisor
         return x
@@ -1418,8 +1422,8 @@ class SlidingCausalMultiheadAttention(Module):
         )
 
         # inner modules
-        self.reshape_0 = lambda x: x.flatten(0, 1)
-        self.reshape_1 = lambda x, b: x.reshape(b, -1, x.shape[1], x.shape[2])
+        self.reshape_0 = lambda x: x.flatten(0, 2)
+        self.reshape_1 = lambda x, b, c: x.reshape(b, c, -1, *x.shape[-2:])
 
         self.unfold = UnfoldSpectrogram(self.sequence_len, self.stride)
         self.fold = FoldSpectrogram(self.sequence_len, self.stride, self.channels)
@@ -1444,11 +1448,11 @@ class SlidingCausalMultiheadAttention(Module):
         Tensor
             Output of shape (B, C, T, F)
         """
-        B = x.shape[0]
+        b, c = x.shape[:2]
         x = self.unfold(x)
         x = self.reshape_0(x)
         x = self.mh_attention(x, x, x, attn_mask=self.attn_mask)[0]
-        x = self.reshape_1(x, B)
+        x = self.reshape_1(x, b, c)
         x = self.fold(x)
         return x
 
