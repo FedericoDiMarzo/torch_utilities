@@ -394,7 +394,7 @@ class FoldSpectrogram(Module):
         # inner modules ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
         # (B, C, num_blocks, block_size, F) -> (B, C*num_blocks, block_size, F)
-        self._reshape_0 = lambda x: x.view(x.shape[0], -1, *x.shape[3:])
+        self._reshape_0 = lambda x: x.reshape(x.shape[0], -1, *x.shape[3:])
 
         # (B, C*num_blocks, block_size, F) -> (B*C, 1, num_blocks, block_size, F)
         self._reshape_1 = lambda x: x.reshape(
