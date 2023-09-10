@@ -6,6 +6,13 @@ import numpy as np
 import unittest
 import torch
 
+from torch_utilities.data_loading import (
+    HDF5Dataset,
+    HDF5OnlineDataset,
+    WeakShufflingSampler,
+    get_hdf5_dataloader,
+    get_dataset_statistics,
+)
 from tests.generate_test_data import get_test_data_dir
 import torch_utilities as tu
 
@@ -25,14 +32,14 @@ class TestHDF5DataLoader(unittest.TestCase):
     def setUp(self):
         self.data_layout = ["x", "y_true"]
         self.hdf5_path = get_test_data_dir() / "dataset.hdf5"
-        self.dataset = tu.HDF5Dataset(self.hdf5_path, self.data_layout)
+        self.dataset = HDF5Dataset(self.hdf5_path, self.data_layout)
 
     def dummy_input(self, g_idx):
         return torch.ones((16, 8)) * g_idx
 
     def test_weak_shuffling_len(self):
         batch_size = 16
-        sampler = tu.data_loading.WeakShufflingSampler(self.dataset, batch_size)
+        sampler = WeakShufflingSampler(self.dataset, batch_size)
         self.assertEqual(len(sampler), batch_size)
 
     def test_hdf5dataset_cache(self):
@@ -64,26 +71,26 @@ class TestHDF5DataLoader(unittest.TestCase):
             self.dataset[[1, 2, 3]]
 
     def test_hdf5_dataloader_full_batch(self):
-        dataloader = tu.get_hdf5_dataloader(self.hdf5_path, self.data_layout, 16)
+        dataloader = get_hdf5_dataloader(self.hdf5_path, self.data_layout, 16)
         data = [x for x in dataloader]
         self.assertEqual(len(data), 10)
 
     def test_hdf5_dataloader_half_batch(self):
-        dataloader = tu.get_hdf5_dataloader(self.hdf5_path, self.data_layout, 8)
+        dataloader = get_hdf5_dataloader(self.hdf5_path, self.data_layout, 8)
         data = [x for x in dataloader]
         self.assertEqual(len(data), 20)
 
     def test_get_dataset_statistics(self):
         hist_bins = 10
-        dataloader = tu.get_hdf5_dataloader(self.hdf5_path, self.data_layout, 16)
+        dataloader = get_hdf5_dataloader(self.hdf5_path, self.data_layout, 16)
         iterations = len(dataloader)
-        stats = tu.get_dataset_statistics(dataloader, iterations, hist_bins)
+        stats = get_dataset_statistics(dataloader, iterations, hist_bins)
         hist_vals, hist_bins, min, max, mean, var = stats[0]
         self.assertEqual(len(stats), 2)
         self.assertAlmostEqual(np.sum(hist_vals), 1)
 
 
-class HDF5OnlineDatasetTesting(tu.HDF5OnlineDataset):
+class HDF5OnlineDatasetTesting(HDF5OnlineDataset):
     def __init__(
         self,
         dataset_paths: List[Path],
@@ -142,7 +149,7 @@ class TestHDF5OnlineDataset(unittest.TestCase):
 
         datasets = ds._get_datasets()
         for d in datasets:
-            self.assertEqual(type(d), tu.HDF5Dataset)
+            self.assertEqual(type(d), HDF5Dataset)
 
     def test_get_rand_batch(self):
         batch_size = 8
@@ -161,9 +168,9 @@ class TestHDF5OnlineDataset(unittest.TestCase):
 
     def test_get_dataset_statistics(self):
         hist_bins = 10
-        dataloader = tu.get_hdf5_dataloader(self.hdf5_path, self.data_layout, 16)
+        dataloader = get_hdf5_dataloader(self.hdf5_path, self.data_layout, 16)
         iterations = len(dataloader)
-        stats = tu.get_dataset_statistics(dataloader, iterations, hist_bins)
+        stats = get_dataset_statistics(dataloader, iterations, hist_bins)
         hist_vals, hist_bins, min, max, mean, var = stats[0]
         self.assertEqual(len(stats), 2)
         self.assertAlmostEqual(np.sum(hist_vals), 1)
