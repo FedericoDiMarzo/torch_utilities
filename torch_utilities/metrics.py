@@ -26,13 +26,19 @@ def _get_model_dir() -> Path:
 
 
 class DNSMOS:
-    def __init__(self) -> None:
+    def __init__(self, onnx_exec_provider: str = "CPUExecutionProvider") -> None:
+        """Microsoft DNSMOS model.
+
+        Args:
+            onnx_exec_provider (str, optional): Exectution provider used for ONNXRuntime. Defaults to "CPUExecutionProvider".
+        """
         self.model_path = _get_model_dir() / "sig_bak_ovr.onnx"
-        self.inference_sess = self.get_inference_session()
+        self.onnx_exec_provider = onnx_exec_provider
         self.sample_rate = 16000
         self.hopsize_ms = 10
         self.n_mels = 120
         self.n_freqs = int(self.sample_rate / 1000 * self.hopsize_ms * 2 + 1)
+        self.inference_sess = self.get_inference_session()
 
         # transforms
         self.stft = lambda x: stft(
@@ -56,7 +62,10 @@ class DNSMOS:
         ort.InferenceSession
             DNSMOS inference session
         """
-        session = ort.InferenceSession(str(self.model_path))
+        session = ort.InferenceSession(
+            str(self.model_path),
+            providers=[self.onnx_exec_provider],
+        )
         return session
 
     def get_polyfit_val(
