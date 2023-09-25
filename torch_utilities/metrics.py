@@ -64,7 +64,7 @@ class DNSMOS:
         """
         session = ort.InferenceSession(
             str(self.model_path),
-            execution_providers=[self.onnx_exec_provider],
+            providers=[self.onnx_exec_provider],
         )
         return session
 
