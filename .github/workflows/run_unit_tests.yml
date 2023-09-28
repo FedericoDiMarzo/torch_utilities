@@ -28,5 +28,5 @@ jobs:
         pip install .
     - name: Run unit tests
       run: |
-        chmod +x ./scripts/run_unit_tests.sh
+        chmod +x ./scripts/run_tests.sh
         ./scripts/run_tests.sh
