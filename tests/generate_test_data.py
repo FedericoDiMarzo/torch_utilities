@@ -9,12 +9,12 @@ from torch_utilities import save_audio
 
 
 def create_data_dir():
-    data_dir = Path(__file__).parent / "test_data"
+    data_dir = Path(__file__).resolve().parent / "test_data"
     data_dir.mkdir(exist_ok=True)
 
 
 def get_test_data_dir():
-    path = Path(__file__).parent / "test_data"
+    path = Path(__file__).resolve().parent / "test_data"
     if not path.exists():
         raise FileNotFoundError("run generate_test_data.py first")
     return path
