@@ -8,15 +8,14 @@ import h5py
 from torch_utilities import save_audio
 
 
-def create_data_dir():
-    data_dir = Path(__file__).resolve().parent / "test_data"
-    data_dir.mkdir(exist_ok=True)
+def get_test_data_dir()->Path:
+    """Get the test data directory and create it if it does not exist.
 
-
-def get_test_data_dir():
+    Returns:
+        Path: Path to the test data directory.
+    """
     path = Path(__file__).resolve().parent / "test_data"
-    if not path.exists():
-        raise FileNotFoundError("run generate_test_data.py first")
+    path.mkdir(exist_ok=True)
     return path
 
 
@@ -123,7 +122,6 @@ def generate_checkpoint_monitoring(filename: str, n: int) -> None:
 
 def main():
     logger.info("generating test data")
-    create_data_dir()
     generate_wavs()
     generate_hdf5()
     generate_yaml()
