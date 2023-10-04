@@ -8,7 +8,7 @@ import h5py
 from torch_utilities import save_audio
 
 
-def get_test_data_dir()->Path:
+def get_test_data_dir() -> Path:
     """Get the test data directory and create it if it does not exist.
 
     Returns:
