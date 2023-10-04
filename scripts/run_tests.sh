@@ -9,5 +9,4 @@ for t in $test_files; do
     echo "Running $t"
     python "$t"
     ls "$test_dir/test_data"
-    exit 1 # Debug 0
 done
