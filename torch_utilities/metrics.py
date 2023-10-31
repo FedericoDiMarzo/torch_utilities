@@ -34,24 +34,10 @@ class DNSMOS:
         """
         self.model_path = _get_model_dir() / "sig_bak_ovr.onnx"
         self.onnx_exec_provider = onnx_exec_provider
-        self.sample_rate = 16000
-        self.hopsize_ms = 10
-        self.n_mels = 120
-        self.n_freqs = int(self.sample_rate / 1000 * self.hopsize_ms * 2 + 1)
+        self.sample_rate = 16000  # Hz
+        self.hopsize = 1 * self.sample_rate
+        self.in_len = int(9.01 * self.sample_rate)
         self.inference_sess = self.get_inference_session()
-
-        # transforms
-        self.stft = lambda x: stft(
-            x,
-            sample_rate=self.sample_rate,
-            hopsize_ms=self.hopsize_ms,
-            win_oversamp=2,
-        )
-        self.mel_fb = MelFilterbank(
-            sample_rate=self.sample_rate,
-            n_freqs=self.n_freqs,
-            n_mels=self.n_mels,
-        )
 
     def get_inference_session(self) -> ort.InferenceSession:
         """
@@ -122,16 +108,18 @@ class DNSMOS:
         # keeping the first channel
         x = x[:1]
 
-        # computing the average over segments of 1s
-        samples_selected = 144160
-        n_frames = x.shape[1] // samples_selected
+        # computing the average over segments of in_len shifting by hopsize
+        n_frames = np.clip(x.shape[1] - self.in_len, 0, None).astype(int) // self.hopsize + 1
         ovr = []
         sig = []
         bak = []
         for i in range(n_frames):
-            a = i * samples_selected
-            b = (i + 1) * samples_selected
+            a = int(i * self.sample_rate)
+            b = int(a + self.in_len)
             x_sel = x[:, a:b]
+            # Padding if needed
+            if x_sel.shape[1] != self.in_len:
+                x_sel = np.pad(x_sel, ((0, 0), (0, self.in_len - x_sel.shape[1])))
             model_in = dict(input_1=x_sel)
             scores = self.inference_sess.run(None, model_in)[0][0]
             scores = self.get_polyfit_val(*scores)
