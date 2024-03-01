@@ -1,11 +1,11 @@
-from typing import Any, Callable, List, Tuple, Type, TypeVar, Union, Dict
-from functools import partial
+from typing import Any, List, Tuple, Type, TypeVar, Union
 from numpy import ndarray
 from pathlib import Path
 from torch import Tensor
 import numpy as np
 import torch
 import yaml
+import os
 
 # export list
 __all__ = [
@@ -14,8 +14,7 @@ __all__ = [
     "TensorOrArray",
     # pytorch devices
     "get_device",
-    "set_device",
-    "auto_device",
+    "disable_cuda",
     # generic utilities
     "DotDict",
     "Config",
@@ -32,6 +31,7 @@ __all__ = [
     # math utilities
     "factorize",
 ]
+
 
 #  types
 
@@ -65,52 +65,10 @@ def get_device() -> str:
     return "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def set_device(device: str, dtype: str = "Float") -> None:
-    """
-    Sets the default pytorch tensor
-    to 'torch.{device}.FloatTensor'
+def disable_cuda():
+    """Disables CUDA in PyTorch."""
+    os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
-    if device == "auto" it's inferred from get_device()
-
-    Parameters
-    ----------
-    device : str
-        Name of the device or "auto"
-    dtype : str, optional
-        Type of the tensor, by default "Float"
-    """
-    if device == "auto":
-        device = get_device()
-    if device == "cpu":
-        torch.set_default_tensor_type(f"torch.{dtype}Tensor")
-    else:
-        torch.set_default_tensor_type(f"torch.{device}.{dtype}Tensor")
-
-
-def auto_device(dtype: str = "Float") -> Callable:
-    def _auto_device(f: Callable) -> Callable:
-        """
-        Decorator to set the pytorch device to auto.
-
-        Parameters
-        ----------
-        f : Callable
-            Function to decorate
-        dtype : str, optional
-            Type of the tensor, by default "Float"
-
-        Returns
-        -------
-        Callable
-            Decorated function
-        """
-        set_device("auto", dtype)
-        return f
-
-    return _auto_device
-
-
-auto_device = partial(auto_device)
 
 # generic utilities
 
@@ -260,6 +218,17 @@ def execute_with_probability(prob: float) -> bool:
         True prob % of the times
     """
     return np.random.uniform() > prob
+
+
+def _get_test_data_dir() -> Path:
+    """Get the test data directory and create it if it does not exist.
+
+    Returns:
+        Path: Path to the test data directory.
+    """
+    path = Path(__file__).resolve().parent.parent / "tests" / "test_data"
+    path.mkdir(exist_ok=True)
+    return path
 
 
 # tensor/array operations
