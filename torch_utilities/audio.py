@@ -10,9 +10,9 @@ import torch
 from torch_utilities.common import (
     get_np_or_torch,
     TensorOrArray,
-    to_numpy,
     get_device,
     transpose,
+    to_numpy,
 )
 
 

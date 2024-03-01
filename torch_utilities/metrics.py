@@ -109,7 +109,9 @@ class DNSMOS:
         x = x[:1]
 
         # computing the average over segments of in_len shifting by hopsize
-        n_frames = np.clip(x.shape[1] - self.in_len, 0, None).astype(int) // self.hopsize + 1
+        n_frames = (
+            np.clip(x.shape[1] - self.in_len, 0, None).astype(int) // self.hopsize + 1
+        )
         ovr = []
         sig = []
         bak = []
