@@ -7,20 +7,20 @@ import unittest
 import torch
 
 from torch_utilities.data_loading import (
-    HDF5Dataset,
-    HDF5OnlineDataset,
+    get_dataset_statistics,
     WeakShufflingSampler,
     get_hdf5_dataloader,
-    get_dataset_statistics,
+    HDF5OnlineDataset,
+    HDF5Dataset,
 )
-from tests.generate_test_data import get_test_data_dir
+
 import torch_utilities as tu
 
 
 def _setup() -> None:
     torch.manual_seed(984)
     np.random.seed(901)
-    tu.set_device("cpu")
+    tu.disable_cuda()
     torch.set_grad_enabled(False)
 
 
@@ -31,7 +31,7 @@ class TestHDF5DataLoader(unittest.TestCase):
 
     def setUp(self):
         self.data_layout = ["x", "y_true"]
-        self.hdf5_path = get_test_data_dir() / "dataset.hdf5"
+        self.hdf5_path = tu.common._get_test_data_dir() / "dataset.hdf5"
         self.dataset = HDF5Dataset(self.hdf5_path, self.data_layout)
 
     def dummy_input(self, g_idx):
@@ -111,7 +111,7 @@ class TestHDF5OnlineDataset(unittest.TestCase):
 
     def setUp(self):
         self.data_layout = ["x", "y_true"]
-        self.hdf5_path = get_test_data_dir() / "dataset.hdf5"
+        self.hdf5_path = tu.common._get_test_data_dir() / "dataset.hdf5"
 
     def test_assert(self):
         batch_len = (16, 32)

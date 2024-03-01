@@ -5,14 +5,14 @@ import itertools
 import unittest
 import torch
 
+
 import torch_utilities as tu
-from tests.generate_test_data import get_test_data_dir
 
 
 def _setup() -> None:
     torch.manual_seed(984)
     np.random.seed(901)
-    tu.set_device("auto")
+    tu.disable_cuda()
     torch.set_grad_enabled(False)
 
 
@@ -22,7 +22,7 @@ class TestConfig(unittest.TestCase):
         _setup()
 
     def setUp(self):
-        self.config_path = get_test_data_dir() / "test.yml"
+        self.config_path = tu.common._get_test_data_dir() / "test.yml"
         self.config = tu.Config(self.config_path)
 
     def test_get_str(self):

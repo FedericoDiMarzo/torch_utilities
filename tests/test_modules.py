@@ -7,27 +7,27 @@ import numpy as np
 import unittest
 import torch
 
+from torch_utilities import repeat_test
 import torch_utilities as tu
-from torch_utilities import repeat_test, set_device
 from torch_utilities.modules import (
+    SlidingCausalMultiheadAttention,
     get_causal_longformer_mask,
-    get_time_value,
-    get_freq_value,
-    LambdaLayer,
-    Lookahead,
-    Reparameterize,
-    ScaleChannels2d,
-    UnfoldSpectrogram,
-    FoldSpectrogram,
-    ResidualWrap,
-    GroupedLinear,
-    CausalConv2d,
-    CausalSubConv2d,
     CausalConv2dNormAct,
     CausalSmoothedTConv,
+    UnfoldSpectrogram,
+    ScaleChannels2d,
+    FoldSpectrogram,
+    CausalSubConv2d,
+    get_time_value,
+    get_freq_value,
+    Reparameterize,
     DenseConvBlock,
+    GroupedLinear,
+    ResidualWrap,
+    CausalConv2d,
+    LambdaLayer,
     GruNormAct,
-    SlidingCausalMultiheadAttention,
+    Lookahead,
 )
 
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
@@ -36,7 +36,7 @@ from torch_utilities.modules import (
 def _setup() -> None:
     torch.manual_seed(984)
     np.random.seed(876)
-    set_device("auto")
+    tu.disable_cuda()
     torch.set_grad_enabled(False)
 
 

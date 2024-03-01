@@ -5,14 +5,14 @@ import itertools
 import unittest
 import torch
 
+
 import torch_utilities as tu
-from tests.generate_test_data import get_test_data_dir
 
 
 def _setup() -> None:
     torch.manual_seed(984)
     np.random.seed(901)
-    tu.set_device("auto")
+    tu.disable_cuda()
     torch.set_grad_enabled(False)
 
 
@@ -55,7 +55,7 @@ class TestPyTorch(unittest.TestCase):
         self.assertListEqual(modules_types, expected)
 
     def test_load_checkpoints(self):
-        checkpoint_file = get_test_data_dir() / "dummy_ckpt.yml"
+        checkpoint_file = tu.common._get_test_data_dir() / "dummy_ckpt.yml"
         checkpoints = tu.load_checkpoints(checkpoint_file)
         self.assertEqual(len(checkpoints), 10)
         [self.assertEqual(x[0], f"checkpoint_{9-i}") for i, x in enumerate(checkpoints)]
