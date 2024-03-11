@@ -11,7 +11,7 @@ import torch_utilities as tu
 def _setup() -> None:
     torch.manual_seed(984)
     np.random.seed(901)
-    tu.set_device("auto")
+    tu.disable_cuda()
     torch.set_grad_enabled(False)
 
 

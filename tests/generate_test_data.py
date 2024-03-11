@@ -1,22 +1,11 @@
 from loguru import logger
-from pathlib import Path
 import numpy as np
 import yaml
 import h5py
 
 
+from torch_utilities.common import _get_test_data_dir
 from torch_utilities import save_audio
-
-
-def get_test_data_dir() -> Path:
-    """Get the test data directory and create it if it does not exist.
-
-    Returns:
-        Path: Path to the test data directory.
-    """
-    path = Path(__file__).resolve().parent / "test_data"
-    path.mkdir(exist_ok=True)
-    return path
 
 
 def generate_wavs(sample_rate: int = 16000, duration: float = 1):
@@ -31,7 +20,7 @@ def generate_wavs(sample_rate: int = 16000, duration: float = 1):
     duration : float, optional
         Duration of the files, by default 1 s
     """
-    data_dir = get_test_data_dir()
+    data_dir = _get_test_data_dir()
     files = [f"{x}.wav" for x in ("mono", "stereo")]
     channels = [1, 2]
     for n, c in zip(files, channels):
@@ -43,7 +32,7 @@ def generate_wavs(sample_rate: int = 16000, duration: float = 1):
 
 def generate_hdf5(groups: int = 10, group_len: int = 16):
     data_layout = ["x", "y_true"]
-    with h5py.File(get_test_data_dir() / "dataset.hdf5", "w") as ds:
+    with h5py.File(_get_test_data_dir() / "dataset.hdf5", "w") as ds:
         for i in range(groups):
             g = ds.create_group(f"group_{i}")
             for layout in data_layout:
@@ -71,7 +60,7 @@ def generate_yaml():
         ),
     )
 
-    with open(get_test_data_dir() / "test.yml", "w") as f:
+    with open(_get_test_data_dir() / "test.yml", "w") as f:
         yaml.dump(data, f)
 
 
@@ -96,7 +85,7 @@ training:
     - 4 
     """
     tag = "_overfit" if overfit_mode else ""
-    model_dir = get_test_data_dir() / f"test_model{tag}"
+    model_dir = _get_test_data_dir() / f"test_model{tag}"
     model_dir.mkdir(exist_ok=True)
     config_path = model_dir / "config.yml"
     with open(config_path, "wt") as f:
@@ -116,7 +105,7 @@ def generate_checkpoint_monitoring(filename: str, n: int) -> None:
     """
     _name = lambda i: f"checkpoint_{i}"
     checkpoints = [(_name(i), float(i)) for i in range(n)]
-    with open(get_test_data_dir() / filename, "w") as f:
+    with open(_get_test_data_dir() / filename, "w") as f:
         yaml.dump(checkpoints, f)
 
 

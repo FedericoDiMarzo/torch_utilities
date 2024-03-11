@@ -4,14 +4,14 @@ import numpy as np
 import unittest
 import torch
 
-from tests.generate_test_data import get_test_data_dir
+
 import torch_utilities as tu
 
 
 def _setup() -> None:
     torch.manual_seed(984)
     np.random.seed(901)
-    tu.set_device("auto")
+    tu.disable_cuda()
     torch.set_grad_enabled(False)
 
 
@@ -21,9 +21,9 @@ class TestIO(unittest.TestCase):
         _setup()
 
     def setUp(self):
-        self.mono_file = get_test_data_dir() / "mono.wav"
-        self.stereo_file = get_test_data_dir() / "stereo.wav"
-        self.tmp_file = get_test_data_dir() / "tmp.wav"
+        self.mono_file = tu.common._get_test_data_dir() / "mono.wav"
+        self.stereo_file = tu.common._get_test_data_dir() / "stereo.wav"
+        self.tmp_file = tu.common._get_test_data_dir() / "tmp.wav"
 
     def delete_tmp(self):
         self.tmp_file.unlink(missing_ok=True)
@@ -88,7 +88,9 @@ class TestIO(unittest.TestCase):
             n_files = 4
             with self.subTest(p=p):
                 name = "mono.wav" if m else "stereo.wav"
-                filepaths = [get_test_data_dir() / name for _ in range(n_files)]
+                filepaths = [
+                    tu.common._get_test_data_dir() / name for _ in range(n_files)
+                ]
                 xs = tu.load_audio_parallel(filepaths, sr, t, d, w)
                 self.assertEqual(len(xs), n_files)
                 for x in xs:
@@ -113,7 +115,9 @@ class TestIO(unittest.TestCase):
             n_files = 4
             with self.subTest(p=p):
                 name = "mono.wav" if m else "stereo.wav"
-                filepaths = [get_test_data_dir() / name for _ in range(n_files)]
+                filepaths = [
+                    tu.common._get_test_data_dir() / name for _ in range(n_files)
+                ]
                 xs = tu.load_audio_parallel_itr(filepaths, sr, t, d, w)
                 for i, x in enumerate(xs):
                     self.assertEqual(type(x), Tensor if t else np.ndarray)

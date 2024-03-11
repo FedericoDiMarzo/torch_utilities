@@ -7,13 +7,12 @@ import torch
 
 
 import torch_utilities as tu
-from tests.generate_test_data import get_test_data_dir
 
 
 def _setup() -> None:
     torch.manual_seed(984)
     np.random.seed(901)
-    tu.set_device("auto")
+    tu.disable_cuda()
     torch.set_grad_enabled(False)
 
 
@@ -349,7 +348,10 @@ class TestAudio(unittest.TestCase):
         for p in params:
             (c, l, sr, t, d, w) = p
             filename = "mono" if c == 1 else "stereo"
-            files = [get_test_data_dir() / f"{filename}.wav" for _ in range(n_files)]
+            files = [
+                tu.common._get_test_data_dir() / f"{filename}.wav"
+                for _ in range(n_files)
+            ]
             with self.subTest(p=p):
                 itr = tu.pack_audio_sequences(files, l, sr, c, t, d, w)
                 for i, seq in enumerate(itr):

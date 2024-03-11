@@ -1,5 +1,5 @@
+from torch.nn.utils.parametrizations import weight_norm
 from typing import Callable, List, Optional, Tuple
-from torch.nn.utils import weight_norm
 import torch.nn.functional as F
 from torch import nn, Tensor
 from torch.nn import Module
