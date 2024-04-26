@@ -696,13 +696,16 @@ def interleave(*xs: List[TensorOrArray]) -> Tensor:
         for the interleaved dimension of lenght D that will be len(xs)*D
     """
     mod = get_np_or_torch(xs[0])
-    stride = len(xs)
-    new_shape = list(xs[0].shape)
-    new_shape[-1] *= stride
-    y = mod.zeros(new_shape)
+    if mod == np:
+        stride = len(xs)
+        new_shape = list(xs[0].shape)
+        new_shape[-1] *= stride
+        y = mod.zeros(new_shape)
 
-    for i, x in enumerate(xs):
-        y[..., i::stride] = x
+        for i, x in enumerate(xs):
+            y[..., i::stride] = x
+    else:
+        y = torch.stack(xs, -1).flatten(-2, -1)
 
     return y
 
