@@ -469,7 +469,6 @@ class TestCausalConv2dNormAct(unittest.TestCase):
                 if activation is None:
                     self.assertEqual(type(conv.activation), nn.Identity)
 
-
     def test_forward(self):
         for p in self.params:
             (
