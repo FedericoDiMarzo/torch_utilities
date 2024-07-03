@@ -1,14 +1,3 @@
-import torchaudio.functional as F
-from torch import Tensor
-from typing import Tuple
-import numpy as np
-import torch
-
-
-from torch_utilities.audio import invert_db, rms
-
-
-# export list
 __all__ = [
     "shuffle",
     "dc_removal",
@@ -19,6 +8,16 @@ __all__ = [
     "random_highpass",
     "random_peak_eq",
 ]
+
+
+import torchaudio.functional as F
+from torch import Tensor
+from typing import Tuple
+import numpy as np
+import torch
+
+
+from torch_utilities.audio import invert_db, rms
 
 
 def shuffle(x: Tensor) -> Tensor:

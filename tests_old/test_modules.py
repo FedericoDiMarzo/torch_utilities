@@ -33,7 +33,7 @@ from torch_utilities.modules import (
 # = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = = =
 
 
-def _setup() -> None:
+def _setup():
     torch.manual_seed(984)
     np.random.seed(876)
     tu.disable_cuda()

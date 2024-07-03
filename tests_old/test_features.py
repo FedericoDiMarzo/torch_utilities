@@ -9,7 +9,7 @@ import torch_utilities as tu
 from torch_utilities.features import STFT, ISTFT
 
 
-def _setup() -> None:
+def _setup():
     torch.manual_seed(984)
     np.random.seed(901)
     tu.disable_cuda()

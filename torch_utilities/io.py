@@ -1,4 +1,12 @@
-from typing import Iterator, List, Tuple
+__all__ = [
+    "load_audio",
+    "save_audio",
+    "load_audio_parallel",
+    "load_audio_parallel_itr",
+    "pack_audio_sequences",
+]
+
+from typing import Iterator, List, Optional, Tuple
 from resampy import resample as resample_np
 from torchaudio.functional import resample
 from multiprocess import Pool
@@ -11,23 +19,14 @@ import torchaudio
 import torch
 
 
-from torch_utilities.common import TensorOrArray, get_device
-
-# export list
-__all__ = [
-    "load_audio",
-    "save_audio",
-    "load_audio_parallel",
-    "load_audio_parallel_itr",
-    "pack_audio_sequences",
-]
+from torch_utilities.common import TensorOrArray
 
 
 def load_audio(
     file_path: Path,
     sample_rate: int = None,
     tensor: bool = False,
-    device: str = "auto",
+    device: Optional[torch.device] = None,
 ) -> Tuple[TensorOrArray, int]:
     """
     Loads an audio file.
@@ -40,8 +39,8 @@ def load_audio(
         Target sample rate, by default avoids resample
     tensor : bool, optional
         If True loads a torch Tensor, by default False
-    device : str, optional
-        The device to load the tensor into, by default auto
+    device : Optional[torch.device]
+        The device to load the tensor into, by default None
 
     Returns
     -------
@@ -58,7 +57,8 @@ def load_audio(
             data = data[None, :]
     else:
         data, old_sample_rate = torchaudio.load(file_path)
-        data = data.to(get_device() if device == "auto" else device)
+        if device is not None:
+            data = data.to(device)
 
     # resampling
     if sample_rate is None:
@@ -101,7 +101,7 @@ def load_audio_parallel(
     file_paths: List[Path],
     sample_rate: int = None,
     tensor: bool = False,
-    device: str = "auto",
+    device: Optional[torch.device] = None,
     num_workers: int = 4,
 ) -> List[TensorOrArray]:
     """
@@ -115,8 +115,8 @@ def load_audio_parallel(
         Target sample rate, by default None
     tensor : bool, optional
         If True loads a torch Tensor, by default False
-    device : str, optional
-        The device to load the tensor into, by default auto
+    device : Optional[torch.device]
+        The device to load the tensor into, by default None
     num_workers : int, optional
         Number of parallel processes
 
@@ -129,10 +129,7 @@ def load_audio_parallel(
         _load = lambda x: load_audio(x, sample_rate, False)[0]
         xs = pool.map(_load, file_paths)
     if tensor:
-        xs = [
-            Tensor(x).to(device=get_device() if device == "auto" else device)
-            for x in xs
-        ]
+        xs = [Tensor(x, device=device) for x in xs]
     return xs
 
 

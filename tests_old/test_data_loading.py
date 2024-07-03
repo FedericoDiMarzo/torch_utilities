@@ -17,7 +17,7 @@ from torch_utilities.data_loading import (
 import torch_utilities as tu
 
 
-def _setup() -> None:
+def _setup():
     torch.manual_seed(984)
     np.random.seed(901)
     tu.disable_cuda()
@@ -97,7 +97,7 @@ class HDF5OnlineDatasetTesting(HDF5OnlineDataset):
         data_layouts: List[List[str]],
         batch_size: int,
         total_items: int,
-    ) -> None:
+    ):
         super().__init__(dataset_paths, data_layouts, batch_size, total_items)
 
     def transform(self, raw_data: List[Tensor]) -> List[Tensor]:

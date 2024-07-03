@@ -172,7 +172,7 @@ class Lookahead(Module):
         self,
         lookahead: int,
         maintain_shape: bool = False,
-    ) -> None:
+    ):
         """
         Temporal lookahead layer.
         Input shape: (B, C, T, F)
@@ -206,7 +206,7 @@ class Lookahead(Module):
 
 
 class Reparameterize(Module):
-    def __init__(self) -> None:
+    def __init__(self):
         super().__init__()
 
     def forward(self, mu: Tensor, logvar: Tensor) -> Tensor:
@@ -235,7 +235,7 @@ class ScaleChannels2d(Module):
     def __init__(
         self,
         in_channels: int,
-    ) -> None:
+    ):
         """
         Learns a per-channel gain.
 
@@ -277,7 +277,7 @@ class ScaleChannels2d(Module):
 
 
 class UnfoldSpectrogram(Module):
-    def __init__(self, block_size: int, stride: int) -> None:
+    def __init__(self, block_size: int, stride: int):
         """
         Custom unfold module, it performs a windowing over time of a time-freq signal.
 
@@ -362,7 +362,7 @@ class UnfoldSpectrogram(Module):
 
 
 class FoldSpectrogram(Module):
-    def __init__(self, block_size: int, stride: int, channels: int) -> None:
+    def __init__(self, block_size: int, stride: int, channels: int):
         """
         Custom fold module, reverses the result of UnfoldSpectrogram.
 
@@ -470,7 +470,7 @@ class FoldSpectrogram(Module):
 
 
 class ResidualWrap(Module):
-    def __init__(self, *modules: List[Module]) -> None:
+    def __init__(self, *modules: List[Module]):
         """
         Given a series of layers F(x) it reparametrize
         them as (x + F(x)).
@@ -540,7 +540,7 @@ class GroupedLinear(Module):
         )
         self.reset_parameters()
 
-    def reset_parameters(self) -> None:
+    def reset_parameters(self):
         """
         Resets the dense weights.
         """
@@ -586,7 +586,7 @@ class CausalConv2d(Module):
         separable: bool = False,
         enable_weight_norm: bool = False,
         dtype=None,
-    ) -> None:
+    ):
         """
         Convolution with causal kernels over time
 
@@ -730,7 +730,7 @@ class CausalSubConv2d(Module):
         enable_weight_norm: bool = False,
         upsampling_dim: str = "freq",
         dtype=None,
-    ) -> None:
+    ):
         """
         Also known as sub pixel convolution, described in
         Dense CNN With Self-Attention for Time-Domain Speech Enhancement
@@ -828,7 +828,7 @@ class CausalConv2dNormAct(Module):
         disable_batchnorm: bool = False,
         enable_weight_norm: bool = False,
         dtype=None,
-    ) -> None:
+    ):
         """
         CausalConv2d + BatchNorm2d + Activation.
 
@@ -953,7 +953,7 @@ class CausalSmoothedTConv(Module):
         activation: Module = nn.LeakyReLU(),
         residual_merge: Optional[Callable] = None,
         dtype=None,
-    ) -> None:
+    ):
         """
         Frequency upsampling module.
 
@@ -1150,7 +1150,7 @@ class DenseConvBlock(Module):
         enable_weight_norm: bool = False,
         activation: Module = nn.LeakyReLU(),
         dtype=None,
-    ) -> None:
+    ):
         """
         Dense block from Dense CNN With Self-Attention for Time-Domain Speech Enhancement
         paper (https://ieeexplore.ieee.org/document/9372863).
@@ -1297,7 +1297,7 @@ class GruNormAct(Module):
         residual_merge: Optional[Callable] = None,
         disable_batchnorm: bool = False,
         dtype=None,
-    ) -> None:
+    ):
         """
         GRU + BatchNorm1d + Activation.
 
@@ -1378,7 +1378,7 @@ class SlidingCausalMultiheadAttention(Module):
         bias: bool = True,
         receptive_field: Optional[int] = None,
         attn_mask: Optional[Tensor] = None,
-    ) -> None:
+    ):
         """
         Causal multi head attention module applied on an
         unfolded version of the input.

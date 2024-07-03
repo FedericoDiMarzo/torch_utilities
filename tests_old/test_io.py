@@ -8,7 +8,7 @@ import torch
 import torch_utilities as tu
 
 
-def _setup() -> None:
+def _setup():
     torch.manual_seed(984)
     np.random.seed(901)
     tu.disable_cuda()

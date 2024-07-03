@@ -9,7 +9,7 @@ import torch
 import torch_utilities as tu
 
 
-def _setup() -> None:
+def _setup():
     torch.manual_seed(984)
     np.random.seed(901)
     tu.disable_cuda()
@@ -108,7 +108,7 @@ class TestCosineScheduler(unittest.TestCase):
         scheduler = tu.CosineScheduler(*vs, e, it, we)
         return scheduler
 
-    def test_compute_schedule(self) -> None:
+    def test_compute_schedule(self):
         for p in self.params:
             vs, e, it, we = p
             a, b = vs

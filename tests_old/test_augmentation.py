@@ -6,7 +6,7 @@ import torch_utilities.augmentation as aug
 from torch_utilities.audio import invert_db
 
 
-def _setup() -> None:
+def _setup():
     torch.manual_seed(984)
     np.random.seed(901)
     tu.disable_cuda()

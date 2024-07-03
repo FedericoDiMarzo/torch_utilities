@@ -92,7 +92,7 @@ training:
         f.write(txt)
 
 
-def generate_checkpoint_monitoring(filename: str, n: int) -> None:
+def generate_checkpoint_monitoring(filename: str, n: int):
     """
     Generates a dummy checkpoint monitoring list.
 

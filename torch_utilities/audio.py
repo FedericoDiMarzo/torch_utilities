@@ -1,22 +1,3 @@
-from torchaudio.functional import melscale_fbanks
-from typing import Optional, List
-import torch.nn.functional as F
-from random import randrange
-from torch import Tensor
-import numpy as np
-import torch
-
-
-from torch_utilities.common import (
-    get_np_or_torch,
-    TensorOrArray,
-    get_device,
-    transpose,
-    to_numpy,
-)
-
-
-# export list
 __all__ = [
     "stft",
     "istft",
@@ -27,7 +8,6 @@ __all__ = [
     "power",
     "energy",
     "rms",
-    "snr",
     "fade_sides",
     "random_trim",
     "trim_silence",
@@ -35,7 +15,23 @@ __all__ = [
     "trim_as_shortest",
 ]
 
+from torchaudio.functional import melscale_fbanks
+from typing import Optional, List
+from random import randrange
+from torch import Tensor
+import numpy as np
+import torch
 
+
+from torch_utilities.common import (
+    get_np_or_torch,
+    TensorOrArray,
+    transpose,
+    to_numpy,
+)
+
+
+# TODO: Use asteroid_filterbanks
 def stft(
     x: TensorOrArray,
     sample_rate: int = 16000,
@@ -73,15 +69,7 @@ def stft(
     AttributeError
         If the window chosen does not exist
     """
-    return _stft_istft_core(
-        True,
-        x,
-        sample_rate,
-        hopsize_ms,
-        window,
-        win_len_ms,
-        win_oversamp,
-    )
+    raise NotImplementedError()
 
 
 def istft(
@@ -121,125 +109,7 @@ def istft(
     AttributeError
         If the window chosen does not exist
     """
-    return _stft_istft_core(
-        False,
-        x,
-        sample_rate,
-        hopsize_ms,
-        window,
-        win_len_ms,
-        win_oversamp,
-    )
-
-
-def _stft_istft_core(
-    is_stft: bool,
-    x: TensorOrArray,
-    sample_rate: int = 16000,
-    hopsize_ms: int = 10,
-    window: str = "hann",
-    win_len_ms: int = 20,
-    win_oversamp: int = 2,
-) -> TensorOrArray:
-    """
-    Calculates the STFT/ISTFT of a signal.
-
-    Parameters
-    ----------
-    is_stft : bool
-        Selects between STFT and ISTFT
-    x : TensorOrArray
-        Input signal
-    sample_rate : int, optional
-        Sample rate of the signal, by default 16000
-    hopsize_ms : int, optional
-        STFT hopsize in ms, by default 10
-    window : str, optional
-        Torch window to use, by default "hann"
-    win_len_ms : int, optional
-        Window length in ms, by default 20 ms
-    win_oversamp : int, optional
-        Zero padding applied equal to the window length
-        (1 equals to no zero pad), by default 2
-
-    Returns
-    -------
-    TensorOrArray
-        STFT of the input
-
-    Raises
-    ------
-    AttributeError
-        If the window chosen does not exist
-    """
-    # converting to Tensor
-    in_type = type(x)
-    if in_type == np.ndarray:
-        x = torch.from_numpy(x)
-
-    # getting the window function
-    try:
-        window += "_window"
-        win_fun = getattr(torch, window)
-    except AttributeError:
-        allowed_win = [
-            w + "_window" for w in ["hann", "hamming", "bartlett", "blackman", "kaiser"]
-        ]
-        err_msg = "choose a window between:\n" + ", ".join(allowed_win)
-        raise AttributeError(err_msg)
-
-    # parameters of the STFT
-    _ms_to_samples = lambda x: int(x * sample_rate / 1000)
-    win_len = _ms_to_samples(win_len_ms)
-    hopsize = _ms_to_samples(hopsize_ms)
-    n_fft = int(win_len * win_oversamp)
-    _window = torch.zeros(n_fft, device=x.device)
-    _window[:win_len] = win_fun(win_len, device=x.device)
-
-    # STFT/ISTFT dependent code
-    _transpose = lambda x: x.transpose(-1, -2)
-    if is_stft:
-        transform = torch.stft
-        # compensating for oversampling and center==True
-        pad_ovr = n_fft - win_len
-        pad_ctr = win_len // 2
-        x = F.pad(x, (pad_ctr, pad_ovr))
-    else:
-        transform = torch.istft
-        x = _transpose(x)
-
-    try:
-        y = transform(
-            x,
-            n_fft=n_fft,
-            hop_length=hopsize,
-            window=_window,
-            return_complex=is_stft,
-            center=True,
-        )
-    except RuntimeError as e:
-        # TODO: pytorch bug
-        # for some reason, few configurations do not pass the NOLA check even if
-        # they should pass it. This seems to be a bug related to PyTorch
-        err_msg = "The configuration you provided does not satisfies PyTorch NOLA check"
-        raise RuntimeError(str(e) + "\n" + err_msg)
-
-    if is_stft:
-        # reshaping
-        y = _transpose(y)
-        # compensating for center==True
-        y = y[:, 1:]
-    else:
-        # compensating for ola ratio
-        # it's still not clear where this shift comes from
-        ola_shift = (win_len // hopsize - 2) * (hopsize // 2)
-        y = y[:, ola_shift:]
-
-    if in_type == np.ndarray:
-        # converting to numpy
-        y = to_numpy(y)
-
-    return y
+    raise NotImplementedError()
 
 
 class MelFilterbank:
@@ -249,7 +119,7 @@ class MelFilterbank:
         n_freqs: int,
         n_mels: int,
         device: Optional[torch.device] = None,
-    ) -> None:
+    ):
         """
         Apply Mel filterbank to the input batch.
 
@@ -267,7 +137,7 @@ class MelFilterbank:
         self.sample_rate = sample_rate
         self.n_freqs = n_freqs
         self.n_mels = n_mels
-        self.device = device or get_device()
+        self.device = device
         self.filterbank = self._get_filterbank()
 
     def _get_filterbank(self) -> Tensor:
@@ -324,7 +194,7 @@ class MelInverseFilterbank:
         n_freqs: int,
         n_mels: int,
         device: Optional[torch.device] = None,
-    ) -> None:
+    ):
         """
         Apply inverse Mel filterbank to the input batch,
         to get back a spectrogram.
@@ -343,7 +213,7 @@ class MelInverseFilterbank:
         self.sample_rate = sample_rate
         self.n_freqs = n_freqs
         self.n_mels = n_mels
-        self.device = device or get_device()
+        self.device = device
         self.filterbank = self._get_filterbank()
 
     def _get_filterbank(self) -> Tensor:
@@ -489,37 +359,6 @@ def rms(x: TensorOrArray) -> float:
     return module.sqrt(energy(x))
 
 
-def snr(x: TensorOrArray, noise: TensorOrArray) -> float:
-    """
-    Signal to Noise Ratio (SNR) ratio in dB,
-    calculated considering the RMS.
-
-    Parameters
-    ----------
-    x : TensorOrArray
-        Signal of interest
-    noise : TensorOrArray
-        Interference
-
-    Returns
-    -------
-    float
-        SNR in db
-    """
-    err_msg0 = "snr supports only 1D and 2D signals"
-    assert len(x.shape) in [1, 2], err_msg0
-    assert len(noise.shape) in [1, 2], err_msg0
-    err_msg1 = "x and noise should be of the same type"
-    assert type(x) == type(noise), err_msg1
-
-    module = get_np_or_torch(x)
-    channel_mean = lambda x: module.mean(x, -2) if len(x.shape) == 1 else x
-    a = channel_mean(db(rms(x)))
-    b = channel_mean(db(rms(noise)))
-    snr = a - b
-    return snr
-
-
 def _win_to_sides(
     x: TensorOrArray,
     win: TensorOrArray,
@@ -586,7 +425,7 @@ def fade_sides(
     if module == np:
         y = x.copy()
     else:
-        win = win.to(get_device())
+        win = win.to(x.device)
         win[-1] = 0
         y = x.detach().clone()
     y = _win_to_sides(y, win, fade_len, direction)

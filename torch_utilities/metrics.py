@@ -1,3 +1,7 @@
+__all__ = ["DNSMOS"]
+
+# FIXME
+
 import onnxruntime as ort
 from typing import Tuple
 from pathlib import Path
@@ -6,10 +10,6 @@ import numpy as np
 
 
 from torch_utilities.common import to_numpy, TensorOrArray
-from torch_utilities.audio import MelFilterbank, stft
-
-# export list
-__all__ = ["DNSMOS"]
 
 
 def _get_model_dir() -> Path:
@@ -26,7 +26,7 @@ def _get_model_dir() -> Path:
 
 
 class DNSMOS:
-    def __init__(self, onnx_exec_provider: str = "CPUExecutionProvider") -> None:
+    def __init__(self, onnx_exec_provider: str = "CPUExecutionProvider"):
         """Microsoft DNSMOS model.
 
         Args:

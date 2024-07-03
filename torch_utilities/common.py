@@ -1,36 +1,28 @@
-from typing import Any, List, Tuple, Type, TypeVar, Union
-from numpy import ndarray
-from pathlib import Path
-from torch import Tensor
-import numpy as np
-import torch
-import yaml
-import os
-
 # export list
 __all__ = [
     # types
     "OneOrPair",
     "TensorOrArray",
-    # pytorch devices
-    "get_device",
+    # handling pytorch devices
     "disable_cuda",
     # generic utilities
-    "DotDict",
-    "Config",
     "get_np_or_torch",
     "pack_many",
-    "repeat_test",
     "execute_with_probability",
     # tensor/array operations
     "to_numpy",
-    "split_complex",
-    "pack_complex",
     "phase",
     "transpose",
     # math utilities
     "factorize",
 ]
+
+from typing import List, Sequence, Tuple, TypeVar, Union
+from numpy import ndarray
+from torch import Tensor
+import numpy as np
+import torch
+import os
 
 
 #  types
@@ -52,95 +44,12 @@ TensorOrArray = Union[Tensor, ndarray]
 
 
 #  handling pytorch devices
-def get_device() -> str:
-    """
-    Gets the first CUDA device available or CPU
-    if no CUDA device is available.
-
-    Returns
-    -------
-    str
-        Device id
-    """
-    return "cuda" if torch.cuda.is_available() else "cpu"
-
-
 def disable_cuda():
     """Disables CUDA in PyTorch."""
     os.environ["CUDA_VISIBLE_DEVICES"] = ""
 
 
 # generic utilities
-
-
-class DotDict(dict):
-    """
-    A dict that allows dot notation
-    for accessing to the elements
-    """
-
-    __getattr__ = dict.get
-    __setattr__ = dict.__setitem__
-    __delattr__ = dict.__delitem__
-
-    def copy(self) -> "DotDict":
-        return DotDict(super().copy())
-
-
-class Config:
-    def __init__(self, config_path: Path) -> None:
-        """
-        A class to handle yaml configuration files.
-        Inside a configuration many sections can be defined,
-        with parameters within them.
-
-        Parameters
-        ----------
-        config_path : Path
-            Path to the yaml configuration file
-        """
-        # loading the configuration
-        err_msg = "only YAML configurations are supported"
-        assert config_path.suffix == ".yml", err_msg
-        with open(config_path, "r") as f:
-            self.config = yaml.safe_load(f)
-
-    def get(
-        self,
-        section: str,
-        parameter: str,
-        _type: Type = str,
-        default: Any = None,
-    ) -> Any:
-        """
-        Gets a parameter from the configuration.
-
-        Parameters
-        ----------
-        section : str
-            Configuration section
-        parameter : str
-            Name of the parameter
-        _type : Type, optional
-            Type of the parameter, by default str
-        default : Any, optional
-            Default if the parameter does not exist, by default None
-
-        Returns
-        -------
-        Fetched parameter
-        """
-        cfg = self.config
-
-        try:
-            # getting the section
-            sec = cfg[section]
-            # getting the parameter
-            param = _type(sec[parameter])
-        except KeyError:
-            return default
-
-        return param
 
 
 def get_np_or_torch(x: TensorOrArray):
@@ -220,17 +129,6 @@ def execute_with_probability(prob: float) -> bool:
     return np.random.uniform() > prob
 
 
-def _get_test_data_dir() -> Path:
-    """Get the test data directory and create it if it does not exist.
-
-    Returns:
-        Path: Path to the test data directory.
-    """
-    path = Path(__file__).resolve().parent.parent / "tests" / "test_data"
-    path.mkdir(exist_ok=True)
-    return path
-
-
 # tensor/array operations
 
 
@@ -249,45 +147,6 @@ def to_numpy(x: Tensor) -> np.ndarray:
         Converted np array
     """
     return x.cpu().detach().numpy()
-
-
-def split_complex(x: TensorOrArray) -> TensorOrArray:
-    """
-    Splits a complex Tensor in a float
-    Tensor with the double of the channels.
-
-    Parameters
-    ----------
-    x : TensorOrArray
-        Complex input of shape (B, C, ...)
-
-    Returns
-    -------
-    TensorOrArray
-        Float output of shape (B, 2*C, ...)
-    """
-    module = get_np_or_torch(x)
-    x = module.cat((x.real, x.imag), 1)
-    return x
-
-
-def pack_complex(x: TensorOrArray) -> TensorOrArray:
-    """
-    Merges a 2*C channels float TensorOrArray in a complex TensorOrArray.
-
-    Parameters
-    ----------
-    x : TensorOrArray
-        Float input of shape (B, 2*C, ...)
-
-    Returns
-    -------
-    TensorOrArray
-        Complex output of shape (B, C, ...)
-    """
-    c = x.shape[1]
-    x = x[:, : c // 2] + 1j * x[:, c // 2 :]
-    return x
 
 
 def phase(x: TensorOrArray) -> TensorOrArray:
@@ -334,7 +193,7 @@ def transpose(x: TensorOrArray, dim1: int, dim2: int) -> TensorOrArray:
 # math utilities
 
 
-def factorize(n: int) -> List[int]:
+def factorize(n: int) -> Sequence[int]:
     """
     Factorize an integer number.
     Implementation based on
@@ -347,7 +206,7 @@ def factorize(n: int) -> List[int]:
 
     Returns
     -------
-    List[int]
+    Sequence[int]
         List of factors in increasing order
     """
 

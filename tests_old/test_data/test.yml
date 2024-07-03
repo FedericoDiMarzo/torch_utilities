@@ -1,0 +1,33 @@
+ray_tune:
+  choice:
+    depth:
+    - - 1
+      - 4
+      - 10
+    list_choice:
+    - - - 1
+        - 2
+        - 3
+      - - 0.1
+        - 0.2
+        - 0.3
+  loguniform:
+    learning_rate:
+    - 1.0e-05
+    - 0.001
+    weight_decay:
+    - 0.01
+    - 0.1
+  uniform:
+    loss_weight_0:
+    - 0
+    - 1
+section1:
+  param1: test
+  param2: 42
+  param3:
+  - a
+  - b
+  - c
+section2:
+  param4: 12.43
