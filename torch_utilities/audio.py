@@ -319,8 +319,10 @@ def power(x: TensorOrArray) -> float:
         Power of the signal of shape (...) (len(x) - 1)
     """
     module = get_np_or_torch(x)
-    _power = module.einsum("...t,...t->...", x, x.conj())
-    return _power
+    pwr = module.einsum("...t,...t->...", x, x.conj())
+    if module == torch:
+        pwr = pwr.item()
+    return pwr
 
 
 def energy(x: TensorOrArray) -> float:
@@ -355,8 +357,8 @@ def rms(x: TensorOrArray) -> float:
     float
         RMS of the signal of shape (...) (len(x) - 1)
     """
-    module = get_np_or_torch(x)
-    return module.sqrt(energy(x))
+    e = energy(x)
+    return np.sqrt(e)
 
 
 def _win_to_sides(

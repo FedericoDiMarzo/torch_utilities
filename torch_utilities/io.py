@@ -137,7 +137,7 @@ def load_audio_parallel_itr(
     file_paths: List[Path],
     sample_rate: int = None,
     tensor: bool = False,
-    device: str = "auto",
+    device: Optional[torch.device] = None,
     num_workers: int = 4,
 ) -> Iterator[TensorOrArray]:
     """
@@ -151,8 +151,8 @@ def load_audio_parallel_itr(
         Target sample rate, by default None
     tensor : bool, optional
         If True loads a torch Tensor, by default False
-    device : str, optional
-        The device to load the tensor into, by default auto
+    device : Optional[torch.device]
+        The device to load the tensor into, by default None
     num_workers : int, optional
         Number of parallel processes
 
