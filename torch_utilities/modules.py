@@ -1,15 +1,3 @@
-from torch.nn.utils.parametrizations import weight_norm
-from typing import Callable, List, Optional, Tuple
-import torch.nn.functional as F
-from torch import nn, Tensor
-from torch.nn import Module
-import numpy as np
-import torch
-
-
-from torch_utilities.audio import interleave
-from torch_utilities.common import OneOrPair
-
 __all__ = [
     # utilities
     "LambdaLayer",
@@ -26,13 +14,25 @@ __all__ = [
     "CausalSubConv2d",
     # conv2d compositions
     "CausalConv2dNormAct",
-    "CausalSmoothedTConv",
     "DenseConvBlock",
     # recurrent variants
     "GruNormAct",
     # attention variants
     "SlidingCausalMultiheadAttention",
 ]
+
+from torch.nn.utils.parametrizations import weight_norm
+from typing import Callable, List, Optional, Tuple
+import torch.nn.functional as F
+from torch import nn, Tensor
+from torch.nn import Module
+import numpy as np
+import torch
+
+
+from torch_utilities.audio import interleave
+from torch_utilities.common import OneOrPair
+
 
 # private utility functions = = = = = = = = = = = = = =
 
@@ -932,208 +932,6 @@ class CausalConv2dNormAct(Module):
         return y
 
 
-class CausalSmoothedTConv(Module):
-    def __init__(
-        self,
-        in_channels: int,
-        out_channels: int,
-        post_conv_kernel_size: OneOrPair[int],
-        post_conv_dilation: Optional[OneOrPair[int]] = None,
-        disable_dilation_f: bool = False,
-        post_conv_count: int = 1,
-        tconv_kernel_f: Optional[int] = None,
-        tconv_stride_f: int = 2,
-        separable: bool = False,
-        batchnorm_eps: float = 1e-05,
-        batchnorm_momentum: float = 0.1,
-        batchnorm_affine: bool = True,
-        batchnorm_track_running_stats: bool = True,
-        disable_batchnorm: bool = False,
-        enable_weight_norm: bool = False,
-        activation: Module = nn.LeakyReLU(),
-        residual_merge: Optional[Callable] = None,
-        dtype=None,
-    ):
-        """
-        Frequency upsampling module.
-
-        Parameters
-        ----------
-        in_channels : int
-            Number of input channels
-        out_channels : int
-            Number of output channels
-        post_conv_kernel_size : OneOrPair[int]
-            Kernel size of the post convolutions.
-        post_conv_dilation : Optional[Tuple[int,int]]
-            Dilation of the post convolutions,
-            by default the dilation is equal to the kernel to the power of
-            the post_conv layer index
-        disable_dilation_f : bool
-            If True dilation_f==1 for each post_conv_dilation setting,
-            by default False
-        post_conv_count : int, optional
-            Number of post convolutions, by default 1
-        tconv_kernel_f : Optional[int], optional
-            Frequncy kernel size of the transposed convolution,
-            by default twice tconv_stride_f
-        tconv_stride_f : int, optional
-            Stride of the transposed convolution, by default 2
-        tconv_padding_f : int, optional
-            Frequency padding of the transposed convolution , by default 0
-        separable : bool, optional
-            Enable separable convolutions, by default False
-        batchnorm_eps : float, optional
-            Eps parameter of the BatchNorm2d , by default 1e-05
-        batchnorm_momentum : float, optional
-            Momentum parameter of the BatchNorm2d, by default 0.1
-        batchnorm_affine : bool, optional
-            Affine parameter of the BatchNorm2d, by default True
-        batchnorm_track_running_stats : bool, optional
-            Track running stats parameter of the BatchNorm2d, by default True
-        disable_batchnorm : bool, optional
-            Disables the batch normalization, by default False
-        enable_weight_norm : bool, optional
-            Uses the weight normalization instead of the batch normalization,
-            by default False
-        activation : Module, optional
-            Activation to use, by default nn.LeakyReLU()
-        residual_merge : Optional[Callable], optional
-            Merge operation performed between the layer output and a residual skip connection
-            from the output of the transposed conv to the output of the activation, by default None
-        dtype : optional
-            Module dtype, by default None
-        """
-        super().__init__()
-
-        # attributes
-        self.in_channels = in_channels
-        self.out_channels = out_channels
-        self.post_conv_kernel_size = post_conv_kernel_size
-        self.post_conv_dilation = post_conv_dilation
-        self.disable_dilation_f = disable_dilation_f
-        self.post_conv_count = post_conv_count
-        self.tconv_kernel_f = tconv_kernel_f
-        self.tconv_stride_f = tconv_stride_f
-        self.separable = separable
-        self.batchnorm_eps = batchnorm_eps
-        self.batchnorm_momentum = batchnorm_momentum
-        self.batchnorm_affine = batchnorm_affine
-        self.batchnorm_track_running_stats = batchnorm_track_running_stats
-        self.disable_batchnorm = disable_batchnorm
-        self.enable_weight_norm = enable_weight_norm
-        self.activation = activation
-        self.residual_merge = residual_merge
-        self.dtype = dtype
-
-        # optional weight normalization
-        self._normalize = weight_norm if self.enable_weight_norm else (lambda x: x)
-
-        # weight normalization disables batch normalization
-        if self.enable_weight_norm:
-            self.disable_batchnorm = True
-
-        # tconv_kernel_f_size is set to twice tconv_stride_f
-        # to reduce the reconstruction artifacts
-        if self.tconv_kernel_f is None:
-            self.tconv_kernel_f = 2 * self.tconv_stride_f
-
-        # inner modules
-        self.tconv = self._normalize(
-            nn.ConvTranspose2d(
-                in_channels=self.in_channels,
-                out_channels=self.out_channels,
-                kernel_size=(1, self.tconv_kernel_f),
-                stride=(1, self.tconv_stride_f),
-                bias=False,
-                dtype=self.dtype,
-            )
-        )
-        tconv_out_pad_f = self.tconv_stride_f - self.tconv_kernel_f
-        self.tconv_out_pad = nn.ConstantPad2d((0, tconv_out_pad_f, 0, 0), 0)
-
-        self.conv = self._get_conv_layers()
-
-        if disable_batchnorm:
-            self.batchnorm = nn.Identity()
-        else:
-            self.batchnorm = nn.BatchNorm2d(
-                num_features=self.out_channels,
-                eps=self.batchnorm_eps,
-                momentum=self.batchnorm_momentum,
-                affine=self.batchnorm_affine,
-                track_running_stats=self.batchnorm_track_running_stats,
-                dtype=self.dtype,
-            )
-
-        self.activation = activation or nn.Identity()
-        self.residual_merge = residual_merge
-
-    def forward(self, x: Tensor) -> Tensor:
-        x = self.tconv(x)
-        x = self.tconv_out_pad(x)
-        y = self.conv(x)
-        y = self.batchnorm(y)
-        y = self.activation(y)
-        if self.residual_merge is not None:
-            y = self.residual_merge(x, y)
-        return y
-
-    def _get_default_dilation(self) -> List[OneOrPair[int]]:
-        """
-        The default dilation is an increasing power of the kernel
-        # e.g: d_t_conv2 = k_t**2
-
-        Returns
-        -------
-        List[OneOrPair[int]]
-            default dilation
-        """
-        dilation = get_default_dilation(
-            self.post_conv_kernel_size,
-            self.post_conv_count,
-            self.disable_dilation_f,
-        )
-        return dilation
-
-    def _get_conv_layers(self) -> nn.Sequential:
-        """
-        Gets the convolutional layers.
-
-        Returns
-        -------
-        nn.Sequential
-            Sequence of one or more CausalConv2d layers
-        """
-
-        # to solve an unique case ~ ~ ~
-        if self.post_conv_dilation is None:
-            self.post_conv_dilation = self._get_default_dilation()
-        else:
-            self.post_conv_dilation = [self.post_conv_dilation] * self.post_conv_count
-        # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
-
-        conv = []
-        kernels = [self.post_conv_kernel_size] * self.post_conv_count
-        for k, d in zip(kernels, self.post_conv_dilation):
-            conv.append(
-                CausalConv2d(
-                    in_channels=self.out_channels,
-                    out_channels=self.out_channels,
-                    kernel_size=k,
-                    padding_f=None,
-                    dilation=d,
-                    bias=False,
-                    separable=self.separable,
-                    enable_weight_norm=self.enable_weight_norm,
-                    dtype=self.dtype,
-                )
-            )
-
-        conv = nn.Sequential(*conv)
-        return conv
-
-
 class DenseConvBlock(Module):
     def __init__(
         self,
@@ -1366,6 +1164,9 @@ class GruNormAct(Module):
 
 
 # attention variants  = = = = = = = = = = = = = = = = =
+
+
+# This is untested
 class SlidingCausalMultiheadAttention(Module):
     def __init__(
         self,
