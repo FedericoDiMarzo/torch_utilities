@@ -1,9 +1,10 @@
+from typing import Callable, Tuple
 import numpy as np
 import pytest
 import torch
 
-import torch_utilities as tu
 from torch_utilities import TensorOrArray
+import torch_utilities as tu
 
 # Local fixtures ===============================================================
 
@@ -65,7 +66,81 @@ def trim_margin(request) -> int:
     return request.param
 
 
+@pytest.fixture(params=[128])
+def n_fft(request) -> int:
+    """Number of FFT points."""
+    return request.param
+
+
+@pytest.fixture
+def n_stft_freqs(n_fft) -> int:
+    """Number of FFT frequencies."""
+    return n_fft // 2 + 1
+
+
+@pytest.fixture()
+def hop_size(n_fft) -> int:
+    """Hop size."""
+    return n_fft // 2
+
+
+@pytest.fixture(params=[True, False])
+def use_complex(request) -> bool:
+    """Use complex."""
+    return request.param
+
+
+@pytest.fixture
+def stft_istft(sample_rate, n_fft, hop_size, use_complex) -> Tuple[Callable, Callable]:
+    """STFT and ISTFT functions."""
+    stft, istft = tu.get_stft_istft(
+        sample_rate=sample_rate,
+        n_fft=n_fft,
+        hop_size=hop_size,
+        complex=use_complex,
+    )
+
+    return stft, istft
+
+
+@pytest.fixture
+def stft(stft_istft) -> Callable:
+    """STFT function."""
+    stft, _ = stft_istft
+    return stft
+
+
+@pytest.fixture
+def istft(stft_istft) -> Callable:
+    """ISTFT function."""
+    _, istft = stft_istft
+    return istft
+
+
 # ==============================================================================
+
+
+class TestSTFT:
+    def test_stft_shape(self, stft, use_complex, n_stft_freqs):
+        x = torch.zeros(1, 1, 16000)
+        y = stft(x)
+        assert y.shape[:2] == x.shape[:2]
+        assert len(y.shape) == 4
+        if use_complex:
+            assert torch.is_complex(y)
+            assert y.shape[-1] == n_stft_freqs
+        else:
+            assert not torch.is_complex(y)
+            assert y.shape[-1] == 2 * n_stft_freqs
+
+    def test_istft_shape(self, istft, use_complex, n_stft_freqs):
+        x = torch.zeros(1, 1, 10, 2 * n_stft_freqs)
+        if use_complex:
+            x = x[..., :n_stft_freqs] + 1j
+        y = istft(x)
+        assert not torch.is_complex(y)
+        assert y.shape[:2] == (1, 1)
+        assert len(y.shape) == 3
 
 
 class TestMelFilterbank:
@@ -90,19 +165,19 @@ class TestAudio:
         torch.testing.assert_close(x, x_hat)
 
     def test_power(self, module):
-        x = module.ones(100)
+        x = module.ones((2, 100))
         x[50:] = -1
-        torch.testing.assert_close(tu.power(x), 100.0)
+        torch.testing.assert_close(tu.power(x), module.ones(2) * 100.0)
 
     def test_energy(self, module):
-        x = module.ones(100)
+        x = module.ones((2, 100))
         x[50:] = -1
-        torch.testing.assert_close(tu.energy(x), 1.0)
+        torch.testing.assert_close(tu.energy(x), module.ones(2) * 1.0)
 
     def test_rms(self, module):
-        x = module.ones(100)
+        x = module.ones((2, 100))
         x[50:] = -1
-        torch.testing.assert_close(tu.rms(x), 1.0)
+        torch.testing.assert_close(tu.rms(x), module.ones(2) * 1.0)
 
     def test_fade_sides_2d(self, module):
         x = module.ones((2, 200))

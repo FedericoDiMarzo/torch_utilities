@@ -1,18 +1,23 @@
-import numpy as np
 import pytest
 import torch
 
-import torch_utilities as tu
-from torch_utilities import TensorOrArray
 import torch_utilities.augmentation as aug
+import torch_utilities as tu
 
 
 # Local fixtures ===============================================================
 
 
-@pytest.fixture(params=[-12, 0, 12])
+@pytest.fixture(params=[-12, 0, 7])
 def snr(request) -> int:
     """The signal-to-noise ratio."""
+    return request.param
+
+
+# scale
+@pytest.fixture(params=[-3, 0])
+def scale(request) -> int:
+    """The scaling factor."""
     return request.param
 
 
@@ -35,25 +40,23 @@ class TestAugmentation:
         assert len(actual_snr.shape) == 1
         assert actual_snr.shape[0] == y.shape[0]
 
-    # def test_scale(self):
-    #     scale_set = (-12, 0, 12)
-    #     for scale in scale_set:
-    #         with self.subTest(snr=scale):
-    #             lin_scale = aug.invert_db(scale)
-    #             x = torch.ones((1, 1, 100))
-    #             y, actual_scaling = aug.random_scaling(x, (scale, scale))
-    #             self.assertAlmostEqual(y.max().item(), lin_scale)
-    #             self.assertLess(actual_scaling - invert_db(scale), 1e-6)
-    #             self.assertTrue(len(actual_scaling.shape), 1)
-    #             self.assertTrue(actual_scaling.shape[0], y.shape[0])
+    def test_scale(self, scale):
+        batch_size = 4
+        lin_scale = tu.invert_db(scale)
+        x = torch.ones((batch_size, 1, 100))
+        y, actual_scaling = aug.random_scaling(x, (scale, scale))
+        assert y.shape == x.shape
+        assert actual_scaling.shape == (x.shape[0],)
+        torch.testing.assert_close(y.max().item(), lin_scale)
+        torch.testing.assert_close(actual_scaling, torch.ones(batch_size) * lin_scale)
 
-    # def test_overdrive(self):
-    #     x = torch.ones((1, 1, 100))
-    #     y = aug.random_overdrive(x)
-    #     self.assertAlmostEqual(y.max().item(), 1)
+    def test_overdrive(self):
+        x = torch.ones((4, 1, 100))
+        y = aug.random_overdrive(x)
+        torch.testing.assert_close(y.max().item(), 1.0)
 
-    # def test_dc_removal(self):
-    #     x = torch.ones((2, 3, 5))
-    #     y = aug.dc_removal(x)
-    #     m = y.mean()
-    #     self.assertLess(m, 1e-6)
+    def test_dc_removal(self):
+        x = torch.ones((2, 3, 5))
+        y = aug.dc_removal(x)
+        m = y.mean()
+        assert m < 1e-6
