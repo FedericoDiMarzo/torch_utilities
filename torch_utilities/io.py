@@ -1,4 +1,12 @@
-from typing import Iterator, List, Tuple
+__all__ = [
+    "load_audio",
+    "save_audio",
+    "load_audio_parallel",
+    "load_audio_parallel_itr",
+    "pack_audio_sequences",
+]
+
+from typing import Iterator, Sequence, Optional, Tuple
 from resampy import resample as resample_np
 from torchaudio.functional import resample
 from multiprocess import Pool
@@ -11,23 +19,14 @@ import torchaudio
 import torch
 
 
-from torch_utilities.common import TensorOrArray, get_device
-
-# export list
-__all__ = [
-    "load_audio",
-    "save_audio",
-    "load_audio_parallel",
-    "load_audio_parallel_itr",
-    "pack_audio_sequences",
-]
+from torch_utilities.utilities import TensorOrArray
 
 
 def load_audio(
     file_path: Path,
     sample_rate: int = None,
     tensor: bool = False,
-    device: str = "auto",
+    device: Optional[torch.device] = None,
 ) -> Tuple[TensorOrArray, int]:
     """
     Loads an audio file.
@@ -40,8 +39,8 @@ def load_audio(
         Target sample rate, by default avoids resample
     tensor : bool, optional
         If True loads a torch Tensor, by default False
-    device : str, optional
-        The device to load the tensor into, by default auto
+    device : Optional[torch.device]
+        The device to load the tensor into, by default None
 
     Returns
     -------
@@ -58,7 +57,8 @@ def load_audio(
             data = data[None, :]
     else:
         data, old_sample_rate = torchaudio.load(file_path)
-        data = data.to(get_device() if device == "auto" else device)
+        if device is not None:
+            data = data.to(device)
 
     # resampling
     if sample_rate is None:
@@ -98,49 +98,46 @@ def save_audio(file_path: Path, data: TensorOrArray, sample_rate: int):
 
 
 def load_audio_parallel(
-    file_paths: List[Path],
+    file_paths: Sequence[Path],
     sample_rate: int = None,
     tensor: bool = False,
-    device: str = "auto",
+    device: Optional[torch.device] = None,
     num_workers: int = 4,
-) -> List[TensorOrArray]:
+) -> Sequence[TensorOrArray]:
     """
     Loads multiple audio files in parallel.
 
     Parameters
     ----------
-    file_path : List[Path]
-        List of paths to the audio files
+    file_path : Sequence[Path]
+        Sequence of paths to the audio files
     sample_rate : int, optional
         Target sample rate, by default None
     tensor : bool, optional
         If True loads a torch Tensor, by default False
-    device : str, optional
-        The device to load the tensor into, by default auto
+    device : Optional[torch.device]
+        The device to load the tensor into, by default None
     num_workers : int, optional
         Number of parallel processes
 
     Returns
     -------
-    List[TensorOrArray]
-        list of audios of shape (C, T)
+    Sequence[TensorOrArray]
+        Sequence of audios of shape (C, T)
     """
     with Pool(num_workers) as pool:
         _load = lambda x: load_audio(x, sample_rate, False)[0]
         xs = pool.map(_load, file_paths)
     if tensor:
-        xs = [
-            Tensor(x).to(device=get_device() if device == "auto" else device)
-            for x in xs
-        ]
+        xs = [Tensor(x, device=device) for x in xs]
     return xs
 
 
 def load_audio_parallel_itr(
-    file_paths: List[Path],
+    file_paths: Sequence[Path],
     sample_rate: int = None,
     tensor: bool = False,
-    device: str = "auto",
+    device: Optional[torch.device] = None,
     num_workers: int = 4,
 ) -> Iterator[TensorOrArray]:
     """
@@ -148,14 +145,14 @@ def load_audio_parallel_itr(
 
     Parameters
     ----------
-    file_path : List[Path]
-        List of paths to the audio files
+    file_path : Sequence[Path]
+        Sequence of paths to the audio files
     sample_rate : int, optional
         Target sample rate, by default None
     tensor : bool, optional
         If True loads a torch Tensor, by default False
-    device : str, optional
-        The device to load the tensor into, by default auto
+    device : Optional[torch.device]
+        The device to load the tensor into, by default None
     num_workers : int, optional
         Number of parallel processes
 
@@ -177,7 +174,7 @@ def load_audio_parallel_itr(
 
 
 def pack_audio_sequences(
-    xs: List[Path],
+    xs: Sequence[Path],
     length: float,
     sample_rate: int,
     channels: int = 1,
@@ -186,13 +183,13 @@ def pack_audio_sequences(
     num_workers: int = 1,
 ) -> Iterator[TensorOrArray]:
     """
-    Reads from a list of audio filepaths and generate temporal sequences
+    Reads from a Sequence of audio filepaths and generate temporal sequences
     of a certain length.
 
     Parameters
     ----------
-    xs : List[Path]
-        List of audio filepaths
+    xs : Sequence[Path]
+        Sequence of audio filepaths
     length : float
         Length of the sequences is seconds
     sample_rate : int
