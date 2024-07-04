@@ -9,7 +9,7 @@ from torch import Tensor
 import numpy as np
 
 
-from torch_utilities.common import to_numpy, TensorOrArray
+from torch_utilities.utilities import to_numpy, TensorOrArray
 
 
 def _get_model_dir() -> Path:

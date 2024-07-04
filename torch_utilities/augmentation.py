@@ -10,6 +10,8 @@ __all__ = [
 ]
 
 
+# Augmentations support only Tensor, not numpy arrays
+
 import torchaudio.functional as F
 from torch import Tensor
 from typing import Tuple
