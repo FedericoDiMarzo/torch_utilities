@@ -1,6 +1,5 @@
 __all__ = [
-    "stft",
-    "istft",
+    "get_stft_istft",
     "MelFilterbank",
     "MelInverseFilterbank",
     "db",
@@ -15,15 +14,17 @@ __all__ = [
     "trim_as_shortest",
 ]
 
+from asteroid_filterbanks.transforms import from_torch_complex, to_torch_complex
+from asteroid_filterbanks import STFTFB, Encoder, Decoder
 from torchaudio.functional import melscale_fbanks
-from typing import Optional, List
+from typing import Callable, Optional, List, Tuple
 from random import randrange
 from torch import Tensor
 import numpy as np
 import torch
 
 
-from torch_utilities.common import (
+from torch_utilities.utilities import (
     get_np_or_torch,
     TensorOrArray,
     transpose,
@@ -31,85 +32,93 @@ from torch_utilities.common import (
 )
 
 
-# TODO: Use asteroid_filterbanks
-def stft(
-    x: TensorOrArray,
-    sample_rate: int = 16000,
-    hopsize_ms: int = 10,
-    window: str = "hann",
-    win_len_ms: int = 20,
-    win_oversamp: int = 2,
-) -> TensorOrArray:
+def get_stft_istft(
+    sample_rate: int,
+    n_fft: int,
+    hop_size: int,
+    window: Optional[TensorOrArray] = None,
+    complex: bool = True,
+    pack_nyquist: bool = False,
+) -> Tuple[Callable, Callable]:
+    """Wrapper around asteroid filterbanks to get the STFT and ISTFT.
+
+    Args:
+        sample_rate (int): Sample rate of the signal
+        n_fft (int): Number of FFT points
+        hop_size (int): Hop size
+        window (Optional[TensorOrArray], optional): Window to use. Defaults to Hann.
+        complex (bool, optional): Whether to return complex numbers or dual-real. Defaults to True.
+        pack_nyquist (bool, optional): Whether to pack the Nyquist frequency. Defaults to False.
+
+    Note:
+        - STFT in/out: (B, C, T) -> (B, C, T, 2*F)
+        - ISTFT in/out: (B, C, T, 2*F) -> (B, C, T)
+        - When complex==True the output is complex (F), otherwise dual-real (2*F).
+        - When complex==False the real and imaginary parts are concatenated (not interleaved).
+        - We support Tensor only
+
+    Returns:
+        Tuple[Callable, Callable]: stft, istft functions
     """
-    Calculates the STFT of a signal.
+    if type(window) == np.ndarray:
+        window = torch.from_numpy(window)
+    if window is None:
+        window = torch.hann_window(n_fft)
 
-    Parameters
-    ----------
-    x : TensorOrArray
-        Input signal of shape (..., T)
-    sample_rate : int, optional
-        Sample rate of the signal, by default 16000
-    hopsize_ms : int, optional
-        STFT hopsize in ms, by default 10
-    window : str, optional
-        Torch window to use, by default "hann"
-    win_len_ms : int, optional
-        Window length in ms, by default 20 ms
-    win_oversamp : int, optional
-        Zero padding applied equal to the window length
-        (1 equals to no zero pad), by default 2
+    kwargs = dict(
+        n_filters=n_fft,
+        kernel_size=n_fft,
+        window=window,
+        stride=hop_size,
+        sample_rate=sample_rate,
+    )
+    stft = Encoder(STFTFB(**kwargs), as_conv1d=False)
+    istft = Decoder(STFTFB(**kwargs))
 
-    Returns
-    -------
-    TensorOrArray
-        STFT of the input of shape (..., T', F')
+    if complex:
+        stft2 = lambda x: to_torch_complex(stft(x))
+        istft2 = lambda x: istft(from_torch_complex(x))
+    else:
+        stft2 = stft
+        istft2 = istft
 
-    Raises
-    ------
-    AttributeError
-        If the window chosen does not exist
+    # We want (B, C, T, F)
+    stft3 = lambda x: stft2(x).transpose(-1, -2)
+    istft3 = lambda x: istft2(x.transpose(-1, -2))
+
+    if pack_nyquist:
+        raise NotImplementedError("Packing Nyquist is not implemented yet.")
+
+    return stft3, istft3
+
+
+# TODO: Basic tests
+def pack_nyquist(x: TensorOrArray, complex: bool = True) -> TensorOrArray:
+    """Move the real component of the Nyquist to the
+    imaginary component of the 0 frequency.
+
+    Args:
+        x (TensorOrArray): Input signal of shape (..., F) or (..., 2*F)
+        complex (bool, optional): Whether the input is complex or dual-real. Defaults to True.
+
+    Returns:
+        TensorOrArray: (..., F-1) or (..., 2*F-2)
     """
-    raise NotImplementedError()
+    if complex:
+        x[..., 0] += 1j * x[..., -1].real
+        x = x[..., :-1]
+    else:
+        freqs = x.shape[-1] // 2
+        # niq.real -> 0.imag
+        x[..., freqs] = x[..., freqs - 1]
+        # removing niq.real and niq.imag
+        x = x[..., :-1]
+        x = torch.stack([x[..., : freqs - 1], x[..., freqs:]], -1)
+    return x
 
 
-def istft(
-    x: TensorOrArray,
-    sample_rate: int = 16000,
-    hopsize_ms: int = 10,
-    window: str = "hann",
-    win_len_ms: int = 20,
-    win_oversamp: int = 2,
-) -> TensorOrArray:
-    """
-    Calculates the ISTFT of a signal.
-
-    Parameters
-    ----------
-    x : TensorOrArray
-        Input signal of shape (..., T, F)
-    sample_rate : int, optional
-        Sample rate of the signal, by default 16000
-    hopsize_ms : int, optional
-        STFT hopsize in ms, by default 10
-    window : str, optional
-        Torch window to use, by default "hann"
-    win_len_ms : int, optional
-        Window length in ms, by default 20 ms
-    win_oversamp : int, optional
-        Zero padding applied equal to the window length
-        (1 equals to no zero pad), by default 2
-
-    Returns
-    -------
-    TensorOrArray
-        ISTFT of the input of shape (..., T')
-
-    Raises
-    ------
-    AttributeError
-        If the window chosen does not exist
-    """
-    raise NotImplementedError()
+def unpack_nyquist(x: TensorOrArray, complex: bool = True) -> TensorOrArray:
+    pass  # TODO
 
 
 class MelFilterbank:
@@ -304,7 +313,7 @@ def invert_db(x: TensorOrArray, eps: float = 1e-12) -> TensorOrArray:
     return 10 ** (x / 20) - eps
 
 
-def power(x: TensorOrArray) -> float:
+def power(x: TensorOrArray) -> TensorOrArray | float:
     """
     Power of a signal, calculated for each channel.
 
@@ -316,16 +325,14 @@ def power(x: TensorOrArray) -> float:
     Returns
     -------
     float
-        Power of the signal of shape (...) (len(x) - 1)
+        Power of the signal of shape (...)
     """
     module = get_np_or_torch(x)
     pwr = module.einsum("...t,...t->...", x, x.conj())
-    if module == torch:
-        pwr = pwr.item()
     return pwr
 
 
-def energy(x: TensorOrArray) -> float:
+def energy(x: TensorOrArray) -> TensorOrArray | float:
     """
     Energy of a signal.
 
@@ -337,13 +344,13 @@ def energy(x: TensorOrArray) -> float:
     Returns
     -------
     float
-        Energy of the signal of shape (...) (len(x) - 1)
+        Energy of the signal of shape (...)
     """
     samples = x.shape[-1]
     return power(x) / samples
 
 
-def rms(x: TensorOrArray) -> float:
+def rms(x: TensorOrArray) -> TensorOrArray | float:
     """
     RMS of a signal, calculated for each channel.
 
@@ -355,7 +362,7 @@ def rms(x: TensorOrArray) -> float:
     Returns
     -------
     float
-        RMS of the signal of shape (...) (len(x) - 1)
+        RMS of the signal of shape (...)
     """
     e = energy(x)
     return np.sqrt(e)
@@ -400,7 +407,9 @@ def _win_to_sides(
 
 
 def fade_sides(
-    x: TensorOrArray, fade_len: int = 100, direction: str = "both"
+    x: TensorOrArray,
+    fade_len: int = 100,
+    direction: str = "both",
 ) -> TensorOrArray:
     """
     Apply an half of an Hanning window to the
