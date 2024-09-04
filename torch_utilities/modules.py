@@ -296,7 +296,7 @@ class UnfoldSpectrogram(Module):
         # inner modules ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
         # (B, C, T, F) -> (B*C, 1, T, F)
-        self._reshape_0 = lambda x: x.view(x.shape[0] * x.shape[1], *x.shape[2:])[
+        self._reshape_0 = lambda x: x.reshape(x.shape[0] * x.shape[1], *x.shape[2:])[
             :, None, :, :
         ]
 
@@ -305,13 +305,13 @@ class UnfoldSpectrogram(Module):
             x, (self.block_size, x.shape[3]), stride=(self.stride, 1)
         )
 
-        # (B*C, F*block_size, num_blocks) -> (B*C, 1, F, block_size, num_blocks)
-        self._reshape_1 = lambda x: x.view(
-            x.shape[0], 1, -1, self.block_size, x.shape[2]
+        # (B*C, block_size*F, num_blocks) -> (B*C, 1, block_size, F, num_blocks)
+        self._reshape_1 = lambda x: x.reshape(
+            x.shape[0], 1, self.block_size, -1, x.shape[2]
         )
 
-        # (B*C, 1, F, block_size, num_blocks) -> (B*C, 1, num_blocks, block_size, F)
-        self._reshape_2 = lambda x: x.permute(0, 1, 4, 3, 2)
+        # (B*C, 1, block_size, F, num_blocks) -> (B*C, 1, num_blocks, block_size, F)
+        self._reshape_2 = lambda x: x.permute(0, 1, 4, 2, 3)
 
         # (B*C, 1, num_blocks, block_size, F) -> (B, C, num_blocks, block_size, F)
         self._reshape_3 = lambda x, ch: x.reshape(
@@ -400,21 +400,19 @@ class FoldSpectrogram(Module):
             -1, 1, x.shape[1] // self.channels, self.block_size, x.shape[3]
         )
 
-        # (B*C, 1, num_blocks, block_size, F) -> (B*C, 1, F, block_size, num_blocks)
-        self._reshape_2 = lambda x: x.permute(0, 1, 4, 3, 2)
+        # (B*C, 1, num_blocks, block_size, F) -> (B*C, 1, block_size, F, num_blocks)
+        self._reshape_2 = lambda x: x.permute(0, 1, 3, 4, 2)
 
-        # (B*C, 1, F, block_size, num_blocks) -> (B*C, F*block_size, num_blocks)
-        self._reshape_3 = lambda x: x.reshape(
-            x.shape[0], x.shape[2] * self.block_size, x.shape[4]
-        )
+        # (B*C, 1, block_size, F, num_blocks) -> (B*C, block_size*F, num_blocks)
+        self._reshape_3 = lambda x: x.reshape(x.shape[0], -1, x.shape[4])
 
-        # (B*C, F*block_size, num_blocks) -> (B*C, 1, T, F)
+        # (B*C, block_size*F, num_blocks) -> (B*C, 1, T, F)
         self._fold = lambda x, o: F.fold(
             x, o, (self.block_size, o[1]), stride=(self.stride, 1)
         )
 
         # (B*C, 1, T, F) -> (B, C, T, F)
-        self._reshape_4 = lambda x: x.view(-1, self.channels, *x.shape[2:])
+        self._reshape_4 = lambda x: x.reshape(-1, self.channels, *x.shape[2:])
 
         # ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~ ~
 
