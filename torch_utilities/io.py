@@ -129,7 +129,7 @@ def load_audio_parallel(
         _load = lambda x: load_audio(x, sample_rate, False)[0]
         xs = pool.map(_load, file_paths)
     if tensor:
-        xs = [torch.tensor(x, device=device) for x in xs]
+        xs = [torch.tensor(x, device=device, dtype=torch.float32) for x in xs]
     return xs
 
 
