@@ -21,7 +21,7 @@ __all__ = [
     "SlidingCausalMultiheadAttention",
 ]
 
-from typing import Callable, List, Optional, Tuple
+from typing import Callable, Sequence, Optional, Tuple
 import torch.nn.functional as F
 from torch import nn, Tensor
 from torch.nn import Module
@@ -51,7 +51,7 @@ def get_time_value(param):
     scalar
         Temporal parameter
     """
-    if type(param) in (tuple, list):
+    if isinstance(param, Sequence):
         return param[0]
     else:
         return param
@@ -72,7 +72,7 @@ def get_freq_value(param):
     scalar
         Temporal parameter
     """
-    if type(param) in (tuple, list):
+    if isinstance(param, Sequence):
         return param[1]
     else:
         return param
@@ -95,7 +95,7 @@ def get_default_dilation(
     kernel_size: OneOrPair[int],
     depth: int,
     disable_dilation_f: bool = False,
-) -> List[Tuple[int, int]]:
+) -> Sequence[Tuple[int, int]]:
     """
     The default dilation is an increasing power of the kernel
     # e.g: d_t_conv2 = k_t**2
@@ -112,7 +112,7 @@ def get_default_dilation(
 
     Returns
     -------
-    List[Tuple[int, int]]
+    Sequence[Tuple[int, int]]
         default dilation
     """
     k_t, k_f = [f(kernel_size) for f in (get_time_value, get_freq_value)]
@@ -467,7 +467,7 @@ class FoldSpectrogram(Module):
 
 
 class ResidualWrap(Module):
-    def __init__(self, *modules: List[Module]):
+    def __init__(self, *modules: Sequence[Module]):
         """
         Given a series of layers F(x) it reparametrize
         them as (x + F(x)).
@@ -476,7 +476,7 @@ class ResidualWrap(Module):
 
         Parameters
         ----------
-        modules : List[Module]
+        modules : Sequence[Module]
             Series of modules
         """
         super().__init__()
